@@ -287,6 +287,23 @@
 
     // Firebase 초기화 및 Firestore 생성
     const app = initializeApp(firebaseConfig);
+    // 1. Firebase 초기화
+firebase.initializeApp(firebaseConfig);
+
+// --- [여기에 1단계 오프라인 캐시 설정 코드 추가] ---
+firebase.firestore().enablePersistence({ synchronizeTabs: true })
+  .catch((err) => {
+    if (err.code == 'failed-precondition') {
+      // 여러 탭이 동시에 열려있는 경우 발생 가능
+      console.warn('Persistence failed: Multiple tabs open.');
+    } else if (err.code == 'unimplemented') {
+      // 브라우저가 오프라인 지속성을 지원하지 않는 경우
+      console.warn('Persistence is not available in this browser.');
+    }
+  });
+
+// 기존에 사용하던 db 인스턴스 선언
+const db = firebase.firestore();
     const db = getFirestore(app);
 
     // Global App State
