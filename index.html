@@ -317,8 +317,10 @@
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">권한 및 직책</label>
           <select id="addMemberRole" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
-            <option value="member">일반회원</option>
             <option value="admin">운영진</option>
+            <option value="member">일반회원</option>
+            <option value="rest">쉼회원</option>
+            <option value="coach">코치</option>
           </select>
         </div>
         <div>
@@ -346,8 +348,10 @@
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">직책</label>
           <select id="editMemberRole" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
-            <option value="member">일반회원</option>
             <option value="admin">운영진</option>
+            <option value="member">일반회원</option>
+            <option value="rest">쉼회원</option>
+            <option value="coach">코치</option>
           </select>
         </div>
         <div class="flex gap-2 pt-2">
@@ -433,6 +437,32 @@
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
     let isEditingVote = false;
+    let isRegularVoteAccordionOpen = false;
+
+    const roleOrder = { 'admin': 1, 'member': 2, 'rest': 3, 'coach': 4 };
+    const roleLabels = { 'admin': '운영진', 'member': '일반회원', 'rest': '쉼회원', 'coach': '코치' };
+
+    function sortMembers(members) {
+      return [...members].sort((a, b) => {
+        const orderA = roleOrder[a.role] || 99;
+        const orderB = roleOrder[b.role] || 99;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.name || '').localeCompare(b.name || '', 'ko');
+      });
+    }
+
+    function sortEventsByDate(events) {
+      const today = getTodayString();
+      const future = events.filter(e => e.date >= today).sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return (a.time || '').localeCompare(b.time || '');
+      });
+      const past = events.filter(e => e.date < today).sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return (b.time || '').localeCompare(a.time || '');
+      });
+      return [...future, ...past];
+    }
 
     let pageState = {
       homePosts: 1,
@@ -572,7 +602,8 @@
 
       onSnapshot(collection(db, "events"), (snapshot) => {
         sampleData.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const regularEvents = sampleData.events.filter(e => e.type === 'regular');
+        const today = getTodayString();
+        const regularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
         if (regularEvents.length > 0 && (!selectedHomeDate || !regularEvents.some(e => e.date === selectedHomeDate))) {
           selectedHomeDate = regularEvents[0].date;
         }
@@ -679,7 +710,7 @@
       if (currentUser) {
         headerArea.innerHTML = `
           <div class="flex items-center gap-1.5">
-            <span class="text-[10px] sm:text-xs bg-indigo-800 text-indigo-200 px-1.5 sm:px-2 py-0.5 rounded-md font-bold shrink-0">${currentUser.role === 'admin' ? '운영진' : '회원'}</span>
+            <span class="text-[10px] sm:text-xs bg-indigo-800 text-indigo-200 px-1.5 sm:px-2 py-0.5 rounded-md font-bold shrink-0">${roleLabels[currentUser.role] || '회원'}</span>
             <span class="text-xs sm:text-sm font-bold truncate max-w-[80px] sm:max-w-none">${currentUser.name}님</span>
           </div>
           <button onclick="window.handleLogout()" class="text-xs text-gray-300 hover:text-white underline shrink-0 ml-1">로그아웃</button>
@@ -819,14 +850,17 @@
     // ==================== 1. 홈 탭 ====================
     function renderHome(container) {
       const stats = sampleData.stats;
-      const regularEvents = sampleData.events.filter(e => e.type === 'regular');
+      const today = getTodayString();
+      const regularEvents = sampleData.events
+        .filter(e => e.type === 'regular' && e.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date));
 
       if (!selectedHomeDate && regularEvents.length > 0) {
         selectedHomeDate = regularEvents[0].date;
       }
 
       const currentEvent = regularEvents.find(e => e.date === selectedHomeDate) || regularEvents[0] || {
-        date: "2026-09-18", title: "목요 정기운동", location: "순천 조례초", time: "18:30"
+        date: today, title: "정기운동", location: "순천 조례초", time: "18:30"
       };
 
       const dateKey = currentEvent.date;
@@ -849,7 +883,10 @@
       const myStatus = currentUser ? (curDateVotes[currentUser.name] || "미정") : "미정";
       const vote = sampleData.specialVote;
       const pagedPosts = paginate(sampleData.boardPosts, 5, pageState.homePosts);
-      const pagedUpcomingEvents = paginate(sampleData.events, 5, pageState.homeUpcomingEvents);
+      const upcomingEvents = sampleData.events
+        .filter(e => e.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const pagedUpcomingEvents = paginate(upcomingEvents, 5, pageState.homeUpcomingEvents);
 
       const videoPosts = sampleData.boardPosts.filter(p => p.category === '영상게시판');
       const pagedVideoPosts = paginate(videoPosts, 4, pageState.homeVideoPosts);
@@ -1010,7 +1047,7 @@
                 </div>
               `).join('')}
             </div>
-            ${renderPaginationUI(sampleData.events.length, 5, pageState.homeUpcomingEvents, 'changeHomeUpcomingEventsPage')}
+            ${renderPaginationUI(upcomingEvents.length, 5, pageState.homeUpcomingEvents, 'changeHomeUpcomingEventsPage')}
           </section>
         </div>
 
@@ -1594,7 +1631,7 @@
                 <div>
                   <div class="flex items-center gap-1.5">
                     <h3 class="text-sm sm:text-base font-black text-gray-900">${currentUser.name}</h3>
-                    <span class="text-[10px] sm:text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">${currentUser.role === 'admin' ? '운영진' : '정회원'}</span>
+                    <span class="text-[10px] sm:text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">${roleLabels[currentUser.role] || '정회원'}</span>
                   </div>
                   <p class="text-xs text-gray-500">순천 VEGA 배구동호회</p>
                 </div>
@@ -1710,6 +1747,11 @@
       }
     };
 
+    window.toggleRegularVoteAccordion = () => {
+      isRegularVoteAccordionOpen = !isRegularVoteAccordionOpen;
+      renderAdminTab(document.getElementById('app'));
+    };
+
     function renderAdminTab(container) {
       if (!currentUser || currentUser.role !== 'admin') {
         container.innerHTML = `
@@ -1722,9 +1764,12 @@
         return;
       }
 
-      const pagedMembers = paginate(sampleData.members, 5, pageState.adminMembers);
+      const sortedMembers = sortMembers(sampleData.members);
+      const pagedMembers = paginate(sortedMembers, 5, pageState.adminMembers);
       const pagedSuggestions = paginate(sampleData.suggestions, 5, pageState.adminSuggestions);
-      const pagedEvents = paginate(sampleData.events, 5, pageState.adminEvents);
+      
+      const sortedEvents = sortEventsByDate(sampleData.events);
+      const pagedEvents = paginate(sortedEvents, 5, pageState.adminEvents);
 
       const regularEvents = sampleData.events.filter(e => e.type === 'regular');
       if (!sampleData.regularVotesByDate[selectedAdminDate]) {
@@ -1825,56 +1870,64 @@
           </div>
 
           <!-- 정기운동 참가 현황 수동 관리 -->
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <h3 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>🏐</span> 정기운동 참가 수동 변경</h3>
-              <div class="flex items-center gap-1">
-                <label class="text-[10px] sm:text-[11px] font-bold text-gray-600">대상:</label>
-                <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
-                  ${regularEvents.map(evt => `
-                    <option value="${evt.date}" ${evt.date === selectedAdminDate ? 'selected' : ''}>
-                      ${evt.date} (${evt.title})
-                    </option>
-                  `).join('')}
-                </select>
-              </div>
-            </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <button onclick="window.toggleRegularVoteAccordion()" class="w-full p-4 sm:p-5 text-left font-black text-gray-900 flex justify-between items-center bg-white hover:bg-gray-50 transition">
+              <span class="text-sm sm:text-base flex items-center gap-1.5"><span>🏐</span> 정기운동 참가 수동 변경</span>
+              <span class="text-xs text-gray-500 font-bold">${isRegularVoteAccordionOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+            </button>
+            ${isRegularVoteAccordionOpen ? `
+              <div class="p-4 sm:p-5 border-t border-gray-100 pt-0">
+                <div class="flex justify-between items-center mb-3 flex-wrap gap-2 pt-3">
+                  <span class="text-xs text-gray-500">대상을 선택하여 수동으로 참석 여부를 변경할 수 있습니다.</span>
+                  <div class="flex items-center gap-1">
+                    <label class="text-[10px] sm:text-[11px] font-bold text-gray-600">대상:</label>
+                    <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
+                      ${regularEvents.map(evt => `
+                        <option value="${evt.date}" ${evt.date === selectedAdminDate ? 'selected' : ''}>
+                          ${evt.date} (${evt.title})
+                        </option>
+                      `).join('')}
+                    </select>
+                  </div>
+                </div>
 
-            <div class="overflow-x-auto min-h-[160px]">
-              <table class="w-full text-left text-xs whitespace-nowrap">
-                <thead>
-                  <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
-                    <th class="p-2.5">회원명</th>
-                    <th class="p-2.5">직책</th>
-                    <th class="p-2.5">상태</th>
-                    <th class="p-2.5 text-right">수동 변경</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${sampleData.members.map(m => {
-                    const status = currentVotes[m.name] || "미정";
-                    return `
-                      <tr>
-                        <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
-                        <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${m.role === 'admin' ? '운영진' : '회원'}</span></td>
-                        <td class="p-2.5">
-                          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${status === '참가' ? 'bg-emerald-100 text-emerald-800' : status === '불참' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}">
-                            ${status}
-                          </span>
-                        </td>
-                        <td class="p-2.5 text-right">
-                          <div class="inline-flex gap-1">
-                            <button onclick="window.updateAdminMemberVote('${m.name}', '참가')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">참가</button>
-                            <button onclick="window.updateAdminMemberVote('${m.name}', '불참')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">불참</button>
-                            <button onclick="window.updateAdminMemberVote('${m.name}', '미정')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">미정</button>
-                          </div>
-                        </td>
+                <div class="overflow-x-auto min-h-[160px]">
+                  <table class="w-full text-left text-xs whitespace-nowrap">
+                    <thead>
+                      <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
+                        <th class="p-2.5">회원명</th>
+                        <th class="p-2.5">직책</th>
+                        <th class="p-2.5">상태</th>
+                        <th class="p-2.5 text-right">수동 변경</th>
                       </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                      ${sortedMembers.map(m => {
+                        const status = currentVotes[m.name] || "미정";
+                        return `
+                          <tr>
+                            <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
+                            <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${roleLabels[m.role] || '회원'}</span></td>
+                            <td class="p-2.5">
+                              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${status === '참가' ? 'bg-emerald-100 text-emerald-800' : status === '불참' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}">
+                                ${status}
+                              </span>
+                            </td>
+                            <td class="p-2.5 text-right">
+                              <div class="inline-flex gap-1">
+                                <button onclick="window.updateAdminMemberVote('${m.name}', '참가')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">참가</button>
+                                <button onclick="window.updateAdminMemberVote('${m.name}', '불참')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">불참</button>
+                                <button onclick="window.updateAdminMemberVote('${m.name}', '미정')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">미정</button>
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           <!-- 회원 계정 관리 -->
@@ -1897,18 +1950,19 @@
                   ${pagedMembers.map(m => `
                     <tr>
                       <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
-                      <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${m.role === 'admin' ? '운영진' : '일반회원'}</span></td>
+                      <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${roleLabels[m.role] || '일반회원'}</span></td>
                       <td class="p-2.5 text-gray-500 font-mono">${m.password || '0000'}</td>
                       <td class="p-2.5 text-right">
                         <button onclick="window.resetMemberPassword('${m.name}')" class="bg-amber-50 text-amber-700 font-bold px-2 py-1 rounded text-[10px] border border-amber-200 hover:bg-amber-100 mr-1">초기화</button>
-                        <button onclick="window.openEditMemberModal('${m.name}', '${m.role}')" class="bg-gray-100 text-gray-700 font-bold px-2 py-1 rounded text-[10px] hover:bg-gray-200">수정</button>
+                        <button onclick="window.openEditMemberModal('${m.id || m.name}', '${m.name}', '${m.role}')" class="bg-gray-100 text-gray-700 font-bold px-2 py-1 rounded text-[10px] hover:bg-gray-200 mr-1">수정</button>
+                        <button onclick="window.deleteMember('${m.id || m.name}', '${m.name}')" class="bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded text-[10px] border border-rose-200 hover:bg-rose-100">삭제</button>
                       </td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
-            ${renderPaginationUI(sampleData.members.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
+            ${renderPaginationUI(sortedMembers.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
           </div>
 
           <!-- 익명 건의함 -->
@@ -1921,15 +1975,14 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 mb-1">
                       <span class="text-[10px] text-gray-400">${s.date}</span>
-                      <select onchange="window.updateSuggestionStatus('${s.id}', this.value)" class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-gray-300 bg-white cursor-pointer ${s.status === '처리완료' ? 'text-emerald-800 bg-emerald-50' : s.status === '처리중' ? 'text-blue-800 bg-blue-50' : 'text-amber-800 bg-amber-50'}">
+                      <select onchange="window.updateSuggestionStatus('${s.id}', this.value)" class="text-[10px] font-bold p-1 border rounded bg-white">
                         <option value="검토중" ${s.status === '검토중' ? 'selected' : ''}>검토중</option>
-                        <option value="처리중" ${s.status === '처리중' ? 'selected' : ''}>처리중</option>
-                        <option value="처리완료" ${s.status === '처리완료' ? 'selected' : ''}>처리완료</option>
+                        <option value="반영완료" ${s.status === '반영완료' ? 'selected' : ''}>반영완료</option>
+                        <option value="보류" ${s.status === '보류' ? 'selected' : ''}>보류</option>
                       </select>
                     </div>
                     <p class="font-bold text-gray-800 break-all">${s.text}</p>
                   </div>
-                  <button onclick="window.deleteSuggestion('${s.id}')" class="text-rose-500 font-bold text-[10px] hover:underline shrink-0">삭제</button>
                 </div>
               `).join('')}
             </div>
@@ -1949,17 +2002,28 @@
     };
 
     window.updateAdminMemberVote = async (memberName, status) => {
+      if(!selectedAdminDate) return alert('날짜를 먼저 선택해 주세요.');
       const votesObj = sampleData.regularVotesByDate[selectedAdminDate] || {};
       votesObj[memberName] = status;
+
       await setDoc(doc(db, "regularVotes", selectedAdminDate), { votes: votesObj }, { merge: true });
     };
 
-    window.openAddMemberModal = () => {
-      document.getElementById('addMemberName').value = '';
-      document.getElementById('addMemberRole').value = 'member';
-      document.getElementById('addMemberPassword').value = '0000';
-      document.getElementById('addMemberModal').classList.remove('hidden');
+    window.resetMemberPassword = async (memberName) => {
+      if(confirm(`${memberName} 회원의 비밀번호를 초기화(0000)하시겠습니까?`)) {
+        await setDoc(doc(db, "members", memberName), { password: "0000" }, { merge: true });
+        alert('비밀번호가 0000으로 초기화되었습니다.');
+      }
     };
+
+    window.deleteMember = async (docId, memberName) => {
+      if(confirm(`${memberName} 회원을 정말 삭제하시겠습니까?`)) {
+        await deleteDoc(doc(db, "members", docId));
+        alert('회원이 삭제되었습니다.');
+      }
+    };
+
+    window.openAddMemberModal = () => document.getElementById('addMemberModal').classList.remove('hidden');
     window.closeAddMemberModal = () => document.getElementById('addMemberModal').classList.add('hidden');
 
     window.handleCreateMember = async (e) => {
@@ -1968,130 +2032,41 @@
       const role = document.getElementById('addMemberRole').value;
       const pass = document.getElementById('addMemberPassword').value.trim();
 
-      if (!name) return alert('회원 이름을 입력해 주세요.');
-      if (pass.length !== 4) return alert('초기 비밀번호는 4자리로 설정해 주세요.');
-
       await setDoc(doc(db, "members", name), {
         name: name,
         role: role,
-        password: pass,
+        password: pass || "0000",
         createdAt: serverTimestamp()
       });
 
-      alert(`'${name}' 회원이 추가되었습니다.`);
+      alert('새 회원이 추가되었습니다.');
       window.closeAddMemberModal();
     };
 
-    window.resetMemberPassword = async (name) => {
-      if (confirm(`'${name}' 회원의 비밀번호를 초기값 '0000'으로 리셋하시겠습니까?`)) {
-        await setDoc(doc(db, "members", name), { password: "0000" }, { merge: true });
-        alert(`'${name}' 회원의 비밀번호가 0000으로 초기화되었습니다.`);
-      }
-    };
-
-    window.openEditMemberModal = (name, role) => {
-      document.getElementById('editMemberDocId').value = name;
+    window.openEditMemberModal = (docId, name, role) => {
+      document.getElementById('editMemberDocId').value = docId;
       document.getElementById('editMemberName').value = name;
-      document.getElementById('editMemberRole').value = role;
+      document.getElementById('editMemberRole').value = role || 'member';
       document.getElementById('editMemberModal').classList.remove('hidden');
     };
     window.closeEditMemberModal = () => document.getElementById('editMemberModal').classList.add('hidden');
 
     window.handleSaveEditMember = async (e) => {
       e.preventDefault();
-      const originalName = document.getElementById('editMemberDocId').value;
+      const docId = document.getElementById('editMemberDocId').value;
       const newName = document.getElementById('editMemberName').value.trim();
       const newRole = document.getElementById('editMemberRole').value;
 
-      if (!newName) return alert('회원 이름을 입력해 주세요.');
-
-      if (originalName !== newName) {
-        const oldDocRef = doc(db, "members", originalName);
-        const oldSnap = await getDoc(oldDocRef);
-        const oldData = oldSnap.exists() ? oldSnap.data() : { password: "0000" };
-
-        await setDoc(doc(db, "members", newName), {
-          ...oldData,
-          name: newName,
-          role: newRole
-        });
-        await deleteDoc(oldDocRef);
-      } else {
-        await updateDoc(doc(db, "members", originalName), {
-          role: newRole
-        });
-      }
+      await setDoc(doc(db, "members", docId), {
+        name: newName,
+        role: newRole
+      }, { merge: true });
 
       alert('회원 정보가 수정되었습니다.');
       window.closeEditMemberModal();
     };
 
-    window.handleAutoGenerateMonthlyEvents = async (e) => {
-      e.preventDefault();
-      const yearMonth = document.getElementById('autoGenMonth').value;
-      const time = document.getElementById('autoGenTime').value;
-      const location = document.getElementById('autoGenLocation').value.trim();
-      const desc = document.getElementById('autoGenDesc').value.trim();
-
-      const checkboxes = document.querySelectorAll('input[name="autoDay"]:checked');
-      const selectedDays = Array.from(checkboxes).map(cb => parseInt(cb.value));
-
-      if (selectedDays.length === 0) {
-        return alert('최소 하나 이상의 요일을 선택해 주세요.');
-      }
-
-      const [yearStr, monthStr] = yearMonth.split('-');
-      const year = parseInt(yearStr);
-      const month = parseInt(monthStr);
-
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-
-      let createdCount = 0;
-      let skippedHolidaysCount = 0;
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateObj = new Date(year, month - 1, day);
-        const dayOfWeek = dateObj.getDay();
-
-        if (selectedDays.includes(dayOfWeek)) {
-          if (isKoreanHoliday(dateObj)) {
-            skippedHolidaysCount++;
-            continue;
-          }
-
-          const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const dayName = dayNames[dayOfWeek];
-          const eventTitle = `${dayName}요 정기운동`;
-
-          const eventId = `reg_${formattedDate}`;
-          await setDoc(doc(db, "events", eventId), {
-            id: eventId,
-            type: "regular",
-            title: eventTitle,
-            date: formattedDate,
-            time: time,
-            location: location,
-            description: desc,
-            createdAt: serverTimestamp()
-          });
-
-          createdCount++;
-        }
-      }
-
-      alert(`${year}년 ${month}월 정기 운동 일정 ${createdCount}건이 자동 생성되었습니다.\n(공휴일 ${skippedHolidaysCount}건 제외됨)`);
-    };
-
-    window.openAddEventModal = () => {
-      if (!currentUser || currentUser.role !== 'admin') return alert('운영진 권한이 필요합니다.');
-      document.getElementById('newEventTitle').value = '';
-      document.getElementById('newEventDate').value = getTodayString();
-      document.getElementById('newEventTime').value = '19:30';
-      document.getElementById('newEventLocation').value = '순천 조례초';
-      document.getElementById('newEventDesc').value = '';
-      document.getElementById('addEventModal').classList.remove('hidden');
-    };
+    window.openAddEventModal = () => document.getElementById('addEventModal').classList.remove('hidden');
     window.closeAddEventModal = () => document.getElementById('addEventModal').classList.add('hidden');
 
     window.handleCreateEvent = async (e) => {
@@ -2103,16 +2078,8 @@
       const location = document.getElementById('newEventLocation').value.trim();
       const description = document.getElementById('newEventDesc').value.trim();
 
-      const newId = `evt_${Date.now()}`;
-      await setDoc(doc(db, "events", newId), {
-        id: newId,
-        type: type,
-        title: title,
-        date: date,
-        time: time,
-        location: location,
-        description: description,
-        createdAt: serverTimestamp()
+      await addDoc(collection(db, "events"), {
+        type, title, date, time, location, description, createdAt: serverTimestamp()
       });
 
       alert('새 일정이 등록되었습니다.');
@@ -2120,20 +2087,65 @@
     };
 
     window.deleteEvent = async (eventId) => {
-      if (confirm('이 일정을 삭제하시겠습니까?')) {
+      if (confirm('해당 일정을 삭제하시겠습니까?')) {
         await deleteDoc(doc(db, "events", String(eventId)));
         alert('일정이 삭제되었습니다.');
       }
     };
 
-    window.deleteSuggestion = async (suggestionId) => {
-      if (confirm('건의사항을 삭제하시겠습니까?')) {
-        await deleteDoc(doc(db, "suggestions", String(suggestionId)));
+    window.handleAutoGenerateMonthlyEvents = async (e) => {
+      e.preventDefault();
+      const monthVal = document.getElementById('autoGenMonth').value; 
+      const timeVal = document.getElementById('autoGenTime').value;
+      const locVal = document.getElementById('autoGenLocation').value.trim();
+      const descVal = document.getElementById('autoGenDesc').value.trim();
+
+      const selectedDays = Array.from(document.querySelectorAll('input[name="autoDay"]:checked')).map(el => parseInt(el.value));
+
+      if (selectedDays.length === 0) {
+        return alert('정기 운동 요일을 하나 이상 선택해 주세요.');
       }
+
+      const [year, month] = monthVal.split('-').map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      let createdCount = 0;
+      let skippedCount = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month - 1, day);
+        const dayOfWeek = dateObj.getDay();
+
+        if (selectedDays.includes(dayOfWeek)) {
+          if (isKoreanHoliday(dateObj)) {
+            skippedCount++;
+            continue;
+          }
+
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+          const title = `${dayNames[dayOfWeek]}요 정기운동`;
+
+          const exists = sampleData.events.some(e => e.date === dateStr && e.type === 'regular');
+          if (!exists) {
+            await addDoc(collection(db, "events"), {
+              type: "regular",
+              title: title,
+              date: dateStr,
+              time: timeVal,
+              location: locVal,
+              description: descVal,
+              createdAt: serverTimestamp()
+            });
+            createdCount++;
+          }
+        }
+      }
+
+      alert(`정기 운동 일정 자동 생성 완료!\n- 추가된 일정: ${createdCount}개\n- 공휴일로 제외된 날짜: ${skippedCount}개`);
     };
 
-    // 초기 화면 실행
-    refreshCurrentTab();
+    switchTab('home');
   </script>
 </body>
 </html>
