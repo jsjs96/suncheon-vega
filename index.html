@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>순천 VEGA 배구동호회</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FullCalendar -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+  <style>
+    .fc-day-sat .fc-col-header-cell-cushion,
+    .fc-day-sat .fc-daygrid-day-number { color: #2563eb !important; font-weight: bold; }
+    .fc-day-sun .fc-col-header-cell-cushion,
+    .fc-day-sun .fc-daygrid-day-number { color: #dc2626 !important; font-weight: bold; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
+
+  <!-- ==================== Header ==================== -->
+  <header class="bg-indigo-950 text-white p-4 shadow-md fixed top-0 left-0 right-0 z-50 flex justify-between items-center h-16">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">🏐</span>
+      <h1 class="text-xl font-black tracking-wider cursor-pointer" onclick="switchTab('home')">순천 VEGA</h1>
+    </div>
+    <div id="userHeaderArea" class="flex items-center gap-3"></div>
+  </header>
+
+  <!-- ==================== Navigation Bar ==================== -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-2 z-40 md:top-16 md:bottom-auto md:border-b md:border-t-0 md:justify-center md:gap-12 shadow-md h-14 md:h-12 items-center">
+    <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-xs font-bold text-indigo-900">
+      <span class="text-base md:text-sm">🏠</span> 홈
+    </button>
+    <button onclick="switchTab('calendar')" id="nav-calendar" class="flex flex-col items-center text-xs font-bold text-gray-400 hover:text-indigo-900">
+      <span class="text-base md:text-sm">📅</span> 일정
+    </button>
+    <button onclick="switchTab('board')" id="nav-board" class="flex flex-col items-center text-xs font-bold text-gray-400 hover:text-indigo-900">
+      <span class="text-base md:text-sm">📋</span> 게시판
+    </button>
+    <button onclick="switchTab('myinfo')" id="nav-myinfo" class="flex flex-col items-center text-xs font-bold text-gray-400 hover:text-indigo-900">
+      <span class="text-base md:text-sm">👤</span> 나의 정보
+    </button>
+    <button onclick="switchTab('admin')" id="nav-admin" class="flex flex-col items-center text-xs font-bold text-gray-400 hover:text-indigo-900">
+      <span class="text-base md:text-sm">⚙️</span> 운영진
+    </button>
+  </nav>
+
+  <!-- ==================== Main Content ==================== -->
+  <main id="app" class="max-w-5xl mx-auto p-4 mt-20 md:mt-32 min-h-[80vh]"></main>
+
+  <!-- ==================== Modals ==================== -->
+  <!-- 로그인 모달 -->
+  <div id="loginModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+      <h2 class="text-2xl font-black text-indigo-950 mb-1 text-center">순천 VEGA 로그인</h2>
+      <p class="text-xs text-gray-500 mb-6 text-center">이름과 비밀번호 4자리를 입력하세요.</p>
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">이름</label>
+          <input type="text" id="loginName" required placeholder="예: 홍길동 (운영진 접속: 회장)" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">비밀번호 (초기: 0000)</label>
+          <input type="password" id="loginPass" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-sm" />
+        </div>
+        <button type="submit" class="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-3 rounded-xl transition shadow-md">로그인</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 비밀번호 변경 모달 -->
+  <div id="passwordModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+      <h2 class="text-xl font-black text-indigo-950 mb-4 text-center">비밀번호 변경</h2>
+      <form onsubmit="handleChangePassword(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">새 비밀번호 (4자리)</label>
+          <input type="password" id="newPass" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm" />
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="closePasswordModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
+          <button type="submit" class="w-1/2 bg-indigo-900 text-white font-bold py-2.5 rounded-xl text-xs">변경하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 투표 현황 모달 -->
+  <div id="voteStatusModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b">
+        <h2 id="voteModalTitle" class="text-base font-black text-indigo-950 truncate pr-2">투표 현황</h2>
+        <button onclick="closeVoteModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+      </div>
+      <div id="voteModalContent" class="space-y-4 overflow-y-auto text-xs pr-1"></div>
+      <button onclick="closeVoteModal()" class="mt-4 w-full bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-xs">닫기</button>
+    </div>
+  </div>
+
+  <!-- 일정 상세 모달 -->
+  <div id="eventDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+      <div class="flex justify-between items-center mb-3 pb-2 border-b">
+        <span id="eventCategoryBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-900">일정</span>
+        <button onclick="closeEventDetailModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+      </div>
+      <h3 id="eventDetailTitle" class="text-lg font-black text-indigo-950 mb-3">일정 제목</h3>
+      <div class="space-y-2 text-xs text-gray-600 mb-5 bg-gray-50 p-3 rounded-xl border border-gray-100">
+        <p class="flex items-center gap-2"><span class="font-bold text-gray-800 w-12">📅 일시:</span> <span id="eventDetailTime"></span></p>
+        <p class="flex items-center gap-2"><span class="font-bold text-gray-800 w-12">📍 장소:</span> <span id="eventDetailLocation"></span></p>
+        <div class="pt-2 border-t border-gray-200 mt-2">
+          <p class="font-bold text-gray-800 mb-1">📝 상세 내용:</p>
+          <p id="eventDetailDesc" class="text-gray-600 whitespace-pre-line leading-relaxed"></p>
+        </div>
+      </div>
+      <button onclick="closeEventDetailModal()" class="w-full bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">확인</button>
+    </div>
+  </div>
+
+  <!-- 게시글 작성 모달 -->
+  <div id="writePostModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 pb-2 border-b">
+        <h3 id="writeModalTitle" class="text-base font-black text-indigo-950">새 게시글 작성</h3>
+        <button onclick="closeWritePostModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+      </div>
+      <form onsubmit="handleCreatePost(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">카테고리</label>
+          <select id="postCategorySelect" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
+            <option value="자유게시판">자유게시판</option>
+            <option value="공지사항">공지사항</option>
+            <option value="영상게시판">영상게시판</option>
+            <option value="🔒 익명 건의사항">🔒 익명 건의사항</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">제목</label>
+          <input type="text" id="postTitleInput" required placeholder="제목을 입력하세요" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">내용</label>
+          <textarea id="postContentInput" rows="4" required placeholder="내용을 입력하세요" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">📷 이미지 첨부</label>
+          <input type="file" id="postImageInput" accept="image/*" onchange="previewImage(event)" class="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-900 hover:file:bg-indigo-100" />
+          <div id="imagePreviewContainer" class="mt-2 hidden">
+            <img id="imagePreview" src="" alt="미리보기" class="w-full max-h-40 object-cover rounded-xl border border-gray-200" />
+          </div>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeWritePostModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
+          <button type="submit" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">등록하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 게시글 상세 조회 모달 -->
+  <div id="postDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center mb-3 pb-2 border-b">
+        <span id="postDetailCategory" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-900"></span>
+        <button onclick="closePostDetailModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+      </div>
+      <div class="overflow-y-auto pr-1 space-y-4 flex-1">
+        <div>
+          <h3 id="postDetailTitle" class="text-base font-black text-gray-900 mb-1"></h3>
+          <div class="flex items-center justify-between text-[11px] text-gray-400 border-b border-gray-100 pb-2">
+            <span id="postDetailAuthor" class="font-bold text-indigo-900"></span>
+            <span id="postDetailDate"></span>
+          </div>
+        </div>
+        <div id="postDetailImageContainer" class="hidden">
+          <img id="postDetailImage" src="" class="w-full rounded-xl object-cover max-h-60 border border-gray-100 shadow-sm" />
+        </div>
+        <p id="postDetailContent" class="text-xs text-gray-700 leading-relaxed whitespace-pre-line bg-gray-50 p-3 rounded-xl border border-gray-100"></p>
+        
+        <!-- 댓글 영역 -->
+        <div class="pt-3 border-t border-gray-100">
+          <h4 class="text-xs font-bold text-gray-900 mb-2">💬 댓글 목록</h4>
+          <div id="postCommentsList" class="space-y-2 mb-3"></div>
+          <form onsubmit="handleAddComment(event)" class="flex gap-2">
+            <input type="text" id="commentInput" required placeholder="댓글을 입력하세요..." class="flex-1 p-2 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+            <button type="submit" class="bg-indigo-900 text-white px-3 py-2 rounded-xl text-xs font-bold shrink-0">작성</button>
+          </form>
+        </div>
+      </div>
+      <button onclick="closePostDetailModal()" class="mt-4 w-full bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-xs">닫기</button>
+    </div>
+  </div>
+
+  <!-- ==================== App JavaScript ==================== -->
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem('vega_user')) || { name: "홍길동", role: "member" };
+    let currentTab = 'home';
+    let currentBoardCategory = '투표게시판';
+    let currentViewingPostId = null;
+    let uploadedImageBase64 = null;
+    let selectedAdminDate = "2026-09-17"; // 운영진 관리 전용 날짜 선택
+
+    // 각 영역별 페이지네이션 상태
+    let pageState = {
+      homePosts: 1,
+      boardPosts: 1,
+      myVotes: 1,
+      myPosts: 1,
+      myComments: 1,
+      adminMembers: 1,
+      adminSuggestions: 1,
+      adminEvents: 1,
+      adminRegularVotes: 1
+    };
+
+    // 데이터 정의
+    const sampleData = {
+      members: [
+        { id: 1, name: "회장님", role: "admin", rate: "92%" },
+        { id: 2, name: "운영진", role: "admin", rate: "88%" },
+        { id: 3, name: "홍길동", role: "member", rate: "85%" },
+        { id: 4, name: "김철수", role: "member", rate: "70%" },
+        { id: 5, name: "이영희", role: "member", rate: "95%" },
+        { id: 6, name: "박민수", role: "member", rate: "60%" },
+        { id: 7, name: "최지은", role: "member", rate: "80%" }
+      ],
+      // 날짜별 정기운동 회원 투표 데이터
+      regularVotesByDate: {
+        "2026-09-15": {
+          "홍길동": "참가", "김철수": "불참", "이영희": "참가", "박민수": "참가", "최지은": "미정", "회장님": "참가", "운영진": "참가"
+        },
+        "2026-09-17": {
+          "홍길동": "참가", "김철수": "불참", "이영희": "참가", "박민수": "미정", "최지은": "참가", "회장님": "참가", "운영진": "참가"
+        },
+        "2026-09-22": {
+          "홍길동": "미정", "김철수": "미정", "이영희": "참가", "박민수": "불참", "최지은": "미정", "회장님": "참가", "운영진": "참가"
+        }
+      },
+      stats: { myAttendance: "85%", myCount: "17회 / 20회", teamAttendance: "78%", monthlyAttend: 7 },
+      regularAttendance: {
+        date: "2026-09-17 (목) 19:30", location: "순천 팔마체육관", myStatus: "참가", maxCapacity: 20,
+        counts: { attend: 12, absent: 4, pending: 2 }
+      },
+      specialVote: {
+        id: 101,
+        title: "2026 순천만배 전국 배구대회 참가 여부", deadline: "09월 20일까지",
+        myStatus: { choice: "참석", reason: "오후 경기부터 참가 가능합니다!" },
+        results: [
+          { choice: "참석 (9명)", voters: ["홍길동 (오후 가능)", "이영희", "김철수", "박민수", "회장님", "최지은", "강백호", "서태웅", "송태섭"] },
+          { choice: "불참 (2명)", voters: ["정대만 (부상)", "채치수 (출장)"] },
+          { choice: "미정 (4명)", voters: ["윤대협", "변덕규", "황태산", "안한수"] }
+        ]
+      },
+      boardPosts: [
+        { id: 101, type: "투표", title: "2026 순천만배 전국 배구대회 참가 여부", content: "2026 순천만배 전국 배구대회 참가 여부를 조사합니다.", date: "09.14", author: "운영진", category: "투표게시판", status: "진행중" },
+        { id: 102, type: "투표", title: "10월 정기 회식 장소 투표 (오리불고기 vs 삼겹살)", content: "10월 회식 장소를 선택해주세요.", date: "09.12", author: "운영진", category: "투표게시판", status: "진행중" },
+        { id: 103, type: "투표", title: "2026 하복 유니폼 컬러 선택 투표", content: "유니폼 컬러를 투표로 정합니다.", date: "08.28", author: "운영진", category: "투표게시판", status: "마감" },
+        { id: 1, type: "공지", title: "10월 정기회비 납부 안내", content: "10월 정기회비는 이번 주 금요일까지 계좌로 입금 바랍니다.", date: "09.14", author: "운영진", category: "공지사항" },
+        { id: 2, type: "공지", title: "체육관 사용 시 주의사항 (실내화 착용)", content: "반드시 실내 전용 배구화를 착용해 주세요.", date: "09.10", author: "운영진", category: "공지사항" },
+        { id: 3, type: "자유", title: "오늘 다들 고생하셨습니다!", content: "오늘 훈련 정말 즐거웠습니다. 다들 수고 많으셨습니다!", date: "09.12", author: "김철수", category: "자유게시판" },
+        { id: 4, type: "자유", title: "C속공 연습 팁 공유합니다.", content: "스텝 타임 맞추는 연습 팁입니다. 영상 참고하세요!", date: "09.08", author: "홍길동", category: "자유게시판", image: null },
+        { id: 5, type: "자유", title: "신입 회원 가입 인사드립니다.", content: "안녕하세요! 새로 가입한 박민수입니다. 잘 부탁드립니다.", date: "09.05", author: "박민수", category: "자유게시판" },
+        { id: 6, type: "자유", title: "다음 주 뒷풀이 장소 추천해주세요.", content: "맛있는 음식점 추천 부탁드립니다.", date: "09.01", author: "이영희", category: "자유게시판" },
+        { id: 7, type: "영상", title: "C속공 토스 원포인트 레슨 영상", content: "토스 높이 조절하는 방법 공유합니다.", date: "09.10", author: "이영희", category: "영상게시판" }
+      ],
+      comments: [
+        { id: 1, postId: 4, author: "홍길동", text: "다들 연습 때 적용해 보세요!", date: "09.08" },
+        { id: 2, postId: 4, author: "김철수", text: "좋은 팁 감사합니다!", date: "09.09" },
+        { id: 3, postId: 3, author: "홍길동", text: "수고 많으셨습니다!", date: "09.12" }
+      ],
+      suggestions: [
+        { id: 1, text: "체육관 공 공기압 체크가 더 자주 필요할 것 같습니다.", date: "09.13", status: "검토중" },
+        { id: 2, text: "정기운동 시작 시간 10분만 늦출 수 없을까요?", date: "09.11", status: "답변완료" },
+        { id: 3, text: "대회 참가 지원금 관련 문의입니다.", date: "09.09", status: "검토중" },
+        { id: 4, text: "유니폼 추가 시안 요청합니다.", date: "09.07", status: "답변완료" }
+      ],
+      events: [
+        { id: 1, date: "2026-09-15", time: "19:30", title: "화요 정기운동", type: "regular", location: "순천 팔마체육관", description: "서브 및 기본기 훈련 후 6:6 미니 게임 진행 예정입니다." },
+        { id: 2, date: "2026-09-17", time: "19:30", title: "목요 정기운동", type: "regular", location: "순천 팔마체육관", description: "팀 전술 훈련 및 리시브 전담 연습이 잡혀있습니다." },
+        { id: 3, date: "2026-09-22", time: "19:30", title: "화요 정기운동", type: "regular", location: "순천 팔마체육관", description: "포지션별 집중 전술 훈련입니다." },
+        { id: 4, date: "2026-09-26", time: "09:00", title: "순천만배 전국배구대회", type: "match", location: "순천 팔마체육관 메인경기장", description: "2026 순천만배 전국배구대회 본선 경기입니다. 오전 8시 30분까지 집결 바랍니다." }
+      ],
+      myVotes: [
+        { title: "2026 순천만배 전국 배구대회", choice: "참석", date: "09.13" },
+        { title: "10월 정기 회식 장소 투표", choice: "오리불고기", date: "09.12" },
+        { title: "9월 정기 회식 장소 투표", choice: "불참", date: "09.02" },
+        { title: "하복 유니폼 컬러 선택", choice: "네이비", date: "08.20" },
+        { title: "8월 자율 훈련 여부", choice: "참석", date: "08.11" },
+        { title: "동호회 엠티 장소 투표", choice: "여수", date: "07.28" },
+        { title: "7월 정기 회식 투표", choice: "불참", date: "07.05" }
+      ]
+    };
+
+    // --- 페이지네이션 UI 생성 함수 ---
+    function paginate(array, pageSize, pageNumber) {
+      return array.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
+    }
+
+    function renderPaginationUI(totalItems, pageSize, currentPage, onPageChangeFnName) {
+      const totalPages = Math.ceil(totalItems / pageSize);
+      if (totalPages <= 1) return '';
+
+      let pageBtns = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const isActive = i === currentPage;
+        pageBtns += `
+          <button onclick="${onPageChangeFnName}(${i})" class="w-7 h-7 text-xs font-bold rounded-lg transition ${isActive ? 'bg-indigo-950 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            ${i}
+          </button>
+        `;
+      }
+
+      return `
+        <div class="flex items-center justify-center gap-1.5 pt-4 border-t border-gray-100 mt-3">
+          <button onclick="${onPageChangeFnName}(${currentPage - 1})" ${currentPage === 1 ? 'disabled class="opacity-30 cursor-not-allowed text-xs px-2 py-1 font-bold text-gray-500"' : 'class="text-xs px-2 py-1 font-bold text-indigo-900 hover:bg-gray-100 rounded"'}>
+            이전
+          </button>
+          <div class="flex items-center gap-1">${pageBtns}</div>
+          <button onclick="${onPageChangeFnName}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled class="opacity-30 cursor-not-allowed text-xs px-2 py-1 font-bold text-gray-500"' : 'class="text-xs px-2 py-1 font-bold text-indigo-900 hover:bg-gray-100 rounded"'}>
+            다음
+          </button>
+        </div>
+      `;
+    }
+
+    // --- 초기화 ---
+    window.addEventListener('DOMContentLoaded', () => {
+      renderHeader();
+      switchTab('home');
+    });
+
+    function renderHeader() {
+      const headerArea = document.getElementById('userHeaderArea');
+      if (currentUser) {
+        headerArea.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="text-xs bg-indigo-800 text-indigo-200 px-2 py-1 rounded-md font-bold">${currentUser.role === 'admin' ? '운영진' : '회원'}</span>
+            <span class="text-sm font-bold">${currentUser.name}님</span>
+          </div>
+          <button onclick="handleLogout()" class="text-xs text-gray-300 hover:text-white underline">로그아웃</button>
+        `;
+      } else {
+        headerArea.innerHTML = `
+          <button onclick="openLoginModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition">로그인</button>
+        `;
+      }
+    }
+
+    function openLoginModal() { document.getElementById('loginModal').classList.remove('hidden'); }
+    function closeLoginModal() { document.getElementById('loginModal').classList.add('hidden'); }
+    function openPasswordModal() { document.getElementById('passwordModal').classList.remove('hidden'); }
+    function closePasswordModal() { document.getElementById('passwordModal').classList.add('hidden'); }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const name = document.getElementById('loginName').value.trim();
+      const isAdmin = (name === "운영진" || name === "회장" || name === "회장님");
+      currentUser = { name: name, role: isAdmin ? "admin" : "member" };
+      localStorage.setItem('vega_user', JSON.stringify(currentUser));
+      closeLoginModal();
+      renderHeader();
+      switchTab(currentTab);
+    }
+
+    function handleLogout() {
+      if(confirm("로그아웃 하시겠습니까?")) {
+        localStorage.removeItem('vega_user');
+        currentUser = null;
+        renderHeader();
+        switchTab('home');
+      }
+    }
+
+    function handleChangePassword(e) {
+      e.preventDefault();
+      const newPass = document.getElementById('newPass').value;
+      if (newPass.length !== 4) return alert('비밀번호는 4자리 숫자로 입력해 주세요.');
+      alert('비밀번호가 성공적으로 변경되었습니다.');
+      closePasswordModal();
+    }
+
+    function switchTab(tabName, categoryName) {
+      currentTab = tabName;
+      ['home', 'calendar', 'board', 'myinfo', 'admin'].forEach(tab => {
+        const btn = document.getElementById(`nav-${tab}`);
+        btn.className = (tab === tabName) 
+          ? "flex flex-col items-center text-xs font-bold text-indigo-900" 
+          : "flex flex-col items-center text-xs font-bold text-gray-400 hover:text-indigo-900";
+      });
+
+      if(categoryName) currentBoardCategory = categoryName;
+
+      const app = document.getElementById('app');
+      if (tabName === 'home') renderHome(app);
+      else if (tabName === 'calendar') renderCalendarTab(app);
+      else if (tabName === 'board') renderBoardTab(app);
+      else if (tabName === 'myinfo') renderMyInfoTab(app);
+      else if (tabName === 'admin') renderAdminTab(app);
+    }
+
+    // ==================== 1. 홈 탭 ====================
+    function renderHome(container) {
+      const att = sampleData.regularAttendance;
+      const vote = sampleData.specialVote;
+      const stats = sampleData.stats;
+
+      const totalAtt = att.maxCapacity;
+      const attendPct = (att.counts.attend / totalAtt) * 100;
+      const absentPct = (att.counts.absent / totalAtt) * 100;
+      const pendingPct = (att.counts.pending / totalAtt) * 100;
+
+      const pagedPosts = paginate(sampleData.boardPosts, 5, pageState.homePosts);
+
+      container.innerHTML = `
+        <section class="bg-gradient-to-r from-indigo-900 to-indigo-800 text-white p-5 rounded-2xl shadow-md mb-5">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-base font-black flex items-center gap-1.5"><span>📊</span> 9월 VEGA 출석 현황 리포트</h2>
+            <span class="text-xs bg-indigo-700/60 px-2.5 py-1 rounded-full text-indigo-100 font-medium">이번 달 총 8회</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 bg-white/10 backdrop-blur-md p-4 rounded-xl">
+            <div class="border-r border-indigo-700/50 pr-2">
+              <span class="text-xs text-indigo-200 block mb-1">나의 9월 출석률</span>
+              <div class="flex items-baseline gap-2">
+                <span class="text-2xl font-black text-amber-400">${currentUser ? stats.myAttendance : '- %'}</span>
+                <span class="text-xs text-indigo-200">(${currentUser ? stats.monthlyAttend : 0}/8회)</span>
+              </div>
+            </div>
+            <div class="pl-2">
+              <span class="text-xs text-indigo-200 block mb-1">VEGA 팀 평균 출석률</span>
+              <div class="flex items-baseline gap-2">
+                <span class="text-2xl font-black text-emerald-400">${stats.teamAttendance}</span>
+                <span class="text-xs text-indigo-200">(전체 회원)</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Box 1: 정기운동 -->
+          <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">정기운동</span>
+                <span class="text-xs text-gray-500">${att.location}</span>
+              </div>
+              <h2 class="text-lg font-black text-gray-900 mb-1">🏐 ${att.date} 운동</h2>
+              <p class="text-xs text-gray-500 mb-3">참석 현황: <strong class="text-emerald-600">참가 ${att.counts.attend}</strong> / <strong class="text-rose-600">불참 ${att.counts.absent}</strong> / <strong class="text-amber-500">미정 ${att.counts.pending}</strong> (정원 ${totalAtt}명)</p>
+
+              <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden flex mb-4 shadow-inner">
+                <div style="width: ${attendPct}%" class="bg-emerald-500 h-full flex items-center justify-center text-[9px] font-bold text-white">${att.counts.attend}</div>
+                <div style="width: ${absentPct}%" class="bg-rose-500 h-full flex items-center justify-center text-[9px] font-bold text-white">${att.counts.absent}</div>
+                <div style="width: ${pendingPct}%" class="bg-amber-400 h-full flex items-center justify-center text-[9px] font-bold text-white">${att.counts.pending}</div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-xl">
+              <p class="text-xs font-bold text-gray-600 mb-2">내 참여 상태 선택</p>
+              <div class="grid grid-cols-3 gap-2">
+                <button onclick="updateAttendance('참가')" class="py-2 rounded-xl font-bold text-xs ${att.myStatus === '참가' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">참가 👍</button>
+                <button onclick="updateAttendance('불참')" class="py-2 rounded-xl font-bold text-xs ${att.myStatus === '불참' ? 'bg-rose-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">불참 🖐️</button>
+                <button onclick="updateAttendance('미정')" class="py-2 rounded-xl font-bold text-xs ${att.myStatus === '미정' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 border border-gray-200'}">미정 🤔</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Box 2: 특별 투표 -->
+          <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">특별 투표</span>
+                <button onclick="switchTab('board', '투표게시판')" class="text-xs text-indigo-900 font-bold hover:underline">투표게시판 이동 →</button>
+              </div>
+              <h2 class="text-base font-black text-gray-900 mb-1">🏆 ${vote.title}</h2>
+              <div class="flex justify-between items-center mb-3">
+                <span class="text-xs text-rose-500 font-bold">마감: ${vote.deadline}</span>
+                <button onclick="openVoteModal('${vote.title}')" class="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1 rounded-lg font-bold border border-indigo-200">
+                  🔍 누가 투표했나? (현황)
+                </button>
+              </div>
+            </div>
+
+            <form onsubmit="handleSpecialVote(event)" class="space-y-2 bg-gray-50 p-3 rounded-xl">
+              <div class="grid grid-cols-3 gap-2">
+                <label><input type="radio" name="v" value="참석" ${vote.myStatus.choice === '참석' ? 'checked' : ''} class="hidden peer"><div class="py-2 text-center rounded-lg text-xs font-bold border border-gray-200 bg-white peer-checked:bg-indigo-900 peer-checked:text-white cursor-pointer">참석</div></label>
+                <label><input type="radio" name="v" value="불참" ${vote.myStatus.choice === '불참' ? 'checked' : ''} class="hidden peer"><div class="py-2 text-center rounded-lg text-xs font-bold border border-gray-200 bg-white peer-checked:bg-indigo-900 peer-checked:text-white cursor-pointer">불참</div></label>
+                <label><input type="radio" name="v" value="미정" ${vote.myStatus.choice === '미정' ? 'checked' : ''} class="hidden peer"><div class="py-2 text-center rounded-lg text-xs font-bold border border-gray-200 bg-white peer-checked:bg-indigo-900 peer-checked:text-white cursor-pointer">미정</div></label>
+              </div>
+              <input type="text" value="${vote.myStatus.reason}" placeholder="사유 입력" class="w-full p-2 border border-gray-200 rounded-lg text-xs bg-white" />
+              <button type="submit" class="w-full bg-indigo-950 text-white text-xs font-bold py-2 rounded-lg">투표 저장하기</button>
+            </form>
+          </section>
+
+          <!-- Box 3: 게시판 요약 -->
+          <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-base font-black text-gray-900 flex items-center gap-1.5"><span>📋</span> 게시판 최신글</h2>
+              <button onclick="switchTab('board')" class="text-xs text-indigo-900 font-bold hover:underline">전체보기 →</button>
+            </div>
+            <ul class="divide-y divide-gray-100 min-h-[190px]">
+              ${pagedPosts.map(post => `
+                <li onclick="openPostDetail(${post.id})" class="py-2 flex justify-between items-center text-xs cursor-pointer hover:bg-gray-50 rounded-lg px-1">
+                  <div class="flex items-center gap-2 truncate">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${post.type === '투표' ? 'bg-amber-100 text-amber-800' : post.type === '공지' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}">${post.type}</span>
+                    <span class="font-medium text-gray-800 truncate">${post.title}</span>
+                    ${post.image ? '<span class="text-[10px]">🖼️</span>' : ''}
+                  </div>
+                  <span class="text-gray-400 text-[11px] shrink-0">${post.date}</span>
+                </li>
+              `).join('')}
+            </ul>
+            ${renderPaginationUI(sampleData.boardPosts.length, 5, pageState.homePosts, 'changeHomePostsPage')}
+          </section>
+
+          <!-- Box 4: 다가오는 일정 -->
+          <section class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-base font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 다가오는 일정</h2>
+              <button onclick="switchTab('calendar')" class="text-xs text-indigo-900 font-bold hover:underline">캘린더 →</button>
+            </div>
+            <div class="space-y-2">
+              ${sampleData.events.map(evt => `
+                <div onclick="openEventDetail(${evt.id})" class="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-indigo-50/50 cursor-pointer rounded-xl transition">
+                  <div class="flex items-center gap-3">
+                    <div class="text-center bg-white border border-gray-200 px-2 py-1 rounded-lg">
+                      <span class="text-[11px] font-bold text-indigo-900 block">${evt.date.substring(5)}</span>
+                    </div>
+                    <span class="text-xs font-bold text-gray-800">${evt.title}</span>
+                  </div>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">${evt.type === 'match' ? '대회' : '정기'}</span>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function changeHomePostsPage(p) { pageState.homePosts = p; renderHome(document.getElementById('app')); }
+    function updateAttendance(status) { if(!currentUser) return openLoginModal(); sampleData.regularAttendance.myStatus = status; switchTab('home'); }
+    function handleSpecialVote(e) { e.preventDefault(); if(!currentUser) return openLoginModal(); alert('투표 결과가 반영되었습니다.'); switchTab('home'); }
+
+    function openVoteModal(title) {
+      document.getElementById('voteModalTitle').innerText = title;
+      const content = document.getElementById('voteModalContent');
+      content.innerHTML = sampleData.specialVote.results.map(res => `
+        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+          <h4 class="font-bold text-indigo-900 mb-2">${res.choice}</h4>
+          <div class="flex flex-wrap gap-1.5">
+            ${res.voters.map(v => `<span class="bg-white border border-gray-200 px-2 py-1 rounded-lg text-gray-700 font-medium">${v}</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('voteStatusModal').classList.remove('hidden');
+    }
+    function closeVoteModal() { document.getElementById('voteStatusModal').classList.add('hidden'); }
+
+    // ==================== 2. 일정 탭 ====================
+    function renderCalendarTab(container) {
+      container.innerHTML = `
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h2 class="text-lg font-black text-gray-900 mb-4">VEGA 일정표</h2>
+          <div id="calendar" class="text-sm"></div>
+        </div>
+      `;
+      setTimeout(() => {
+        const calendarEl = document.getElementById('calendar');
+        const calendarEvents = sampleData.events.map(evt => ({
+          id: evt.id,
+          title: (evt.type === 'match' ? '🏆 ' : '🏐 ') + evt.title,
+          start: `${evt.date}T${evt.time}:00`,
+          color: evt.type === 'match' ? '#d97706' : '#1e1b4b',
+          extendedProps: { ...evt }
+        }));
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth', 
+          locale: 'ko',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+          events: calendarEvents,
+          eventClick: function(info) {
+            openEventDetail(info.event.id);
+          }
+        });
+        calendar.render();
+      }, 50);
+    }
+
+    function openEventDetail(eventId) {
+      const evt = sampleData.events.find(e => e.id === Number(eventId));
+      if (!evt) return;
+
+      document.getElementById('eventCategoryBadge').innerText = evt.type === 'match' ? '대회' : '정기운동';
+      document.getElementById('eventDetailTitle').innerText = evt.title;
+      document.getElementById('eventDetailTime').innerText = `${evt.date} ${evt.time}`;
+      document.getElementById('eventDetailLocation').innerText = evt.location;
+      document.getElementById('eventDetailDesc').innerText = evt.description || '상세 내용이 없습니다.';
+      
+      document.getElementById('eventDetailModal').classList.remove('hidden');
+    }
+
+    function closeEventDetailModal() {
+      document.getElementById('eventDetailModal').classList.add('hidden');
+    }
+
+    // ==================== 3. 게시판 탭 ====================
+    function changeCategory(cat) {
+      currentBoardCategory = cat;
+      pageState.boardPosts = 1;
+      renderBoardTab(document.getElementById('app'));
+    }
+
+    function renderBoardTab(container) {
+      const categories = ['투표게시판', '공지사항', '자유게시판', '영상게시판', '🔒 익명 건의사항'];
+      let posts = sampleData.boardPosts;
+      if (currentBoardCategory !== '🔒 익명 건의사항') {
+        posts = posts.filter(p => p.category === currentBoardCategory);
+      }
+      const pagedPosts = paginate(posts, 5, pageState.boardPosts);
+
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div class="flex border-b border-gray-200 mb-5 overflow-x-auto gap-2 pb-3">
+            ${categories.map(cat => `
+              <button onclick="changeCategory('${cat}')" class="px-3.5 py-2 text-xs font-bold whitespace-nowrap rounded-xl ${currentBoardCategory === cat ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
+                ${cat}
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-base font-black text-gray-900">${currentBoardCategory}</h3>
+            <button onclick="openWritePostModal()" class="bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold">+ ${currentBoardCategory === '투표게시판' ? '투표 만들기' : '글쓰기'}</button>
+          </div>
+
+          <div class="space-y-2.5 min-h-[220px]">
+            ${pagedPosts.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">등록된 내용이 없습니다.</p>' : ''}
+            ${pagedPosts.map(p => `
+              <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition" onclick="${p.category === '투표게시판' ? `openVoteModal('${p.title}')` : `openPostDetail(${p.id})`}">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">${p.author}</span>
+                    ${p.status ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${p.status === '진행중' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}">${p.status}</span>` : ''}
+                    ${p.image ? '<span class="text-[10px] bg-amber-100 text-amber-800 px-1 rounded font-bold">📷 이미지</span>' : ''}
+                  </div>
+                  <h4 class="text-xs font-bold text-gray-900 mt-1">${p.title}</h4>
+                </div>
+                <div class="flex items-center gap-2">
+                  ${p.category === '투표게시판' ? `<span class="text-[11px] font-bold text-indigo-900 underline">현황보기</span>` : ''}
+                  <span class="text-[11px] text-gray-400">${p.date}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ${renderPaginationUI(posts.length, 5, pageState.boardPosts, 'changeBoardPage')}
+        </div>
+      `;
+    }
+
+    function changeBoardPage(p) { pageState.boardPosts = p; renderBoardTab(document.getElementById('app')); }
+
+    function openWritePostModal() {
+      if (!currentUser) return openLoginModal();
+      document.getElementById('postCategorySelect').value = currentBoardCategory === '🔒 익명 건의사항' ? '🔒 익명 건의사항' : currentBoardCategory;
+      document.getElementById('postTitleInput').value = '';
+      document.getElementById('postContentInput').value = '';
+      document.getElementById('postImageInput').value = '';
+      document.getElementById('imagePreviewContainer').classList.add('hidden');
+      uploadedImageBase64 = null;
+      document.getElementById('writePostModal').classList.remove('hidden');
+    }
+
+    function closeWritePostModal() {
+      document.getElementById('writePostModal').classList.add('hidden');
+    }
+
+    function previewImage(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedImageBase64 = e.target.result;
+          document.getElementById('imagePreview').src = uploadedImageBase64;
+          document.getElementById('imagePreviewContainer').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function handleCreatePost(e) {
+      e.preventDefault();
+      const category = document.getElementById('postCategorySelect').value;
+      const title = document.getElementById('postTitleInput').value.trim();
+      const content = document.getElementById('postContentInput').value.trim();
+      
+      const newPost = {
+        id: Date.now(),
+        type: category.substring(0, 2),
+        title: title,
+        content: content,
+        date: "09.14",
+        author: category === '🔒 익명 건의사항' ? '익명' : currentUser.name,
+        category: category,
+        image: uploadedImageBase64
+      };
+
+      if (category === '🔒 익명 건의사항') {
+        sampleData.suggestions.unshift({ id: Date.now(), text: title, date: "09.14", status: "검토중" });
+      }
+
+      sampleData.boardPosts.unshift(newPost);
+      alert('게시글이 성공적으로 등록되었습니다.');
+      closeWritePostModal();
+      switchTab('board', category);
+    }
+
+    function openPostDetail(id) {
+      const post = sampleData.boardPosts.find(p => p.id === id);
+      if (!post) return;
+
+      currentViewingPostId = id;
+      document.getElementById('postDetailCategory').innerText = post.category;
+      document.getElementById('postDetailTitle').innerText = post.title;
+      document.getElementById('postDetailAuthor').innerText = post.author;
+      document.getElementById('postDetailDate').innerText = post.date;
+      document.getElementById('postDetailContent').innerText = post.content || '내용이 없습니다.';
+
+      const imgContainer = document.getElementById('postDetailImageContainer');
+      const imgEl = document.getElementById('postDetailImage');
+      if (post.image) {
+        imgEl.src = post.image;
+        imgContainer.classList.remove('hidden');
+      } else {
+        imgContainer.classList.add('hidden');
+      }
+
+      renderPostComments(id);
+      document.getElementById('postDetailModal').classList.remove('hidden');
+    }
+
+    function closePostDetailModal() {
+      document.getElementById('postDetailModal').classList.add('hidden');
+    }
+
+    function renderPostComments(postId) {
+      const postComments = sampleData.comments.filter(c => c.postId === postId);
+      const commentsContainer = document.getElementById('postCommentsList');
+
+      if (postComments.length === 0) {
+        commentsContainer.innerHTML = '<p class="text-gray-400 text-[11px]">작성된 댓글이 없습니다.</p>';
+        return;
+      }
+
+      commentsContainer.innerHTML = postComments.map(c => `
+        <div class="bg-gray-50 p-2.5 rounded-xl text-xs flex justify-between items-start">
+          <div>
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <span class="font-bold text-indigo-900">${c.author}</span>
+              <span class="text-[10px] text-gray-400">${c.date}</span>
+            </div>
+            <p class="text-gray-700">${c.text}</p>
+          </div>
+          ${currentUser && currentUser.name === c.author ? `<button onclick="deleteComment(${c.id})" class="text-[10px] text-rose-500 hover:underline">삭제</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function handleAddComment(e) {
+      e.preventDefault();
+      if (!currentUser) return openLoginModal();
+      const input = document.getElementById('commentInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      sampleData.comments.push({
+        id: Date.now(),
+        postId: currentViewingPostId,
+        author: currentUser.name,
+        text: text,
+        date: "09.14"
+      });
+
+      input.value = '';
+      renderPostComments(currentViewingPostId);
+      if (currentTab === 'myinfo') renderMyInfoTab(document.getElementById('app'));
+    }
+
+    function deleteComment(commentId) {
+      if (confirm('댓글을 삭제하시겠습니까?')) {
+        const index = sampleData.comments.findIndex(c => c.id === commentId);
+        if (index > -1) sampleData.comments.splice(index, 1);
+        renderPostComments(currentViewingPostId);
+        if (currentTab === 'myinfo') renderMyInfoTab(document.getElementById('app'));
+      }
+    }
+
+    // ==================== 4. 나의 정보 탭 ====================
+    let myInfoSubTab = 'posts';
+
+    function switchMyInfoSubTab(tab) {
+      myInfoSubTab = tab;
+      renderMyInfoTab(document.getElementById('app'));
+    }
+
+    function renderMyInfoTab(container) {
+      if (!currentUser) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+            <p class="text-sm text-gray-500 mb-4">로그인이 필요한 서비스입니다.</p>
+            <button onclick="openLoginModal()" class="bg-indigo-950 text-white text-xs font-bold px-4 py-2 rounded-xl">로그인하기</button>
+          </div>
+        `;
+        return;
+      }
+
+      const stats = sampleData.stats;
+
+      const myPosts = sampleData.boardPosts.filter(p => p.author === currentUser.name);
+      const myComments = sampleData.comments.filter(c => c.author === currentUser.name);
+      const pagedVotes = paginate(sampleData.myVotes, 5, pageState.myVotes);
+      const pagedMyPosts = paginate(myPosts, 5, pageState.myPosts);
+      const pagedMyComments = paginate(myComments, 5, pageState.myComments);
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <!-- 내 정보 카드 -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-indigo-950 text-white font-black text-lg flex items-center justify-center">
+                  ${currentUser.name[0]}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-base font-black text-gray-900">${currentUser.name} 회원님</h3>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">${currentUser.role === 'admin' ? '운영진' : '정회원'}</span>
+                  </div>
+                  <p class="text-xs text-gray-500">순천 VEGA 배구동호회</p>
+                </div>
+              </div>
+              <button onclick="openPasswordModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">🔒 비밀번호 변경</button>
+            </div>
+
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-xs font-bold text-gray-700">나의 누적 운동 참석률</span>
+                <span class="text-xs font-black text-indigo-900">${stats.myAttendance} (${stats.myCount})</span>
+              </div>
+              <div class="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
+                <div style="width: ${stats.myAttendance}" class="bg-indigo-900 h-full rounded-full"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 나의 활동 이력 -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex border-b border-gray-200 mb-4 gap-2 pb-2">
+              <button onclick="switchMyInfoSubTab('posts')" class="text-xs font-bold px-3 py-1.5 rounded-lg ${myInfoSubTab === 'posts' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
+                ✏️ 내가 작성한 글 (${myPosts.length})
+              </button>
+              <button onclick="switchMyInfoSubTab('comments')" class="text-xs font-bold px-3 py-1.5 rounded-lg ${myInfoSubTab === 'comments' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
+                💬 내가 작성한 댓글 (${myComments.length})
+              </button>
+              <button onclick="switchMyInfoSubTab('votes')" class="text-xs font-bold px-3 py-1.5 rounded-lg ${myInfoSubTab === 'votes' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
+                🗳️ 투표 이력 (${sampleData.myVotes.length})
+              </button>
+            </div>
+
+            ${myInfoSubTab === 'posts' ? `
+              <div class="space-y-2 min-h-[190px]">
+                ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">작성한 게시글이 없습니다.</p>' : ''}
+                ${pagedMyPosts.map(p => `
+                  <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs hover:bg-indigo-50/50 cursor-pointer" onclick="openPostDetail(${p.id})">
+                    <div class="flex items-center gap-2 truncate">
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">${p.category}</span>
+                      <span class="font-bold text-gray-800 truncate">${p.title}</span>
+                      ${p.image ? '<span class="text-[10px]">🖼️</span>' : ''}
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <span class="text-gray-400 text-[10px]">${p.date}</span>
+                      <button onclick="event.stopPropagation(); deleteMyPost(${p.id})" class="text-[10px] text-rose-500 font-bold hover:underline">삭제</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              ${renderPaginationUI(myPosts.length, 5, pageState.myPosts, 'changeMyPostsPage')}
+            ` : ''}
+
+            ${myInfoSubTab === 'comments' ? `
+              <div class="space-y-2 min-h-[190px]">
+                ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">작성한 댓글이 없습니다.</p>' : ''}
+                ${pagedMyComments.map(c => {
+                  const targetPost = sampleData.boardPosts.find(p => p.id === c.postId);
+                  return `
+                    <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs hover:bg-indigo-50/50 cursor-pointer" onclick="openPostDetail(${c.postId})">
+                      <div class="truncate pr-2">
+                        <p class="font-bold text-gray-800 truncate mb-0.5">${c.text}</p>
+                        <span class="text-[10px] text-gray-400">원문: ${targetPost ? targetPost.title : '삭제된 게시글'}</span>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-gray-400 text-[10px]">${c.date}</span>
+                        <button onclick="event.stopPropagation(); deleteComment(${c.id})" class="text-[10px] text-rose-500 font-bold hover:underline">삭제</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              ${renderPaginationUI(myComments.length, 5, pageState.myComments, 'changeMyCommentsPage')}
+            ` : ''}
+
+            ${myInfoSubTab === 'votes' ? `
+              <div class="space-y-2 min-h-[190px]">
+                ${pagedVotes.map(v => `
+                  <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs">
+                    <span class="font-bold text-gray-800">${v.title}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded font-bold bg-indigo-100 text-indigo-900">${v.choice}</span>
+                      <span class="text-gray-400 text-[10px]">${v.date}</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              ${renderPaginationUI(sampleData.myVotes.length, 5, pageState.myVotes, 'changeMyVotesPage')}
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function changeMyVotesPage(p) { pageState.myVotes = p; renderMyInfoTab(document.getElementById('app')); }
+    function changeMyPostsPage(p) { pageState.myPosts = p; renderMyInfoTab(document.getElementById('app')); }
+    function changeMyCommentsPage(p) { pageState.myComments = p; renderMyInfoTab(document.getElementById('app')); }
+
+    function deleteMyPost(postId) {
+      if (confirm('게시글을 삭제하시겠습니까?')) {
+        const index = sampleData.boardPosts.findIndex(p => p.id === postId);
+        if (index > -1) sampleData.boardPosts.splice(index, 1);
+        renderMyInfoTab(document.getElementById('app'));
+      }
+    }
+
+    // ==================== 5. 운영진 탭 (정기운동 투표 현황 수정 기능 추가) ====================
+    function renderAdminTab(container) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
+            <span class="text-3xl mb-2 block">🔒</span>
+            <p class="text-sm text-gray-600 font-bold mb-1">운영진 전용 공간입니다.</p>
+            <p class="text-xs text-gray-400">운영진 계정으로 로그인 후 이용해 주세요.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const pagedMembers = paginate(sampleData.members, 5, pageState.adminMembers);
+      const pagedSuggestions = paginate(sampleData.suggestions, 5, pageState.adminSuggestions);
+
+      // 정기운동 일정 목록 (날짜 선택 셀렉트용)
+      const regularEvents = sampleData.events.filter(e => e.type === 'regular');
+      if (!sampleData.regularVotesByDate[selectedAdminDate]) {
+        sampleData.regularVotesByDate[selectedAdminDate] = {};
+      }
+      const currentVotes = sampleData.regularVotesByDate[selectedAdminDate];
+
+      container.innerHTML = `
+        <div class="space-y-5">
+
+          <!-- 1. 정기운동 회원 투표 현황 수정 기능 (신규 추가) -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4">
+              <h3 class="text-base font-black text-gray-900 flex items-center gap-1.5">
+                <span>📝</span> 정기운동 투표 현황 수정
+              </h3>
+              <div class="flex items-center gap-2">
+                <label class="text-xs font-bold text-gray-600">운동 날짜 선택:</label>
+                <select onchange="handleAdminDateChange(this.value)" class="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50 focus:ring-2 focus:ring-indigo-600">
+                  ${regularEvents.map(evt => `
+                    <option value="${evt.date}" ${evt.date === selectedAdminDate ? 'selected' : ''}>
+                      ${evt.date} (${evt.title})
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            <p class="text-xs text-gray-500 mb-3 bg-indigo-50 p-2.5 rounded-xl text-indigo-900">
+              💡 운영진이 회원들의 정기운동 참석 투표 상태(참가 / 불참 / 미정)를 직접 변경할 수 있습니다.
+            </p>
+
+            <div class="overflow-x-auto min-h-[180px]">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
+                    <th class="p-2.5">회원 이름</th>
+                    <th class="p-2.5">현재 투표 상태</th>
+                    <th class="p-2.5 text-right">상태 변경하기</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  ${sampleData.members.map(m => {
+                    const status = currentVotes[m.name] || "미정";
+                    return `
+                      <tr>
+                        <td class="p-2.5 font-bold text-gray-800">${m.name}</td>
+                        <td class="p-2.5">
+                          <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                            status === '참가' ? 'bg-emerald-100 text-emerald-800' :
+                            status === '불참' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                          }">
+                            ${status}
+                          </span>
+                        </td>
+                        <td class="p-2.5 text-right">
+                          <div class="inline-flex gap-1">
+                            <button onclick="updateMemberVote('${m.name}', '참가')" class="px-2 py-1 rounded-lg text-[10px] font-bold ${status === '참가' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-emerald-50'}">참가</button>
+                            <button onclick="updateMemberVote('${m.name}', '불참')" class="px-2 py-1 rounded-lg text-[10px] font-bold ${status === '불참' ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-rose-50'}">불참</button>
+                            <button onclick="updateMemberVote('${m.name}', '미정')" class="px-2 py-1 rounded-lg text-[10px] font-bold ${status === '미정' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-amber-50'}">미정</button>
+                          </div>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 2. 회원 명단 관리 -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-base font-black text-gray-900 mb-3 flex items-center gap-1.5">
+              <span>👥</span> 회원 명단 및 참석률 관리
+            </h3>
+            
+            <form onsubmit="handleAddMember(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4 bg-gray-50 p-3 rounded-xl">
+              <input type="text" id="newMemberName" required placeholder="이름 입력" class="p-2 border border-gray-200 rounded-lg text-xs" />
+              <input type="password" maxlength="4" value="0000" readonly class="p-2 border border-gray-200 rounded-lg text-xs bg-gray-100" />
+              <select id="newMemberRole" class="p-2 border border-gray-200 rounded-lg text-xs bg-white">
+                <option value="member">일반회원</option>
+                <option value="admin">운영진</option>
+              </select>
+              <button type="submit" class="bg-indigo-950 text-white font-bold py-2 rounded-lg text-xs">회원 등록</button>
+            </form>
+
+            <div class="overflow-x-auto min-h-[200px]">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
+                    <th class="p-2.5">이름</th>
+                    <th class="p-2.5">직책</th>
+                    <th class="p-2.5">출석률</th>
+                    <th class="p-2.5 text-right">비밀번호</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  ${pagedMembers.map(m => `
+                    <tr>
+                      <td class="p-2.5 font-bold text-gray-800">${m.name}</td>
+                      <td class="p-2.5">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">
+                          ${m.role === 'admin' ? '운영진' : '회원'}
+                        </span>
+                      </td>
+                      <td class="p-2.5 font-semibold text-indigo-900">${m.rate}</td>
+                      <td class="p-2.5 text-right">
+                        <button onclick="resetMemberPassword('${m.name}')" class="bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded text-[10px] border border-rose-200">
+                          0000 초기화
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${renderPaginationUI(sampleData.members.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
+          </div>
+
+          <!-- 3. 건의사항함 -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-base font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📩</span> 회원 익명 건의함</h3>
+            <div class="space-y-2 min-h-[160px]">
+              ${pagedSuggestions.map(s => `
+                <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-start text-xs">
+                  <div>
+                    <p class="font-bold text-gray-800 mb-1">${s.text}</p>
+                    <span class="text-[10px] text-gray-400">접수일: ${s.date}</span>
+                  </div>
+                  <button onclick="alert('답변 등록 모달')" class="shrink-0 px-2 py-1 rounded text-[10px] font-bold ${s.status === '답변완료' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${s.status}</button>
+                </div>
+              `).join('')}
+            </div>
+            ${renderPaginationUI(sampleData.suggestions.length, 5, pageState.adminSuggestions, 'changeAdminSuggestionsPage')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 운영진 투표 현황 수정 관련 처리 함수
+    function handleAdminDateChange(dateStr) {
+      selectedAdminDate = dateStr;
+      renderAdminTab(document.getElementById('app'));
+    }
+
+    function updateMemberVote(memberName, status) {
+      if (!sampleData.regularVotesByDate[selectedAdminDate]) {
+        sampleData.regularVotesByDate[selectedAdminDate] = {};
+      }
+      sampleData.regularVotesByDate[selectedAdminDate][memberName] = status;
+      renderAdminTab(document.getElementById('app'));
+    }
+
+    function changeAdminMembersPage(p) { pageState.adminMembers = p; renderAdminTab(document.getElementById('app')); }
+    function changeAdminSuggestionsPage(p) { pageState.adminSuggestions = p; renderAdminTab(document.getElementById('app')); }
+
+    function handleAddMember(e) {
+      e.preventDefault();
+      const name = document.getElementById('newMemberName').value.trim();
+      const role = document.getElementById('newMemberRole').value;
+      sampleData.members.unshift({ id: Date.now(), name, role, rate: "0%" });
+      alert(`[${name}] 회원이 등록되었습니다.`);
+      renderAdminTab(document.getElementById('app'));
+    }
+
+    function resetMemberPassword(memberName) {
+      if (confirm(`[${memberName}] 회원의 비밀번호를 '0000'으로 초기화하시겠습니까?`)) {
+        alert('초기화되었습니다.');
+      }
+    }
+  </script>
+</body>
+</html>
