@@ -287,23 +287,6 @@
 
     // Firebase 초기화 및 Firestore 생성
     const app = initializeApp(firebaseConfig);
-    // 1. Firebase 초기화
-firebase.initializeApp(firebaseConfig);
-
-// --- [여기에 1단계 오프라인 캐시 설정 코드 추가] ---
-firebase.firestore().enablePersistence({ synchronizeTabs: true })
-  .catch((err) => {
-    if (err.code == 'failed-precondition') {
-      // 여러 탭이 동시에 열려있는 경우 발생 가능
-      console.warn('Persistence failed: Multiple tabs open.');
-    } else if (err.code == 'unimplemented') {
-      // 브라우저가 오프라인 지속성을 지원하지 않는 경우
-      console.warn('Persistence is not available in this browser.');
-    }
-  });
-
-// 기존에 사용하던 db 인스턴스 선언
-const db = firebase.firestore();
     const db = getFirestore(app);
 
     // Global App State
@@ -387,6 +370,20 @@ const db = firebase.firestore();
       ];
 
       return variableHolidays.includes(dateStr);
+    }
+
+    // --- 디바운스 및 렌더링 최적화 스틀롯 적용 ---
+    let renderTimer = null;
+    function refreshCurrentTab() {
+      if (renderTimer) clearTimeout(renderTimer);
+      renderTimer = setTimeout(() => {
+        const app = document.getElementById('app');
+        if (currentTab === 'home') renderHome(app);
+        else if (currentTab === 'calendar') renderCalendarTab(app);
+        else if (currentTab === 'board') renderBoardTab(app);
+        else if (currentTab === 'myinfo') renderMyInfoTab(app);
+        else if (currentTab === 'admin') renderAdminTab(app);
+      }, 50);
     }
 
     // --- Firestore 실시간 리스너 설정 ---
@@ -482,15 +479,6 @@ const db = firebase.firestore();
 
         refreshCurrentTab();
       });
-    }
-
-    function refreshCurrentTab() {
-      const app = document.getElementById('app');
-      if (currentTab === 'home') renderHome(app);
-      else if (currentTab === 'calendar') renderCalendarTab(app);
-      else if (currentTab === 'board') renderBoardTab(app);
-      else if (currentTab === 'myinfo') renderMyInfoTab(app);
-      else if (currentTab === 'admin') renderAdminTab(app);
     }
 
     // --- 페이지네이션 UI ---
@@ -1195,7 +1183,7 @@ const db = firebase.firestore();
       container.innerHTML = `
         <div class="space-y-5">
 
-          <!-- ⚡ [신규] 월별 정기 운동 일정 자동 생성 섹션 -->
+          <!-- ⚡ 월별 정기 운동 일정 자동 생성 섹션 -->
           <div class="bg-white p-5 rounded-2xl shadow-sm border border-indigo-100">
             <h3 class="text-base font-black text-indigo-950 mb-2 flex items-center gap-1.5">
               <span>⚡</span> 월별 정기 운동 일정 자동 생성 (공휴일 제외)
@@ -1460,7 +1448,6 @@ const db = firebase.firestore();
         if (selectedDays.includes(dayOfWeek)) {
           const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           
-          // 공휴일인 경우 자동 등록 생략
           if (isKoreanHoliday(dateObj)) {
             skippedHolidays.push(dateString);
             continue;
