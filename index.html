@@ -218,7 +218,12 @@
     <div class="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] flex flex-col">
       <div class="flex justify-between items-center mb-3 pb-2 border-b">
         <span id="postDetailCategory" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-900"></span>
-        <button onclick="closePostDetailModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+        <div class="flex items-center gap-2">
+          <button id="postDetailDeleteBtn" onclick="" class="hidden text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded-lg font-bold border border-rose-200">
+            🗑️ 게시글 삭제
+          </button>
+          <button onclick="closePostDetailModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+        </div>
       </div>
       <div class="overflow-y-auto pr-1 space-y-4 flex-1">
         <div>
@@ -250,6 +255,34 @@
         </div>
       </div>
       <button onclick="closePostDetailModal()" class="mt-4 w-full bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-xs">닫기</button>
+    </div>
+  </div>
+
+  <!-- [운영진 전용] 새 회원 명단 추가 모달 -->
+  <div id="addMemberModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
+      <h3 class="text-lg font-black text-indigo-950 mb-4">👤 새 회원 명단 추가</h3>
+      <form onsubmit="handleCreateMember(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">회원 이름</label>
+          <input type="text" id="addMemberName" required placeholder="예: 홍길동" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">권한 및 직책</label>
+          <select id="addMemberRole" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
+            <option value="member">일반회원</option>
+            <option value="admin">운영진</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">초기 비밀번호 (4자리)</label>
+          <input type="password" id="addMemberPassword" maxlength="4" required value="0000" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeAddMemberModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
+          <button type="submit" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">회원 등록</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1158,6 +1191,10 @@
             ${pagedPosts.map(p => {
               const clickAction = p.category === '투표게시판' ? `window.openVoteModal('${p.title}')` : 
                                   (p.category === '영상게시판' && p.videoUrl) ? `window.openYouTubeLink('${p.videoUrl}')` : `window.openPostDetail('${p.id}')`;
+              
+              // 운영진 삭제 권한 적용
+              const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author);
+
               return `
                 <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition" onclick="${clickAction}">
                   <div>
@@ -1181,6 +1218,9 @@
                     ` : ''}
                     ${p.category === '영상게시판' && p.videoUrl ? `<span class="text-[11px] font-bold text-red-600 underline">바로시청</span>` : ''}
                     <span class="text-[11px] text-gray-400">${p.date}</span>
+                    ${canDelete && p.id !== 'sp_vote_card' ? `
+                      <button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}')" class="text-[10px] bg-rose-50 text-rose-600 hover:bg-rose-100 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
+                    ` : ''}
                   </div>
                 </div>
               `;
@@ -1193,7 +1233,14 @@
 
     window.changeBoardPage = (p) => { pageState.boardPosts = p; renderBoardTab(document.getElementById('app')); };
 
-    // 수정사항 3: 권한 확인 추가 (투표 만들기 / 공지사항은 운영진만 가능)
+    // 운영진/작성자 전용 게시글 삭제 함수
+    window.deletePostByAdmin = async (postId) => {
+      if (confirm('이 게시글을 삭제하시겠습니까?')) {
+        await deleteDoc(doc(db, "posts", String(postId)));
+        alert('게시글이 삭제되었습니다.');
+      }
+    };
+
     window.handleCategorySelectChange = (category) => {
       if ((category === '투표게시판' || category === '공지사항') && (!currentUser || currentUser.role !== 'admin')) {
         alert(`${category} 작성 권한이 없습니다. 운영진만 가능합니다.`);
@@ -1270,7 +1317,6 @@
       }
     };
 
-    // 수정사항 2 반영: 특별 투표 생성/수정 시 투표 게시판 및 홈 화면 연동 최적화
     window.handleCreatePost = async (e) => {
       e.preventDefault();
       const category = document.getElementById('postCategorySelect').value;
@@ -1372,6 +1418,21 @@
       document.getElementById('postDetailDate').innerText = post.date;
       document.getElementById('postDetailContent').innerText = post.content || '내용이 없습니다.';
 
+      // 운영진 및 작성자 삭제 버튼 처리
+      const deleteBtn = document.getElementById('postDetailDeleteBtn');
+      if (currentUser && (currentUser.role === 'admin' || currentUser.name === post.author)) {
+        deleteBtn.onclick = async () => {
+          if (confirm('이 게시글을 삭제하시겠습니까?')) {
+            await deleteDoc(doc(db, "posts", String(id)));
+            alert('게시글이 삭제되었습니다.');
+            window.closePostDetailModal();
+          }
+        };
+        deleteBtn.classList.remove('hidden');
+      } else {
+        deleteBtn.classList.add('hidden');
+      }
+
       const videoContainer = document.getElementById('postDetailVideoContainer');
       const videoBtn = document.getElementById('postDetailVideoBtn');
       if (post.videoUrl) {
@@ -1405,18 +1466,21 @@
         return;
       }
 
-      commentsContainer.innerHTML = postComments.map(c => `
-        <div class="bg-gray-50 p-2.5 rounded-xl text-xs flex justify-between items-start">
-          <div>
-            <div class="flex items-center gap-1.5 mb-0.5">
-              <span class="font-bold text-indigo-900">${c.author}</span>
-              <span class="text-[10px] text-gray-400">${c.date}</span>
+      commentsContainer.innerHTML = postComments.map(c => {
+        const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === c.author);
+        return `
+          <div class="bg-gray-50 p-2.5 rounded-xl text-xs flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="font-bold text-indigo-900">${c.author}</span>
+                <span class="text-[10px] text-gray-400">${c.date}</span>
+              </div>
+              <p class="text-gray-700">${c.text}</p>
             </div>
-            <p class="text-gray-700">${c.text}</p>
+            ${canDelete ? `<button onclick="window.deleteComment('${c.id}')" class="text-[10px] text-rose-500 font-bold hover:underline">삭제</button>` : ''}
           </div>
-          ${currentUser && currentUser.name === c.author ? `<button onclick="window.deleteComment('${c.id}')" class="text-[10px] text-rose-500 hover:underline">삭제</button>` : ''}
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     window.handleAddComment = async (e) => {
@@ -1586,7 +1650,6 @@
     };
 
     // ==================== 5. 운영진 탭 ====================
-    // 수정사항 1 반영: 익명 건의함 상태변환 함수 추가 (검토중, 처리중, 처리완료)
     window.updateSuggestionStatus = async (suggestionId, newStatus) => {
       if (!currentUser || currentUser.role !== 'admin') return alert('운영진 권한이 필요합니다.');
       try {
@@ -1765,9 +1828,12 @@
             </div>
           </div>
 
-          <!-- 회원 관리 -->
+          <!-- 회원 계정 관리 (+ 회원 명단 추가 버튼 구현) -->
           <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 class="text-base font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>👥</span> 동호회 회원 계정 관리</h3>
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-base font-black text-gray-900 flex items-center gap-1.5"><span>👥</span> 동호회 회원 계정 관리</h3>
+              <button onclick="window.openAddMemberModal()" class="bg-indigo-950 text-white font-bold text-xs px-3 py-1.5 rounded-xl hover:bg-indigo-900 transition shadow-sm">+ 회원 명단 추가</button>
+            </div>
             <div class="overflow-x-auto min-h-[160px]">
               <table class="w-full text-left text-xs">
                 <thead>
@@ -1796,7 +1862,7 @@
             ${renderPaginationUI(sampleData.members.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
           </div>
 
-          <!-- 익명 건의함 (수정사항 1: 운영진 상태 변경 select 추가) -->
+          <!-- 익명 건의함 -->
           <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 class="text-base font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>🔒</span> 익명 건의함 접수 목록</h3>
             <div class="space-y-2 min-h-[160px]">
@@ -1910,6 +1976,43 @@
         await setDoc(doc(db, "members", memberName), { password: "0000" }, { merge: true });
         alert(`${memberName} 회원의 비밀번호가 0000으로 리셋되었습니다.`);
       }
+    };
+
+    // 회원 명단 추가 모달 함수
+    window.openAddMemberModal = () => {
+      document.getElementById('addMemberName').value = '';
+      document.getElementById('addMemberRole').value = 'member';
+      document.getElementById('addMemberPassword').value = '0000';
+      document.getElementById('addMemberModal').classList.remove('hidden');
+    };
+
+    window.closeAddMemberModal = () => document.getElementById('addMemberModal').classList.add('hidden');
+
+    window.handleCreateMember = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('addMemberName').value.trim();
+      const role = document.getElementById('addMemberRole').value;
+      const pass = document.getElementById('addMemberPassword').value.trim();
+
+      if (!name) return alert('회원 이름을 입력해 주세요.');
+      if (pass.length !== 4) return alert('비밀번호는 4자리 숫자로 입력해 주세요.');
+
+      const userDocRef = doc(db, "members", name);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        return alert('이미 존재하는 회원 이름입니다.');
+      }
+
+      await setDoc(userDocRef, {
+        name: name,
+        role: role,
+        password: pass,
+        createdAt: serverTimestamp()
+      });
+
+      alert(`${name} 회원이 등록되었습니다.`);
+      window.closeAddMemberModal();
     };
 
     window.openEditMemberModal = (name, role) => {
