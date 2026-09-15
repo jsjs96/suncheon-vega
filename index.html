@@ -23,8 +23,8 @@
       border-color: #f1f5f9 !important;
     }
     .fc-daygrid-day-frame {
-      min-height: 70px !important;
-      max-height: 85px !important;
+      min-height: 75px !important;
+      max-height: 90px !important;
       overflow: hidden !important;
       display: flex;
       flex-direction: column;
@@ -45,11 +45,23 @@
     .holiday-cell .fc-daygrid-day-number { color: #dc2626 !important; font-weight: bold; }
     .fc-theme-standard td, .fc-theme-standard th { border-color: #f1f5f9 !important; }
     
+    /* 공휴일 텍스트 표시 스타일 */
+    .holiday-name-label {
+      font-size: 0.6rem;
+      color: #dc2626;
+      font-weight: bold;
+      padding: 0 4px;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* 달력 내부 이벤트 박스 및 글씨 크기 조정 */
     .fc-event { 
       border: none !important; 
       border-radius: 4px !important; 
-      padding: 1px 2px !important; 
+      padding: 1px 3px !important; 
       font-size: clamp(0.55rem, 2vw, 0.7rem) !important; 
       line-height: 1.2 !important;
       white-space: nowrap !important;
@@ -61,7 +73,6 @@
       font-weight: 600;
     }
 
-    /* text-xs, text-sm 커스텀 텍스트 래핑 */
     .truncate-custom {
       white-space: nowrap;
       overflow: hidden;
@@ -225,6 +236,7 @@
           <div>
             <label class="block text-xs font-bold text-gray-700 mb-1">특별 투표 항목 구분</label>
             <select id="voteItemCategory" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white font-bold">
+              <option value="정기">🏐 정기</option>
               <option value="대회">🏆 대회</option>
               <option value="회식">🍻 회식</option>
               <option value="기타">📌 기타</option>
@@ -362,24 +374,27 @@
     </div>
   </div>
 
-  <!-- [운영진 전용] 새 일정 추가 모달 -->
+  <!-- [운영진 전용] 새 일정 추가 / 수정 모달 -->
   <div id="addEventModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
     <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
       <div class="flex justify-between items-center mb-4 pb-2 border-b">
-        <h3 class="text-sm sm:text-base font-black text-indigo-950">📅 새 일정 추가</h3>
+        <h3 id="eventModalTitle" class="text-sm sm:text-base font-black text-indigo-950">📅 새 일정 추가</h3>
         <button onclick="closeAddEventModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
       </div>
       <form onsubmit="handleCreateEvent(event)" class="space-y-3">
+        <input type="hidden" id="editEventId" value="" />
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1">구분</label>
-          <select id="newEventCategory" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
-            <option value="regular">정기운동</option>
-            <option value="match">대회 / 특별일정</option>
+          <label class="block text-xs font-bold text-gray-700 mb-1">구분 (카테고리)</label>
+          <select id="newEventCategory" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white font-bold">
+            <option value="regular">🏐 정기운동 (정기)</option>
+            <option value="match">🏆 대회</option>
+            <option value="dinner">🍻 회식</option>
+            <option value="etc">📌 기타</option>
           </select>
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">일정 제목</label>
-          <input type="text" id="newEventTitle" required placeholder="예: 금요 정기운동" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+          <input type="text" id="newEventTitle" required placeholder="예: 화요 정기운동 / VEGA 회식" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
@@ -393,7 +408,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">장소</label>
-          <input type="text" id="newEventLocation" required placeholder="예: 순천 조례초" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+          <input type="text" id="newEventLocation" required placeholder="예: 순천 조례초 / 팔마체육관" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">상세 내용</label>
@@ -401,7 +416,7 @@
         </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeAddEventModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
-          <button type="submit" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">일정 등록</button>
+          <button type="submit" id="eventSubmitBtn" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">일정 저장</button>
         </div>
       </form>
     </div>
@@ -498,27 +513,80 @@
       return `${year}-${month}-${day}`;
     }
 
-    function isKoreanHoliday(dateObj) {
+    /* 한국의 모든 공휴일 정보 데이터베이스 및 판별 함수 */
+    const holidayMap = {
+      // 2026년 공휴일
+      "2026-01-01": "신정",
+      "2026-02-16": "설날 연휴",
+      "2026-02-17": "설날",
+      "2026-02-18": "설날 연휴",
+      "2026-03-01": "삼일절",
+      "2026-03-02": "대체공휴일",
+      "2026-05-05": "어린이날",
+      "2026-05-24": "부처님오신날",
+      "2026-05-25": "대체공휴일",
+      "2026-06-06": "현충일",
+      "2026-08-15": "광복절",
+      "2026-08-17": "대체공휴일",
+      "2026-09-24": "추석 연휴",
+      "2026-09-25": "추석",
+      "2026-09-26": "추석 연휴",
+      "2026-10-03": "개천절",
+      "2026-10-05": "대체공휴일",
+      "2026-10-09": "한글날",
+      "2026-12-25": "성탄절",
+      // 2027년 공휴일
+      "2027-01-01": "신정",
+      "2027-02-06": "설날 연휴",
+      "2027-02-07": "설날",
+      "2027-02-08": "설날 연휴",
+      "2027-02-09": "대체공휴일",
+      "2027-03-01": "삼일절",
+      "2027-05-05": "어린이날",
+      "2027-05-13": "부처님오신날",
+      "2027-06-06": "현충일",
+      "2027-08-15": "광복절",
+      "2027-08-16": "대체공휴일",
+      "2027-09-14": "추석 연휴",
+      "2027-09-15": "추석",
+      "2027-09-16": "추석 연휴",
+      "2027-10-03": "개천절",
+      "2027-10-04": "대체공휴일",
+      "2027-10-09": "한글날",
+      "2027-12-25": "성탄절"
+    };
+
+    function getKoreanHolidayName(dateObj) {
       const year = dateObj.getFullYear();
-      const month = dateObj.getMonth() + 1;
-      const day = dateObj.getDate();
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const fixedHolidays = ["01-01", "03-01", "05-05", "06-06", "08-15", "10-03", "10-09", "12-25"];
-      const monthDayStr = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      if (fixedHolidays.includes(monthDayStr)) return true;
-      const variableHolidays = [
-        "2026-02-16", "2026-02-17", "2026-02-18", "2026-05-24", "2026-05-25",
-        "2026-09-24", "2026-09-25", "2026-09-26", "2026-10-05",
-        "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-05-13",
-        "2027-09-14", "2027-09-15", "2027-09-16"
-      ];
-      return variableHolidays.includes(dateStr);
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      if (holidayMap[dateStr]) return holidayMap[dateStr];
+      
+      // 고정 매년 공휴일 체크 (맵에 등록 안된 경우 대비)
+      const monthDayStr = `${month}-${day}`;
+      const fixedHolidays = {
+        "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날",
+        "06-06": "현충일", "08-15": "광복절", "10-03": "개천절",
+        "10-09": "한글날", "12-25": "성탄절"
+      };
+      return fixedHolidays[monthDayStr] || null;
     }
 
+    function isKoreanHoliday(dateObj) {
+      return getKoreanHolidayName(dateObj) !== null;
+    }
+
+    /* 6. 출석률 계산 시 운영진과 일반 회원 대상으로만 정확히 계산 */
     function calculateAttendanceStats() {
       const today = getTodayString();
       const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date < today);
       const totalPastEvents = pastRegularEvents.length;
+
+      // 출석 집계 대상 회원: 운영진(admin) & 일반회원(member) 전용 (쉼회원, 코치 제외)
+      const targetMembers = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
+      const totalTargetMembersCount = targetMembers.length;
 
       if (totalPastEvents === 0) {
         sampleData.stats = { myAttendance: "0%", myCount: "0/0회", teamAttendance: "0%", monthlyAttend: 0 };
@@ -534,17 +602,16 @@
       }
       const myRate = Math.round((myAttendCount / totalPastEvents) * 100);
 
-      const totalMembers = sampleData.members.length;
       let totalAttends = 0;
 
-      if (totalMembers > 0) {
+      if (totalTargetMembersCount > 0) {
         pastRegularEvents.forEach(evt => {
           const votes = sampleData.regularVotesByDate[evt.date] || {};
-          Object.values(votes).forEach(status => {
-            if (status === "참가") totalAttends++;
+          targetMembers.forEach(m => {
+            if (votes[m.name] === "참가") totalAttends++;
           });
         });
-        const teamRate = Math.round((totalAttends / (totalPastEvents * totalMembers)) * 100);
+        const teamRate = Math.round((totalAttends / (totalPastEvents * totalTargetMembersCount)) * 100);
         sampleData.stats.teamAttendance = `${teamRate}%`;
       } else {
         sampleData.stats.teamAttendance = "0%";
@@ -893,13 +960,21 @@
 
       const itemBadgeColor = vote?.itemCategory === '회식' ? 'bg-amber-100 text-amber-800' :
                              vote?.itemCategory === '기타' ? 'bg-purple-100 text-purple-800' :
+                             vote?.itemCategory === '정기' ? 'bg-blue-100 text-blue-800' :
                              'bg-rose-100 text-rose-800';
+
+      const getCategoryBadge = (cat) => {
+        if (cat === 'match') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">대회</span>';
+        if (cat === 'dinner') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">회식</span>';
+        if (cat === 'etc') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800 shrink-0">기타</span>';
+        return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">정기</span>';
+      };
 
       container.innerHTML = `
         <section class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm sm:text-base font-black flex items-center gap-1.5 truncate"><span>📊</span> VEGA 출석 현황</h2>
-            <span class="text-[10px] sm:text-xs bg-indigo-800/80 px-2 py-0.5 rounded-full text-indigo-100 font-medium shrink-0">지난 운동 기준</span>
+            <span class="text-[10px] sm:text-xs bg-indigo-800/80 px-2 py-0.5 rounded-full text-indigo-100 font-medium shrink-0">운영진 및 일반회원 기준</span>
           </div>
           <div class="grid grid-cols-2 gap-2 sm:gap-4 bg-white/10 backdrop-blur-md p-3 sm:p-4 rounded-xl">
             <div class="border-r border-indigo-700/50 pr-2">
@@ -913,7 +988,7 @@
               <span class="text-[11px] sm:text-xs text-indigo-200 block mb-1">팀 평균 출석률</span>
               <div class="flex items-baseline gap-1 sm:gap-2 flex-wrap">
                 <span class="text-xl sm:text-2xl font-black text-emerald-400">${stats.teamAttendance}</span>
-                <span class="text-[10px] sm:text-xs text-indigo-200">(전체)</span>
+                <span class="text-[10px] sm:text-xs text-indigo-200">(정회원)</span>
               </div>
             </div>
           </div>
@@ -1041,9 +1116,9 @@
                     <div class="text-center bg-white border border-gray-200 px-1.5 py-0.5 rounded-lg shadow-sm shrink-0">
                       <span class="text-[10px] sm:text-[11px] font-bold text-indigo-900 block">${evt.date ? evt.date.substring(5) : ''}</span>
                     </div>
-                    <span class="text-xs font-bold text-gray-800 truncate">${evt.title}</span>
+                    <span class="text-xs font-bold text-gray-800 truncate">${evt.title} (${evt.time || ''})</span>
                   </div>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">${evt.type === 'match' ? '대회' : '정기'}</span>
+                  ${getCategoryBadge(evt.type)}
                 </div>
               `).join('')}
             </div>
@@ -1169,6 +1244,7 @@
     };
 
     // ==================== 2. 일정 탭 ====================
+    /* 5. 일정탭에서 캘린더에 보여지는 일정이 제목-일시 순으로 나타나게 함 & 전월/전일 공휴일 자동 표기 */
     function renderCalendarTab(container) {
       container.innerHTML = `
         <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -1185,13 +1261,24 @@
       `;
       setTimeout(() => {
         const calendarEl = document.getElementById('calendar');
-        const calendarEvents = sampleData.events.map(evt => ({
-          id: evt.id,
-          title: (evt.type === 'match' ? '🏆 ' : '🏐 ') + evt.title,
-          start: `${evt.date}T${evt.time}:00`,
-          color: evt.type === 'match' ? '#d97706' : '#1e1b4b',
-          extendedProps: { ...evt }
-        }));
+        
+        // 제목-일시 순으로 캘린더 제목 구성
+        const calendarEvents = sampleData.events.map(evt => {
+          let icon = '🏐';
+          let bgColor = '#1e1b4b';
+          if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
+          else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
+          else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }
+
+          const timeStr = evt.time ? ` (${evt.time})` : '';
+          return {
+            id: evt.id,
+            title: `${icon} ${evt.title}${timeStr}`,
+            start: `${evt.date}T${evt.time || '00:00'}:00`,
+            color: bgColor,
+            extendedProps: { ...evt }
+          };
+        });
 
         const calendar = new FullCalendar.Calendar(calendarEl, {
           initialView: 'dayGridMonth',
@@ -1202,8 +1289,16 @@
           headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
           events: calendarEvents,
           dayCellDidMount: function(arg) {
-            if (isKoreanHoliday(arg.date)) {
+            const hName = getKoreanHolidayName(arg.date);
+            if (hName) {
               arg.el.classList.add('holiday-cell');
+              const dayFrame = arg.el.querySelector('.fc-daygrid-day-frame');
+              if (dayFrame) {
+                const hBadge = document.createElement('div');
+                hBadge.className = 'holiday-name-label';
+                hBadge.innerText = hName;
+                dayFrame.insertBefore(hBadge, dayFrame.firstChild.nextSibling);
+              }
             }
           },
           eventClick: function(info) {
@@ -1218,10 +1313,11 @@
       const evt = sampleData.events.find(e => String(e.id) === String(eventId));
       if (!evt) return;
 
-      document.getElementById('eventCategoryBadge').innerText = evt.type === 'match' ? '대회' : '정기운동';
+      const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
+      document.getElementById('eventCategoryBadge').innerText = categoryNames[evt.type] || '일정';
       document.getElementById('eventDetailTitle').innerText = evt.title;
-      document.getElementById('eventDetailTime').innerText = `${evt.date} ${evt.time}`;
-      document.getElementById('eventDetailLocation').innerText = evt.location;
+      document.getElementById('eventDetailTime').innerText = `${evt.date} ${evt.time || ''}`;
+      document.getElementById('eventDetailLocation').innerText = evt.location || '장소 미정';
       document.getElementById('eventDetailDesc').innerText = evt.description || '상세 내용이 없습니다.';
       
       document.getElementById('eventDetailModal').classList.remove('hidden');
@@ -1238,9 +1334,21 @@
 
     function renderBoardTab(container) {
       const categories = ['투표게시판', '공지사항', '자유게시판', '영상게시판', '🔒 익명 건의사항'];
-      let posts = sampleData.boardPosts;
-      if (currentBoardCategory !== '🔒 익명 건의사항') {
-        posts = posts.filter(p => p.category === currentBoardCategory);
+      
+      let posts = [];
+      /* 4. 익명 건의사항 게시판 중복 문제 처리: 건의사항에는 건의사항만 정돈 표시 */
+      if (currentBoardCategory === '🔒 익명 건의사항') {
+        posts = sampleData.suggestions.map(s => ({
+          id: s.id,
+          title: s.text,
+          category: '🔒 익명 건의사항',
+          author: '익명',
+          date: s.date || '최근',
+          type: '건의',
+          content: s.text
+        }));
+      } else {
+        posts = sampleData.boardPosts.filter(p => p.category === currentBoardCategory);
       }
 
       if (currentBoardCategory === '투표게시판' && sampleData.specialVote) {
@@ -1307,7 +1415,7 @@
                     ` : ''}
                     <span class="text-[10px] sm:text-[11px] text-gray-400">${p.date}</span>
                     ${canDelete && p.id !== 'sp_vote_card' ? `
-                      <button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}')" class="text-[10px] bg-rose-50 text-rose-600 hover:bg-rose-100 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
+                      <button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}', '${p.category}')" class="text-[10px] bg-rose-50 text-rose-600 hover:bg-rose-100 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
                     ` : ''}
                   </div>
                 </div>
@@ -1321,10 +1429,14 @@
 
     window.changeBoardPage = (p) => { pageState.boardPosts = p; renderBoardTab(document.getElementById('app')); };
 
-    window.deletePostByAdmin = async (postId) => {
-      if (confirm('이 게시글을 삭제하시겠습니까?')) {
-        await deleteDoc(doc(db, "posts", String(postId)));
-        alert('게시글이 삭제되었습니다.');
+    window.deletePostByAdmin = async (postId, category) => {
+      if (confirm('이 글을 삭제하시겠습니까?')) {
+        if (category === '🔒 익명 건의사항') {
+          await deleteDoc(doc(db, "suggestions", String(postId)));
+        } else {
+          await deleteDoc(doc(db, "posts", String(postId)));
+        }
+        alert('삭제되었습니다.');
       }
     };
 
@@ -1404,6 +1516,7 @@
       }
     };
 
+    /* 4. 건의사항 전용 분리 작성 처리 */
     window.handleCreatePost = async (e) => {
       e.preventDefault();
       const category = document.getElementById('postCategorySelect').value;
@@ -1467,117 +1580,123 @@
       const content = document.getElementById('postContentInput').value.trim();
       const videoUrl = document.getElementById('postVideoUrlInput').value.trim();
       
-      const newPost = {
-        type: category === '공지사항' ? '공지' : category.substring(0, 2),
-        title: title,
-        content: content,
-        videoUrl: category === '영상게시판' ? videoUrl : null,
-        date: "09.14",
-        author: category === '🔒 익명 건의사항' ? '익명' : currentUser.name,
-        category: category,
-        image: uploadedImageBase64 || null,
-        createdAt: serverTimestamp()
-      };
-
       if (category === '🔒 익명 건의사항') {
         await addDoc(collection(db, "suggestions"), {
-          text: title,
+          text: title + (content ? ` - ${content}` : ''),
           date: "09.14",
           status: "검토중",
           createdAt: serverTimestamp()
         });
+      } else {
+        const newPost = {
+          type: category === '공지사항' ? '공지' : category.substring(0, 2),
+          title: title,
+          content: content,
+          videoUrl: category === '영상게시판' ? videoUrl : null,
+          date: "09.14",
+          author: currentUser.name,
+          category: category,
+          image: uploadedImageBase64 || null,
+          createdAt: serverTimestamp()
+        };
+        await addDoc(collection(db, "posts"), newPost);
       }
 
-      await addDoc(collection(db, "posts"), newPost);
       alert('게시글이 성공적으로 등록되었습니다.');
       window.closeWritePostModal();
       window.switchTab('board', category);
     };
 
     window.openPostDetail = (id) => {
-      const post = sampleData.boardPosts.find(p => String(p.id) === String(id));
+      let post = sampleData.boardPosts.find(p => String(p.id) === String(id));
+      if (!post && currentBoardCategory === '🔒 익명 건의사항') {
+        const sug = sampleData.suggestions.find(s => String(s.id) === String(id));
+        if (sug) {
+          post = {
+            id: sug.id,
+            title: sug.text,
+            category: '🔒 익명 건의사항',
+            author: '익명',
+            date: sug.date || '최근',
+            content: sug.text
+          };
+        }
+      }
       if (!post) return;
 
       currentViewingPostId = id;
-      document.getElementById('postDetailCategory').innerText = post.category;
+      document.getElementById('postDetailCategory').innerText = post.category || '게시글';
       document.getElementById('postDetailTitle').innerText = post.title;
       document.getElementById('postDetailAuthor').innerText = post.author;
       document.getElementById('postDetailDate').innerText = post.date;
-      document.getElementById('postDetailContent').innerText = post.content || '내용이 없습니다.';
+      document.getElementById('postDetailContent').innerText = post.content || post.title;
 
-      const deleteBtn = document.getElementById('postDetailDeleteBtn');
-      if (currentUser && (currentUser.role === 'admin' || currentUser.name === post.author)) {
-        deleteBtn.onclick = async () => {
-          if (confirm('이 게시글을 삭제하시겠습니까?')) {
-            await deleteDoc(doc(db, "posts", String(id)));
-            alert('게시글이 삭제되었습니다.');
-            window.closePostDetailModal();
-          }
-        };
-        deleteBtn.classList.remove('hidden');
+      const imgContainer = document.getElementById('postDetailImageContainer');
+      if (post.image) {
+        document.getElementById('postDetailImage').src = post.image;
+        imgContainer.classList.remove('hidden');
       } else {
-        deleteBtn.classList.add('hidden');
+        imgContainer.classList.add('hidden');
       }
 
       const videoContainer = document.getElementById('postDetailVideoContainer');
-      const videoBtn = document.getElementById('postDetailVideoBtn');
       if (post.videoUrl) {
-        videoBtn.onclick = () => window.openYouTubeLink(post.videoUrl);
+        document.getElementById('postDetailVideoBtn').onclick = () => window.openYouTubeLink(post.videoUrl);
         videoContainer.classList.remove('hidden');
       } else {
         videoContainer.classList.add('hidden');
       }
 
-      const imgContainer = document.getElementById('postDetailImageContainer');
-      const imgEl = document.getElementById('postDetailImage');
-      if (post.image) {
-        imgEl.src = post.image;
-        imgContainer.classList.remove('hidden');
+      const delBtn = document.getElementById('postDetailDeleteBtn');
+      if (currentUser && (currentUser.role === 'admin' || currentUser.name === post.author)) {
+        delBtn.onclick = () => {
+          window.deletePostByAdmin(post.id, post.category);
+          window.closePostDetailModal();
+        };
+        delBtn.classList.remove('hidden');
       } else {
-        imgContainer.classList.add('hidden');
+        delBtn.classList.add('hidden');
       }
 
       renderPostComments(id);
       document.getElementById('postDetailModal').classList.remove('hidden');
     };
 
-    window.closePostDetailModal = () => document.getElementById('postDetailModal').classList.add('hidden');
+    window.closePostDetailModal = () => {
+      currentViewingPostId = null;
+      document.getElementById('postDetailModal').classList.add('hidden');
+    };
 
     function renderPostComments(postId) {
-      const postComments = sampleData.comments.filter(c => String(c.postId) === String(postId));
-      const commentsContainer = document.getElementById('postCommentsList');
-
-      if (postComments.length === 0) {
-        commentsContainer.innerHTML = '<p class="text-gray-400 text-[11px]">작성된 댓글이 없습니다.</p>';
+      const comments = sampleData.comments.filter(c => String(c.postId) === String(postId));
+      const listEl = document.getElementById('postCommentsList');
+      if (comments.length === 0) {
+        listEl.innerHTML = '<p class="text-[11px] text-gray-400 py-2">댓글이 없습니다. 첫 댓글을 작성해보세요!</p>';
         return;
       }
 
-      commentsContainer.innerHTML = postComments.map(c => {
-        const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === c.author);
-        return `
-          <div class="bg-gray-50 p-2.5 rounded-xl text-xs flex justify-between items-start gap-2">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5 mb-0.5">
-                <span class="font-bold text-indigo-900">${c.author}</span>
-                <span class="text-[10px] text-gray-400">${c.date}</span>
-              </div>
-              <p class="text-gray-700 break-all">${c.text}</p>
-            </div>
-            ${canDelete ? `<button onclick="window.deleteComment('${c.id}')" class="text-[10px] text-rose-500 font-bold hover:underline shrink-0">삭제</button>` : ''}
+      listEl.innerHTML = comments.map(c => `
+        <div class="bg-gray-50 p-2 rounded-lg border border-gray-100 flex justify-between items-start text-xs">
+          <div>
+            <span class="font-bold text-indigo-950 mr-1.5">${c.author}</span>
+            <span class="text-gray-700">${c.text}</span>
           </div>
-        `;
-      }).join('');
+          <span class="text-[10px] text-gray-400 shrink-0 ml-2">${c.date || ''}</span>
+        </div>
+      `).join('');
     }
 
     window.handleAddComment = async (e) => {
       e.preventDefault();
       if (!currentUser) return window.openLoginModal();
+      if (!currentViewingPostId) return;
+
       const input = document.getElementById('commentInput');
       const text = input.value.trim();
       if (!text) return;
 
       await addDoc(collection(db, "comments"), {
-        postId: currentViewingPostId,
+        postId: String(currentViewingPostId),
         author: currentUser.name,
         text: text,
         date: "09.14",
@@ -1587,26 +1706,15 @@
       input.value = '';
     };
 
-    window.deleteComment = async (commentId) => {
-      if (confirm('댓글을 삭제하시겠습니까?')) {
-        await deleteDoc(doc(db, "comments", String(commentId)));
-      }
-    };
-
     // ==================== 4. 나의 정보 탭 ====================
-    let myInfoSubTab = 'posts';
-
-    window.switchMyInfoSubTab = (tab) => {
-      myInfoSubTab = tab;
-      renderMyInfoTab(document.getElementById('app'));
-    };
-
     function renderMyInfoTab(container) {
       if (!currentUser) {
         container.innerHTML = `
-          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-            <p class="text-sm text-gray-500 mb-4">로그인이 필요한 서비스입니다.</p>
-            <button onclick="window.openLoginModal()" class="bg-indigo-950 text-white text-xs font-bold px-4 py-2 rounded-xl">로그인하기</button>
+          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100 max-w-md mx-auto my-8">
+            <span class="text-4xl block mb-3">🔒</span>
+            <h3 class="text-base sm:text-lg font-black text-gray-900 mb-2">로그인이 필요합니다</h3>
+            <p class="text-xs text-gray-500 mb-5">나의 정보 및 출석 내역을 확인하려면 로그인해 주세요.</p>
+            <button onclick="window.openLoginModal()" class="bg-indigo-950 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-900">로그인 하기</button>
           </div>
         `;
         return;
@@ -1615,111 +1723,82 @@
       const stats = sampleData.stats;
       const myPosts = sampleData.boardPosts.filter(p => p.author === currentUser.name);
       const myComments = sampleData.comments.filter(c => c.author === currentUser.name);
-      const pagedVotes = paginate(sampleData.myVotes, 5, pageState.myVotes);
+      const pagedMyVotes = paginate(sampleData.myVotes, 5, pageState.myVotes);
       const pagedMyPosts = paginate(myPosts, 5, pageState.myPosts);
       const pagedMyComments = paginate(myComments, 5, pageState.myComments);
 
       container.innerHTML = `
-        <div class="space-y-4">
-          <!-- 내 정보 카드 -->
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-950 text-white font-black text-base sm:text-lg flex items-center justify-center shrink-0">
-                  ${currentUser.name[0]}
-                </div>
-                <div>
-                  <div class="flex items-center gap-1.5">
-                    <h3 class="text-sm sm:text-base font-black text-gray-900">${currentUser.name}</h3>
-                    <span class="text-[10px] sm:text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-bold">${roleLabels[currentUser.role] || '정회원'}</span>
-                  </div>
-                  <p class="text-xs text-gray-500">순천 VEGA 배구동호회</p>
-                </div>
-              </div>
-              <button onclick="window.openPasswordModal(false)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-2.5 py-1.5 rounded-xl">🔒 비번 변경</button>
+        <div class="space-y-4 sm:space-y-5">
+          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+            <div>
+              <span class="text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">${roleLabels[currentUser.role] || '일반회원'}</span>
+              <h2 class="text-lg sm:text-xl font-black text-gray-900 mt-1">${currentUser.name} 님</h2>
             </div>
+            <button onclick="window.openPasswordModal(false)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-gray-200 transition">
+              🔑 비밀번호 변경
+            </button>
+          </div>
 
-            <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-              <div class="flex justify-between items-center mb-1.5">
-                <span class="text-xs font-bold text-gray-700">나의 운동 참석률</span>
-                <span class="text-xs font-black text-indigo-900">${stats.myAttendance} (${stats.myCount})</span>
+          <div class="bg-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
+            <h3 class="text-xs sm:text-sm font-black text-indigo-200 mb-3 flex items-center gap-1.5"><span>📊</span> 개인 출석 및 활동 요약</h3>
+            <div class="grid grid-cols-2 gap-3 text-center">
+              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
+                <span class="text-[11px] text-indigo-200 block mb-1">나의 출석률</span>
+                <span class="text-xl font-black text-amber-400">${stats.myAttendance}</span>
               </div>
-              <div class="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
-                <div style="width: ${stats.myAttendance}" class="bg-indigo-900 h-full rounded-full"></div>
+              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
+                <span class="text-[11px] text-indigo-200 block mb-1">출석 횟수</span>
+                <span class="text-xl font-black text-emerald-400">${stats.myCount}</span>
               </div>
             </div>
           </div>
 
-          <!-- 나의 활동 이력 -->
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex border-b border-gray-200 mb-4 gap-1.5 pb-2 overflow-x-auto scrollbar-none">
-              <button onclick="window.switchMyInfoSubTab('posts')" class="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 ${myInfoSubTab === 'posts' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
-                ✏️ 내가 쓴 글 (${myPosts.length})
-              </button>
-              <button onclick="window.switchMyInfoSubTab('comments')" class="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 ${myInfoSubTab === 'comments' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
-                💬 내가 쓴 댓글 (${myComments.length})
-              </button>
-              <button onclick="window.switchMyInfoSubTab('votes')" class="text-xs font-bold px-3 py-1.5 rounded-lg shrink-0 ${myInfoSubTab === 'votes' ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
-                🗳️ 투표 이력 (${sampleData.myVotes.length})
-              </button>
+          <!-- 내 투표 참여 기록 -->
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>🗳️</span> 특별 투표 참여 기록</h3>
+            <div class="space-y-2 min-h-[100px]">
+              ${sampleData.myVotes.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">투표 내역이 없습니다.</p>' : ''}
+              ${pagedMyVotes.map(v => `
+                <div class="flex justify-between items-center text-xs p-2.5 bg-gray-50 rounded-xl">
+                  <span class="font-bold text-gray-800 truncate">${v.title}</span>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="px-2 py-0.5 rounded font-bold ${v.choice === '참석' ? 'bg-emerald-100 text-emerald-800' : v.choice === '불참' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}">${v.choice}</span>
+                    <span class="text-gray-400 text-[10px]">${v.date}</span>
+                  </div>
+                </div>
+              `).join('')}
             </div>
+            ${renderPaginationUI(sampleData.myVotes.length, 5, pageState.myVotes, 'changeMyVotesPage')}
+          </div>
 
-            ${myInfoSubTab === 'posts' ? `
-              <div class="space-y-2 min-h-[190px]">
-                ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">작성한 게시글이 없습니다.</p>' : ''}
-                ${pagedMyPosts.map(p => `
-                  <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs hover:bg-indigo-50/50 cursor-pointer gap-2" onclick="window.openPostDetail('${p.id}')">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 shrink-0">${p.category}</span>
-                      <span class="font-bold text-gray-800 truncate">${p.title}</span>
-                      ${p.image ? '<span class="text-[10px] shrink-0">🖼️</span>' : ''}
-                    </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-gray-400 text-[10px]">${p.date}</span>
-                      <button onclick="event.stopPropagation(); window.deleteMyPost('${p.id}')" class="text-[10px] text-rose-500 font-bold hover:underline">삭제</button>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-              ${renderPaginationUI(myPosts.length, 5, pageState.myPosts, 'changeMyPostsPage')}
-            ` : ''}
+          <!-- 내가 작성한 글 -->
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📝</span> 내가 작성한 글 (${myPosts.length})</h3>
+            <div class="space-y-2 min-h-[100px]">
+              ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 게시글이 없습니다.</p>' : ''}
+              ${pagedMyPosts.map(p => `
+                <div onclick="window.openPostDetail('${p.id}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
+                  <span class="font-bold text-gray-800 truncate">${p.title}</span>
+                  <span class="text-gray-400 text-[10px] shrink-0 ml-2">${p.date}</span>
+                </div>
+              `).join('')}
+            </div>
+            ${renderPaginationUI(myPosts.length, 5, pageState.myPosts, 'changeMyPostsPage')}
+          </div>
 
-            ${myInfoSubTab === 'comments' ? `
-              <div class="space-y-2 min-h-[190px]">
-                ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">작성한 댓글이 없습니다.</p>' : ''}
-                ${pagedMyComments.map(c => {
-                  const targetPost = sampleData.boardPosts.find(p => String(p.id) === String(c.postId));
-                  return `
-                    <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs hover:bg-indigo-50/50 cursor-pointer gap-2" onclick="window.openPostDetail('${c.postId}')">
-                      <div class="min-w-0 flex-1">
-                        <p class="font-bold text-gray-800 truncate mb-0.5">${c.text}</p>
-                        <span class="text-[10px] text-gray-400 block truncate">원문: ${targetPost ? targetPost.title : '삭제된 게시글'}</span>
-                      </div>
-                      <div class="flex items-center gap-1.5 shrink-0">
-                        <span class="text-gray-400 text-[10px]">${c.date}</span>
-                        <button onclick="event.stopPropagation(); window.deleteComment('${c.id}')" class="text-[10px] text-rose-500 font-bold hover:underline">삭제</button>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-              ${renderPaginationUI(myComments.length, 5, pageState.myComments, 'changeMyCommentsPage')}
-            ` : ''}
-
-            ${myInfoSubTab === 'votes' ? `
-              <div class="space-y-2 min-h-[190px]">
-                ${pagedVotes.map(v => `
-                  <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs gap-2">
-                    <span class="font-bold text-gray-800 truncate">${v.title}</span>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                      <span class="px-2 py-0.5 rounded font-bold bg-indigo-100 text-indigo-900">${v.choice}</span>
-                      <span class="text-gray-400 text-[10px]">${v.date}</span>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-              ${renderPaginationUI(sampleData.myVotes.length, 5, pageState.myVotes, 'changeMyVotesPage')}
-            ` : ''}
+          <!-- 내가 작성한 댓글 -->
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>💬</span> 내가 작성한 댓글 (${myComments.length})</h3>
+            <div class="space-y-2 min-h-[100px]">
+              ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 댓글이 없습니다.</p>' : ''}
+              ${pagedMyComments.map(c => `
+                <div onclick="window.openPostDetail('${c.postId}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
+                  <span class="text-gray-700 truncate">${c.text}</span>
+                  <span class="text-gray-400 text-[10px] shrink-0 ml-2">${c.date || ''}</span>
+                </div>
+              `).join('')}
+            </div>
+            ${renderPaginationUI(myComments.length, 5, pageState.myComments, 'changeMyCommentsPage')}
           </div>
         </div>
       `;
@@ -1729,260 +1808,189 @@
     window.changeMyPostsPage = (p) => { pageState.myPosts = p; renderMyInfoTab(document.getElementById('app')); };
     window.changeMyCommentsPage = (p) => { pageState.myComments = p; renderMyInfoTab(document.getElementById('app')); };
 
-    window.deleteMyPost = async (postId) => {
-      if (confirm('게시글을 삭제하시겠습니까?')) {
-        await deleteDoc(doc(db, "posts", String(postId)));
-      }
-    };
-
     // ==================== 5. 운영진 탭 ====================
-    window.updateSuggestionStatus = async (suggestionId, newStatus) => {
-      if (!currentUser || currentUser.role !== 'admin') return alert('운영진 권한이 필요합니다.');
-      try {
-        await updateDoc(doc(db, "suggestions", suggestionId), {
-          status: newStatus
-        });
-      } catch (e) {
-        console.error("건의함 상태 업데이트 실패:", e);
-      }
-    };
-
-    window.toggleRegularVoteAccordion = () => {
-      isRegularVoteAccordionOpen = !isRegularVoteAccordionOpen;
-      renderAdminTab(document.getElementById('app'));
-    };
-
     function renderAdminTab(container) {
       if (!currentUser || currentUser.role !== 'admin') {
         container.innerHTML = `
-          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100">
-            <span class="text-4xl mb-3 block">🔒</span>
-            <p class="text-sm text-gray-800 font-black mb-1">운영진 전용 공간입니다.</p>
-            <p class="text-xs text-gray-400">일반 회원은 접근 권한이 없습니다.</p>
+          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-gray-100 max-w-md mx-auto my-8">
+            <span class="text-4xl block mb-3">🛡️</span>
+            <h3 class="text-base sm:text-lg font-black text-gray-900 mb-2">운영진 전용 페이지</h3>
+            <p class="text-xs text-gray-500 mb-5">운영진 권한이 있는 계정으로 로그인 후 이용해 주세요.</p>
+            <button onclick="window.openLoginModal()" class="bg-indigo-950 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md hover:bg-indigo-900">로그인 하기</button>
           </div>
         `;
         return;
       }
 
       const sortedMembers = sortMembers(sampleData.members);
+      const sortedEvents = sortEventsByDate(sampleData.events);
+      
       const pagedMembers = paginate(sortedMembers, 5, pageState.adminMembers);
       const pagedSuggestions = paginate(sampleData.suggestions, 5, pageState.adminSuggestions);
-      
-      const sortedEvents = sortEventsByDate(sampleData.events);
       const pagedEvents = paginate(sortedEvents, 5, pageState.adminEvents);
 
-      const regularEvents = sampleData.events.filter(e => e.type === 'regular');
-      if (!sampleData.regularVotesByDate[selectedAdminDate]) {
-        sampleData.regularVotesByDate[selectedAdminDate] = {};
+      /* 2. 대상 일자 순서 정렬: 해당 날짜 기준으로 미래까지 순서대로(오름차순), 과거 일자는 아래로(내림차순) */
+      const today = getTodayString();
+      const allVoteDates = Object.keys(sampleData.regularVotesByDate);
+      const futureDates = allVoteDates.filter(d => d >= today).sort((a, b) => a.localeCompare(b));
+      const pastDates = allVoteDates.filter(d => d < today).sort((a, b) => b.localeCompare(a));
+      const sortedVoteDates = [...futureDates, ...pastDates];
+
+      if (sortedVoteDates.length > 0 && (!selectedAdminDate || !allVoteDates.includes(selectedAdminDate))) {
+        selectedAdminDate = sortedVoteDates[0];
       }
-      const currentVotes = sampleData.regularVotesByDate[selectedAdminDate];
+
+      const curVotes = sampleData.regularVotesByDate[selectedAdminDate] || {};
+      const pagedVoteMembers = paginate(sortedMembers, 5, pageState.adminRegularVotes);
+
+      const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
 
       container.innerHTML = `
-        <div class="space-y-5">
-          <!-- 월별 정기 운동 일정 자동 생성 섹션 -->
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-indigo-100">
-            <h3 class="text-sm sm:text-base font-black text-indigo-950 mb-2 flex items-center gap-1.5">
-              <span>⚡</span> 월별 정기 운동 일정 자동 생성 (공휴일 제외)
-            </h3>
-            <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-              원하는 연월과 요일을 선택하면 <strong>한국 공휴일을 자동 감지하여 제외</strong>하고 정기 운동 일정을 생성합니다.
-            </p>
+        <div class="space-y-4 sm:space-y-5">
+          <div class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm flex justify-between items-center">
+            <div>
+              <span class="text-[10px] font-bold bg-amber-400 text-indigo-950 px-2 py-0.5 rounded-full">운영진 모드</span>
+              <h2 class="text-lg sm:text-xl font-black mt-1">동호회 종합 관리</h2>
+            </div>
+            <button onclick="window.openWritePostModal('공지사항')" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 text-xs font-bold px-3 py-2 rounded-xl transition shadow-md">
+              📢 공지 작성
+            </button>
+          </div>
 
-            <form onsubmit="window.handleAutoGenerateMonthlyEvents(event)" class="space-y-3 bg-indigo-50/50 p-3 sm:p-4 rounded-xl border border-indigo-100">
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- Section 1: 정기운동 요일 일괄 설정 -->
+          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 월별 정기 운동일 생성</h3>
+            </div>
+            <form onsubmit="window.handleGenerateMonthlyEvents(event)" class="space-y-3 bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-200">
+              <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-xs font-bold text-gray-700 mb-1">대상 연월</label>
-                  <input type="month" id="autoGenMonth" required value="2026-10" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-600" />
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">대상 연도/월</label>
+                  <input type="month" id="genMonth" required value="2026-10" class="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold bg-white" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-gray-700 mb-1">운동 시간</label>
-                  <input type="time" id="autoGenTime" required value="18:30" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-600" />
+                  <label class="block text-[11px] font-bold text-gray-700 mb-1">기본 운동 시간</label>
+                  <input type="time" id="genTime" required value="19:30" class="w-full p-2 border border-gray-300 rounded-lg text-xs font-bold bg-white" />
                 </div>
-                <div>
-                  <label class="block text-xs font-bold text-gray-700 mb-1">운동 장소</label>
-                  <input type="text" id="autoGenLocation" required value="순천 조례초" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-indigo-600" />
+              </div>
+              
+              <!-- 3. 요일 순서 월, 화, 수, 목, 금, 토, 일 및 기본 운동일 화요일, 목요일 설정 -->
+              <div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">정기 운동 요일 선택 (기본: 화, 목)</label>
+                <div class="flex flex-wrap gap-2 text-xs">
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="1" class="rounded text-indigo-900"> 월</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="2" checked class="rounded text-indigo-900"> 화</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="3" class="rounded text-indigo-900"> 수</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="4" checked class="rounded text-indigo-900"> 목</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="5" class="rounded text-indigo-900"> 금</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="6" class="rounded text-indigo-900"> 토</label>
+                  <label class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 cursor-pointer"><input type="checkbox" name="genDay" value="0" class="rounded text-indigo-900"> 일</label>
                 </div>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">정기 운동 요일 선택</label>
-                <div class="flex flex-wrap gap-2.5 bg-white p-2.5 rounded-xl border border-gray-200 text-xs">
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="2" checked class="rounded text-indigo-900 focus:ring-indigo-600"> 화요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="5" checked class="rounded text-indigo-900 focus:ring-indigo-600"> 금요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="1" class="rounded text-indigo-900 focus:ring-indigo-600"> 월요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="3" class="rounded text-indigo-900 focus:ring-indigo-600"> 수요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="4" class="rounded text-indigo-900 focus:ring-indigo-600"> 목요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="6" class="rounded text-indigo-900 focus:ring-indigo-600"> 토요일</label>
-                  <label class="flex items-center gap-1 font-semibold cursor-pointer"><input type="checkbox" name="autoDay" value="0" class="rounded text-indigo-900 focus:ring-indigo-600"> 일요일</label>
-                </div>
+                <label class="block text-[11px] font-bold text-gray-700 mb-1">운동 장소</label>
+                <input type="text" id="genLocation" required value="순천 조례초" placeholder="예: 순천 조례초" class="w-full p-2 border border-gray-300 rounded-lg text-xs bg-white" />
               </div>
 
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">상세 안내 메모</label>
-                <input type="text" id="autoGenDesc" value="정기운동 일정입니다. 마감 전까지 투표 부탁드립니다." class="w-full p-2 border border-gray-200 rounded-xl text-xs bg-white" />
-              </div>
-
-              <button type="submit" class="w-full bg-indigo-950 hover:bg-indigo-900 text-white font-bold py-3 rounded-xl text-xs shadow-md transition">
-                ⚡ 정기 운동 일정 자동 생성
-              </button>
+              <button type="submit" class="w-full bg-indigo-950 hover:bg-indigo-900 text-white text-xs font-bold py-2.5 rounded-lg shadow-sm">선택 월 정기운동 일괄 생성</button>
             </form>
           </div>
 
-          <!-- 일정 관리 -->
+          <!-- Section 2: 회원 명단 관리 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <h3 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 동호회 일정 관리</h3>
-              <button onclick="window.openAddEventModal()" class="bg-indigo-950 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl hover:bg-indigo-900 transition shadow-sm">+ 수동 추가</button>
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>👥</span> 회원 명단 관리 (${sampleData.members.length}명)</h3>
+              <button onclick="window.openAddMemberModal()" class="bg-indigo-900 text-white text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-800">+ 회원 추가</button>
             </div>
-
-            <div class="overflow-x-auto min-h-[160px]">
-              <table class="w-full text-left text-xs whitespace-nowrap">
-                <thead>
-                  <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
-                    <th class="p-2.5">날짜/시간</th>
-                    <th class="p-2.5">구분</th>
-                    <th class="p-2.5">일정 제목</th>
-                    <th class="p-2.5">장소</th>
-                    <th class="p-2.5 text-right">관리</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${pagedEvents.length === 0 ? '<tr><td colspan="5" class="p-4 text-center text-gray-400 text-xs">등록된 일정이 없습니다.</td></tr>' : ''}
-                  ${pagedEvents.map(evt => `
-                    <tr>
-                      <td class="p-2.5 font-bold text-indigo-900">${evt.date} ${evt.time || ''}</td>
-                      <td class="p-2.5">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">
-                          ${evt.type === 'match' ? '대회' : '정기'}
-                        </span>
-                      </td>
-                      <td class="p-2.5 font-bold text-gray-800">${evt.title}</td>
-                      <td class="p-2.5 text-gray-600">${evt.location || '-'}</td>
-                      <td class="p-2.5 text-right">
-                        <button onclick="window.deleteEvent('${evt.id}')" class="bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded text-[10px] border border-rose-200 hover:bg-rose-100">삭제</button>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-            ${renderPaginationUI(sampleData.events.length, 5, pageState.adminEvents, 'changeAdminEventsPage')}
-          </div>
-
-          <!-- 정기운동 참가 현황 수동 관리 -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <button onclick="window.toggleRegularVoteAccordion()" class="w-full p-4 sm:p-5 text-left font-black text-gray-900 flex justify-between items-center bg-white hover:bg-gray-50 transition">
-              <span class="text-sm sm:text-base flex items-center gap-1.5"><span>🏐</span> 정기운동 참가 수동 변경</span>
-              <span class="text-xs text-gray-500 font-bold">${isRegularVoteAccordionOpen ? '▲ 접기' : '▼ 펼치기'}</span>
-            </button>
-            ${isRegularVoteAccordionOpen ? `
-              <div class="p-4 sm:p-5 border-t border-gray-100 pt-0">
-                <div class="flex justify-between items-center mb-3 flex-wrap gap-2 pt-3">
-                  <span class="text-xs text-gray-500">대상을 선택하여 수동으로 참석 여부를 변경할 수 있습니다.</span>
-                  <div class="flex items-center gap-1">
-                    <label class="text-[10px] sm:text-[11px] font-bold text-gray-600">대상:</label>
-                    <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
-                      ${regularEvents.map(evt => `
-                        <option value="${evt.date}" ${evt.date === selectedAdminDate ? 'selected' : ''}>
-                          ${evt.date} (${evt.title})
-                        </option>
-                      `).join('')}
-                    </select>
+            <div class="space-y-2 min-h-[190px]">
+              ${sortedMembers.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">등록된 회원이 없습니다.</p>' : ''}
+              ${pagedMembers.map(m => `
+                <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-gray-900">${m.name}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 text-gray-700'}">${roleLabels[m.role] || m.role}</span>
+                  </div>
+                  <div class="flex gap-1.5">
+                    <button onclick="window.openEditMemberModal('${m.id}', '${m.name}', '${m.role}')" class="text-[10px] bg-white text-gray-700 px-2 py-1 rounded border border-gray-200 font-bold hover:bg-gray-100">수정</button>
+                    <button onclick="window.handleDeleteMember('${m.id}')" class="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded border border-rose-200 font-bold hover:bg-rose-100">삭제</button>
                   </div>
                 </div>
-
-                <div class="overflow-x-auto min-h-[160px]">
-                  <table class="w-full text-left text-xs whitespace-nowrap">
-                    <thead>
-                      <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
-                        <th class="p-2.5">회원명</th>
-                        <th class="p-2.5">직책</th>
-                        <th class="p-2.5">상태</th>
-                        <th class="p-2.5 text-right">수동 변경</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                      ${sortedMembers.map(m => {
-                        const status = currentVotes[m.name] || "미정";
-                        return `
-                          <tr>
-                            <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
-                            <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${roleLabels[m.role] || '회원'}</span></td>
-                            <td class="p-2.5">
-                              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${status === '참가' ? 'bg-emerald-100 text-emerald-800' : status === '불참' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}">
-                                ${status}
-                              </span>
-                            </td>
-                            <td class="p-2.5 text-right">
-                              <div class="inline-flex gap-1">
-                                <button onclick="window.updateAdminMemberVote('${m.name}', '참가')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">참가</button>
-                                <button onclick="window.updateAdminMemberVote('${m.name}', '불참')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">불참</button>
-                                <button onclick="window.updateAdminMemberVote('${m.name}', '미정')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">미정</button>
-                              </div>
-                            </td>
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ` : ''}
-          </div>
-
-          <!-- 회원 계정 관리 -->
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <h3 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>👥</span> 회원 계정 관리</h3>
-              <button onclick="window.openAddMemberModal()" class="bg-indigo-950 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl hover:bg-indigo-900 transition shadow-sm">+ 회원 추가</button>
-            </div>
-            <div class="overflow-x-auto min-h-[160px]">
-              <table class="w-full text-left text-xs whitespace-nowrap">
-                <thead>
-                  <tr class="bg-gray-50 text-gray-500 border-b border-gray-100">
-                    <th class="p-2.5">이름</th>
-                    <th class="p-2.5">권한</th>
-                    <th class="p-2.5">비밀번호</th>
-                    <th class="p-2.5 text-right">관리</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${pagedMembers.map(m => `
-                    <tr>
-                      <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
-                      <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600'}">${roleLabels[m.role] || '일반회원'}</span></td>
-                      <td class="p-2.5 text-gray-500 font-mono">${m.password || '0000'}</td>
-                      <td class="p-2.5 text-right">
-                        <button onclick="window.resetMemberPassword('${m.name}')" class="bg-amber-50 text-amber-700 font-bold px-2 py-1 rounded text-[10px] border border-amber-200 hover:bg-amber-100 mr-1">초기화</button>
-                        <button onclick="window.openEditMemberModal('${m.id || m.name}', '${m.name}', '${m.role}')" class="bg-gray-100 text-gray-700 font-bold px-2 py-1 rounded text-[10px] hover:bg-gray-200 mr-1">수정</button>
-                        <button onclick="window.deleteMember('${m.id || m.name}', '${m.name}')" class="bg-rose-50 text-rose-600 font-bold px-2 py-1 rounded text-[10px] border border-rose-200 hover:bg-rose-100">삭제</button>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              `).join('')}
             </div>
             ${renderPaginationUI(sortedMembers.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
           </div>
 
-          <!-- 익명 건의함 -->
+          <!-- 1. Section 3: 동호회 일정 관리 (수정 기능 및 확장된 카테고리) -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 class="text-sm sm:text-base font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>🔒</span> 익명 건의함 접수 목록</h3>
-            <div class="space-y-2 min-h-[160px]">
-              ${pagedSuggestions.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">접수된 건의사항이 없습니다.</p>' : ''}
-              ${pagedSuggestions.map(s => `
-                <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center text-xs gap-2">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리 (정기, 대회, 회식, 기타)</h3>
+              <button onclick="window.openAddEventModal()" class="bg-indigo-900 text-white text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-800">+ 일정 추가</button>
+            </div>
+            <div class="space-y-2 min-h-[190px]">
+              ${sortedEvents.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">등록된 일정이 없습니다.</p>' : ''}
+              ${pagedEvents.map(evt => `
+                <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs gap-2">
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-[10px] text-gray-400">${s.date}</span>
-                      <select onchange="window.updateSuggestionStatus('${s.id}', this.value)" class="text-[10px] font-bold p-1 border rounded bg-white">
-                        <option value="검토중" ${s.status === '검토중' ? 'selected' : ''}>검토중</option>
-                        <option value="반영완료" ${s.status === '반영완료' ? 'selected' : ''}>반영완료</option>
-                        <option value="보류" ${s.status === '보류' ? 'selected' : ''}>보류</option>
-                      </select>
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : evt.type === 'dinner' ? 'bg-amber-100 text-amber-800' : evt.type === 'etc' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${categoryNames[evt.type] || '정기'}</span>
+                      <span class="font-bold text-gray-900 truncate">${evt.title}</span>
                     </div>
-                    <p class="font-bold text-gray-800 break-all">${s.text}</p>
+                    <p class="text-[11px] text-gray-500 mt-0.5">${evt.date} (${evt.time || ''}) | ${evt.location || '장소미정'}</p>
                   </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button onclick="window.openEditEventModal('${evt.id}')" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded border border-indigo-200 font-bold">✏️ 수정</button>
+                    <button onclick="window.handleDeleteEvent('${evt.id}')" class="text-[10px] bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded border border-rose-200 font-bold">삭제</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            ${renderPaginationUI(sortedEvents.length, 5, pageState.adminEvents, 'changeAdminEventsPage')}
+          </div>
+
+          <!-- 2. Section 4: 정기운동 참가 수동 변경 (대상 일자 순서 정렬) -->
+          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>✍️</span> 정기운동 참가 명단 수동 수정</h3>
+              <div class="flex items-center gap-1">
+                <label class="text-[11px] font-bold text-gray-600">대상 일자:</label>
+                <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
+                  ${sortedVoteDates.map(d => `<option value="${d}" ${d === selectedAdminDate ? 'selected' : ''}>${d} ${d >= today ? '(예정)' : '(지난운동)'}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+
+            <div class="space-y-2 min-h-[190px]">
+              ${sortedMembers.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">등록된 회원이 없습니다.</p>' : ''}
+              ${pagedVoteMembers.map(m => {
+                const status = curVotes[m.name] || '미정';
+                return `
+                  <div class="flex justify-between items-center p-2 bg-gray-50 rounded-xl text-xs">
+                    <span class="font-bold text-gray-800">${m.name}</span>
+                    <div class="flex gap-1">
+                      <button onclick="window.updateAdminMemberAttendance('${m.name}', '참가')" class="px-2 py-1 rounded text-[10px] font-bold ${status === '참가' ? 'bg-emerald-600 text-white' : 'bg-white border text-gray-600'}">참가</button>
+                      <button onclick="window.updateAdminMemberAttendance('${m.name}', '불참')" class="px-2 py-1 rounded text-[10px] font-bold ${status === '불참' ? 'bg-rose-600 text-white' : 'bg-white border text-gray-600'}">불참</button>
+                      <button onclick="window.updateAdminMemberAttendance('${m.name}', '미정')" class="px-2 py-1 rounded text-[10px] font-bold ${status === '미정' ? 'bg-amber-500 text-white' : 'bg-white border text-gray-600'}">미정</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            ${renderPaginationUI(sortedMembers.length, 5, pageState.adminRegularVotes, 'changeAdminRegularVotesPage')}
+          </div>
+
+          <!-- Section 5: 익명 건의사항 검토 -->
+          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>🔒</span> 익명 건의사항 목록</h3>
+            <div class="space-y-2 min-h-[160px]">
+              ${sampleData.suggestions.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">접수된 건의사항이 없습니다.</p>' : ''}
+              ${pagedSuggestions.map(s => `
+                <div class="p-3 bg-gray-50 rounded-xl text-xs space-y-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-indigo-950">${s.date} 접수</span>
+                    <button onclick="window.deleteSuggestion('${s.id}')" class="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
+                  </div>
+                  <p class="text-gray-700 leading-relaxed">${s.text}</p>
                 </div>
               `).join('')}
             </div>
@@ -1995,32 +2003,57 @@
     window.changeAdminMembersPage = (p) => { pageState.adminMembers = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminSuggestionsPage = (p) => { pageState.adminSuggestions = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminEventsPage = (p) => { pageState.adminEvents = p; renderAdminTab(document.getElementById('app')); };
+    window.changeAdminRegularVotesPage = (p) => { pageState.adminRegularVotes = p; renderAdminTab(document.getElementById('app')); };
 
-    window.handleAdminDateChange = (dateStr) => {
-      selectedAdminDate = dateStr;
+    window.handleAdminDateChange = (d) => {
+      selectedAdminDate = d;
       renderAdminTab(document.getElementById('app'));
     };
 
-    window.updateAdminMemberVote = async (memberName, status) => {
-      if(!selectedAdminDate) return alert('날짜를 먼저 선택해 주세요.');
+    window.updateAdminMemberAttendance = async (name, status) => {
+      if(!selectedAdminDate) return;
       const votesObj = sampleData.regularVotesByDate[selectedAdminDate] || {};
-      votesObj[memberName] = status;
-
+      votesObj[name] = status;
       await setDoc(doc(db, "regularVotes", selectedAdminDate), { votes: votesObj }, { merge: true });
     };
 
-    window.resetMemberPassword = async (memberName) => {
-      if(confirm(`${memberName} 회원의 비밀번호를 초기화(0000)하시겠습니까?`)) {
-        await setDoc(doc(db, "members", memberName), { password: "0000" }, { merge: true });
-        alert('비밀번호가 0000으로 초기화되었습니다.');
-      }
-    };
+    window.handleGenerateMonthlyEvents = async (e) => {
+      e.preventDefault();
+      const monthStr = document.getElementById('genMonth').value; // YYYY-MM
+      const timeStr = document.getElementById('genTime').value;
+      const locStr = document.getElementById('genLocation').value;
+      
+      const dayCheckboxes = document.querySelectorAll('input[name="genDay"]:checked');
+      const selectedDays = Array.from(dayCheckboxes).map(cb => parseInt(cb.value));
 
-    window.deleteMember = async (docId, memberName) => {
-      if(confirm(`${memberName} 회원을 정말 삭제하시겠습니까?`)) {
-        await deleteDoc(doc(db, "members", docId));
-        alert('회원이 삭제되었습니다.');
+      if(selectedDays.length === 0) return alert('최소 하나 이상의 요일을 선택해 주세요.');
+
+      const [year, month] = monthStr.split('-').map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      let createdCount = 0;
+      for(let day = 1; day <= daysInMonth; day++) {
+        const dObj = new Date(year, month - 1, day);
+        if(selectedDays.includes(dObj.getDay())) {
+          const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const titleName = dObj.getDay() === 2 ? '화요 정기운동' : dObj.getDay() === 4 ? '목요 정기운동' : '정기운동';
+
+          const existing = sampleData.events.find(e => e.date === formattedDate && e.type === 'regular');
+          if(!existing) {
+            await addDoc(collection(db, "events"), {
+              title: titleName,
+              date: formattedDate,
+              time: timeStr,
+              location: locStr,
+              type: 'regular',
+              description: `${formattedDate} VEGA 정기운동입니다.`
+            });
+            createdCount++;
+          }
+        }
       }
+
+      alert(`${monthStr} 월에 총 ${createdCount}개의 정기운동 일정이 새로 등록되었습니다.`);
     };
 
     window.openAddMemberModal = () => document.getElementById('addMemberModal').classList.remove('hidden');
@@ -2032,120 +2065,112 @@
       const role = document.getElementById('addMemberRole').value;
       const pass = document.getElementById('addMemberPassword').value.trim();
 
-      await setDoc(doc(db, "members", name), {
-        name: name,
-        role: role,
-        password: pass || "0000",
-        createdAt: serverTimestamp()
-      });
-
-      alert('새 회원이 추가되었습니다.');
+      await setDoc(doc(db, "members", name), { name, role, password: pass });
+      alert('새 회원이 등록되었습니다.');
       window.closeAddMemberModal();
     };
 
-    window.openEditMemberModal = (docId, name, role) => {
-      document.getElementById('editMemberDocId').value = docId;
+    window.openEditMemberModal = (id, name, role) => {
+      document.getElementById('editMemberDocId').value = id;
       document.getElementById('editMemberName').value = name;
-      document.getElementById('editMemberRole').value = role || 'member';
+      document.getElementById('editMemberRole').value = role;
       document.getElementById('editMemberModal').classList.remove('hidden');
     };
     window.closeEditMemberModal = () => document.getElementById('editMemberModal').classList.add('hidden');
 
     window.handleSaveEditMember = async (e) => {
       e.preventDefault();
-      const docId = document.getElementById('editMemberDocId').value;
-      const newName = document.getElementById('editMemberName').value.trim();
-      const newRole = document.getElementById('editMemberRole').value;
+      const id = document.getElementById('editMemberDocId').value;
+      const name = document.getElementById('editMemberName').value.trim();
+      const role = document.getElementById('editMemberRole').value;
 
-      await setDoc(doc(db, "members", docId), {
-        name: newName,
-        role: newRole
-      }, { merge: true });
-
+      await setDoc(doc(db, "members", id), { name, role }, { merge: true });
       alert('회원 정보가 수정되었습니다.');
       window.closeEditMemberModal();
     };
 
-    window.openAddEventModal = () => document.getElementById('addEventModal').classList.remove('hidden');
+    window.handleDeleteMember = async (id) => {
+      if(confirm('이 회원을 삭제하시겠습니까?')) {
+        await deleteDoc(doc(db, "members", id));
+        alert('삭제되었습니다.');
+      }
+    };
+
+    /* 1. 일정 추가 및 수정 모달 열기 구현 */
+    window.openAddEventModal = () => {
+      document.getElementById('editEventId').value = '';
+      document.getElementById('eventModalTitle').innerText = '📅 새 일정 추가';
+      document.getElementById('newEventTitle').value = '';
+      document.getElementById('newEventDate').value = getTodayString();
+      document.getElementById('newEventTime').value = '19:30';
+      document.getElementById('newEventLocation').value = '순천 조례초';
+      document.getElementById('newEventDesc').value = '';
+      document.getElementById('newEventCategory').value = 'regular';
+      document.getElementById('eventSubmitBtn').innerText = '일정 등록';
+      document.getElementById('addEventModal').classList.remove('hidden');
+    };
+
+    window.openEditEventModal = (eventId) => {
+      const evt = sampleData.events.find(e => String(e.id) === String(eventId));
+      if(!evt) return;
+
+      document.getElementById('editEventId').value = evt.id;
+      document.getElementById('eventModalTitle').innerText = '✏️ 일정 수정';
+      document.getElementById('newEventTitle').value = evt.title || '';
+      document.getElementById('newEventDate').value = evt.date || getTodayString();
+      document.getElementById('newEventTime').value = evt.time || '19:30';
+      document.getElementById('newEventLocation').value = evt.location || '';
+      document.getElementById('newEventDesc').value = evt.description || '';
+      document.getElementById('newEventCategory').value = evt.type || 'regular';
+      document.getElementById('eventSubmitBtn').innerText = '수정 완료';
+      document.getElementById('addEventModal').classList.remove('hidden');
+    };
+
     window.closeAddEventModal = () => document.getElementById('addEventModal').classList.add('hidden');
 
     window.handleCreateEvent = async (e) => {
       e.preventDefault();
-      const type = document.getElementById('newEventCategory').value;
+      const editId = document.getElementById('editEventId').value;
       const title = document.getElementById('newEventTitle').value.trim();
       const date = document.getElementById('newEventDate').value;
       const time = document.getElementById('newEventTime').value;
       const location = document.getElementById('newEventLocation').value.trim();
-      const description = document.getElementById('newEventDesc').value.trim();
+      const desc = document.getElementById('newEventDesc').value.trim();
+      const type = document.getElementById('newEventCategory').value;
 
-      await addDoc(collection(db, "events"), {
-        type, title, date, time, location, description, createdAt: serverTimestamp()
-      });
+      const eventData = {
+        title: title,
+        date: date,
+        time: time,
+        location: location,
+        description: desc,
+        type: type
+      };
 
-      alert('새 일정이 등록되었습니다.');
+      if (editId) {
+        await setDoc(doc(db, "events", String(editId)), eventData, { merge: true });
+        alert('일정이 성공적으로 수정되었습니다.');
+      } else {
+        await addDoc(collection(db, "events"), eventData);
+        alert('새 일정이 추가되었습니다.');
+      }
+
       window.closeAddEventModal();
     };
 
-    window.deleteEvent = async (eventId) => {
-      if (confirm('해당 일정을 삭제하시겠습니까?')) {
-        await deleteDoc(doc(db, "events", String(eventId)));
-        alert('일정이 삭제되었습니다.');
+    window.handleDeleteEvent = async (id) => {
+      if(confirm('이 일정을 삭제하시겠습니까?')) {
+        await deleteDoc(doc(db, "events", String(id)));
+        alert('삭제되었습니다.');
       }
     };
 
-    window.handleAutoGenerateMonthlyEvents = async (e) => {
-      e.preventDefault();
-      const monthVal = document.getElementById('autoGenMonth').value; 
-      const timeVal = document.getElementById('autoGenTime').value;
-      const locVal = document.getElementById('autoGenLocation').value.trim();
-      const descVal = document.getElementById('autoGenDesc').value.trim();
-
-      const selectedDays = Array.from(document.querySelectorAll('input[name="autoDay"]:checked')).map(el => parseInt(el.value));
-
-      if (selectedDays.length === 0) {
-        return alert('정기 운동 요일을 하나 이상 선택해 주세요.');
+    window.deleteSuggestion = async (id) => {
+      if(confirm('건의사항을 삭제하시겠습니까?')) {
+        await deleteDoc(doc(db, "suggestions", String(id)));
+        alert('삭제되었습니다.');
       }
-
-      const [year, month] = monthVal.split('-').map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-
-      let createdCount = 0;
-      let skippedCount = 0;
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateObj = new Date(year, month - 1, day);
-        const dayOfWeek = dateObj.getDay();
-
-        if (selectedDays.includes(dayOfWeek)) {
-          if (isKoreanHoliday(dateObj)) {
-            skippedCount++;
-            continue;
-          }
-
-          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-          const title = `${dayNames[dayOfWeek]}요 정기운동`;
-
-          const exists = sampleData.events.some(e => e.date === dateStr && e.type === 'regular');
-          if (!exists) {
-            await addDoc(collection(db, "events"), {
-              type: "regular",
-              title: title,
-              date: dateStr,
-              time: timeVal,
-              location: locVal,
-              description: descVal,
-              createdAt: serverTimestamp()
-            });
-            createdCount++;
-          }
-        }
-      }
-
-      alert(`정기 운동 일정 자동 생성 완료!\n- 추가된 일정: ${createdCount}개\n- 공휴일로 제외된 날짜: ${skippedCount}개`);
     };
-
-    switchTab('home');
   </script>
 </body>
 </html>
