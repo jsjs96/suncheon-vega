@@ -449,7 +449,7 @@
     let currentBoardCategory = '투표게시판';
     let currentViewingPostId = null;
     let uploadedImageBase64 = null;
-    let selectedAdminDate = "2026-09-18";
+    let selectedAdminDate = getTodayString();
     let selectedHomeDate = null;
     let isEditingVote = false;
     let isRegularVoteAccordionOpen = false;
@@ -511,6 +511,13 @@
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+    }
+
+    function getFormattedDateShort() {
+      const d = new Date();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${month}.${day}`;
     }
 
     /* 한국의 모든 공휴일 정보 데이터베이스 및 판별 함수 */
@@ -732,7 +739,7 @@
         sampleData.myVotes = validUserVotes.filter(v => currentUser && v.name === currentUser.name).map(v => ({
           title: sampleData.specialVote ? sampleData.specialVote.title : "특별 투표",
           choice: v.choice,
-          date: v.date || "09.14"
+          date: v.date || getFormattedDateShort()
         }));
 
         refreshCurrentTab();
@@ -745,7 +752,6 @@
       return array.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
     }
 
-    /* 수정사항 2: 페이지네이션 숫자 5개 고정 노출 및 맨앞/맨뒤 이동 버튼 기능 추가 */
     function renderPaginationUI(totalItems, pageSize, currentPage, onPageChangeFnName) {
       const totalPages = Math.ceil(totalItems / pageSize);
       if (totalPages <= 1) return '';
@@ -1200,7 +1206,7 @@
         name: currentUser.name,
         choice: choice,
         reason: reason,
-        date: "09.14",
+        date: getFormattedDateShort(),
         createdAt: serverTimestamp()
       });
 
@@ -1260,7 +1266,6 @@
     };
 
     // ==================== 2. 일정 탭 ====================
-    /* 수정사항 1: 캘린더에 시간 제외 제목만 노출 (displayEventTime: false 지정 및 title 시간 표기 제거) */
     function renderCalendarTab(container) {
       container.innerHTML = `
         <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -1278,7 +1283,6 @@
       setTimeout(() => {
         const calendarEl = document.getElementById('calendar');
         
-        // 캘린더 이벤트 구성 (시간 표기 제외, 제목만 표시)
         const calendarEvents = sampleData.events.map(evt => {
           let icon = '🏐';
           let bgColor = '#1e1b4b';
@@ -1301,7 +1305,7 @@
           height: 'auto',
           contentHeight: 'auto',
           aspectRatio: 1.1,
-          displayEventTime: false, // 달력 이벤트 박스 내의 시간 텍스트 표시 비활성화
+          displayEventTime: false,
           headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
           events: calendarEvents,
           dayCellDidMount: function(arg) {
@@ -1534,6 +1538,7 @@
     window.handleCreatePost = async (e) => {
       e.preventDefault();
       const category = document.getElementById('postCategorySelect').value;
+      const todayShort = getFormattedDateShort(); // 현재 날짜 (예: "09.23")
 
       if (category === '투표게시판') {
         if (!currentUser || currentUser.role !== 'admin') {
@@ -1574,7 +1579,7 @@
           title: voteTitle,
           itemCategory: itemCategory,
           content: `투표 항목: [${itemCategory}] / 마감일: ${formattedDeadline}`,
-          date: "09.14",
+          date: todayShort,
           author: currentUser.name,
           category: "투표게시판",
           createdAt: serverTimestamp()
@@ -1597,7 +1602,7 @@
       if (category === '🔒 익명 건의사항') {
         await addDoc(collection(db, "suggestions"), {
           text: title + (content ? ` - ${content}` : ''),
-          date: "09.14",
+          date: todayShort,
           status: "검토중",
           createdAt: serverTimestamp()
         });
@@ -1607,7 +1612,7 @@
           title: title,
           content: content,
           videoUrl: category === '영상게시판' ? videoUrl : null,
-          date: "09.14",
+          date: todayShort,
           author: currentUser.name,
           category: category,
           image: uploadedImageBase64 || null,
@@ -1713,7 +1718,7 @@
         postId: String(currentViewingPostId),
         author: currentUser.name,
         text: text,
-        date: "09.14",
+        date: getFormattedDateShort(),
         createdAt: serverTimestamp()
       });
 
@@ -1843,7 +1848,6 @@
       const pagedSuggestions = paginate(sampleData.suggestions, 5, pageState.adminSuggestions);
       const pagedEvents = paginate(sortedEvents, 5, pageState.adminEvents);
 
-      /* 2. 대상 일자 순서 정렬: 해당 날짜 기준으로 미래까지 순서대로(오름차순), 과거 일자는 아래로(내림차순) */
       const today = getTodayString();
       const allVoteDates = Object.keys(sampleData.regularVotesByDate);
       const futureDates = allVoteDates.filter(d => d >= today).sort((a, b) => a.localeCompare(b));
@@ -1888,7 +1892,6 @@
                 </div>
               </div>
               
-              <!-- 3. 요일 순서 월, 화, 수, 목, 금, 토, 일 및 기본 운동일 화요일, 목요일 설정 -->
               <div>
                 <label class="block text-[11px] font-bold text-gray-700 mb-1">정기 운동 요일 선택 (기본: 화, 목)</label>
                 <div class="flex flex-wrap gap-2 text-xs">
@@ -1911,7 +1914,7 @@
             </form>
           </div>
 
-          <!-- 2. 동호회 회원 명단 관리 (비밀번호 표출 및 수정 기능 추가) -->
+          <!-- Section 2: 동호회 회원 명단 관리 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>👥</span> 동호회 회원 명단 관리</h3>
@@ -1953,7 +1956,8 @@
             </div>
             ${renderPaginationUI(sortedMembers.length, 5, pageState.adminMembers, 'changeAdminMembersPage')}
           </div>
-          <!-- 1. Section 3: 동호회 일정 관리 (수정 기능 및 확장된 카테고리) -->
+
+          <!-- Section 3: 동호회 일정 관리 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-3">
               <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리 (정기, 대회, 회식, 기타)</h3>
@@ -1968,7 +1972,7 @@
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : evt.type === 'dinner' ? 'bg-amber-100 text-amber-800' : evt.type === 'etc' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${categoryNames[evt.type] || '정기'}</span>
                       <span class="font-bold text-gray-900 truncate">${evt.title}</span>
                     </div>
-                    <p class="text-[11px] text-gray-500 mt-0.5">${evt.date} (${evt.time || ''}) | ${evt.location || '장소미정'}</p>
+                    <p class="text-[11px] text-gray-500 mt-0.5">${evt.date} (${evt.time \vert{}\vert{} ''}) \vert{}${evt.location || '장소미정'}</p>
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
                     <button onclick="window.openEditEventModal('${evt.id}')" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded border border-indigo-200 font-bold">✏️ 수정</button>
@@ -1980,14 +1984,14 @@
             ${renderPaginationUI(sortedEvents.length, 5, pageState.adminEvents, 'changeAdminEventsPage')}
           </div>
 
-          <!-- 2. Section 4: 정기운동 참가 수동 변경 (대상 일자 순서 정렬) -->
+          <!-- Section 4: 정기운동 참가 수동 변경 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-3">
               <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>✍️</span> 정기운동 참가 명단 수동 수정</h3>
               <div class="flex items-center gap-1">
                 <label class="text-[11px] font-bold text-gray-600">대상 일자:</label>
                 <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
-                  ${sortedVoteDates.map(d => `<option value="${d}" ${d === selectedAdminDate ? 'selected' : ''}>${d} ${d >= today ? '(예정)' : '(지난운동)'}</option>`).join('')}
+                  ${sortedVoteDates.map(d => `<option value="${d}" ${d === selectedAdminDate ? 'selected' : ''}>${d}${d >= today ? '(예정)' : '(지난운동)'}</option>`).join('')}
                 </select>
               </div>
             </div>
@@ -2051,7 +2055,7 @@
 
     window.handleGenerateMonthlyEvents = async (e) => {
       e.preventDefault();
-      const monthStr = document.getElementById('genMonth').value; // YYYY-MM
+      const monthStr = document.getElementById('genMonth').value;
       const timeStr = document.getElementById('genTime').value;
       const locStr = document.getElementById('genLocation').value;
       
@@ -2128,7 +2132,6 @@
       }
     };
 
-    /* 1. 일정 추가 및 수정 모달 열기 구현 */
     window.openAddEventModal = () => {
       document.getElementById('editEventId').value = '';
       document.getElementById('eventModalTitle').innerText = '📅 새 일정 추가';
