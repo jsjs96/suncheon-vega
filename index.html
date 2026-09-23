@@ -57,20 +57,22 @@
       text-overflow: ellipsis;
     }
 
-    /* 달력 내부 이벤트 박스 및 글씨 크기 조정 */
+    /* 달력 내부 이벤트 박스 및 글씨 크기 조정 (초기 기본값, 실제 크기는 JS가 셀 너비에 맞춰 자동 조정) */
     .fc-event { 
       border: none !important; 
       border-radius: 4px !important; 
       padding: 1px 3px !important; 
-      font-size: clamp(0.55rem, 2vw, 0.7rem) !important; 
+      font-size: clamp(0.5rem, 2vw, 0.7rem); 
       line-height: 1.2 !important;
       white-space: nowrap !important;
       overflow: hidden !important;
       text-overflow: ellipsis !important;
     }
     .fc-event-title {
-      font-size: clamp(0.55rem, 2vw, 0.7rem) !important;
+      font-size: clamp(0.5rem, 2vw, 0.7rem);
       font-weight: 600;
+      display: inline-block;
+      max-width: 100%;
     }
 
     .truncate-custom {
@@ -247,7 +249,7 @@
           </div>
         </div>
         <div id="postDetailImageContainer" class="hidden">
-          <img id="postDetailImage" src="" class="w-full rounded-xl object-cover max-h-60 border border-gray-100 shadow-sm" />
+          <img id="postDetailImage" src="" onclick="window.openImageLightbox(this.src)" class="w-full rounded-xl object-cover max-h-60 border border-gray-100 shadow-sm cursor-zoom-in" />
         </div>
         <div id="postDetailVideoContainer" class="hidden bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <span class="text-xs font-bold text-indigo-950 flex items-center gap-1.5">🎬 유튜브 동영상 URL 첨부됨</span>
@@ -269,6 +271,12 @@
       </div>
       <button onclick="closePostDetailModal()" class="mt-4 w-full bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-xs">닫기</button>
     </div>
+  </div>
+
+  <!-- 첨부 사진 전체화면 보기 모달 -->
+  <div id="imageLightboxModal" class="fixed inset-0 bg-black/90 z-[60] hidden items-center justify-center p-4" onclick="window.closeImageLightbox()">
+    <button onclick="window.closeImageLightbox()" class="absolute top-4 right-4 text-white text-3xl font-bold leading-none">&times;</button>
+    <img id="lightboxImage" src="" class="max-w-full max-h-full object-contain rounded-lg" />
   </div>
 
   <!-- [운영진 전용] 새 회원 명단 추가 모달 -->
@@ -1050,6 +1058,30 @@
     };
 
     // ==================== 2. 일정 탭 ====================
+    /* 모바일 등 좁은 화면에서 일정 제목이 셀 너비에 맞게 잘리지 않도록 글씨 크기를 자동으로 줄여준다 */
+    function fitCalendarEventText(el) {
+      const titleEl = el.querySelector('.fc-event-title');
+      if (!titleEl) return;
+      const maxFont = 11.5;
+      const minFont = 5.5;
+      const availableWidth = el.clientWidth - 6;
+      if (availableWidth <= 0) return;
+
+      let fontSize = maxFont;
+      titleEl.style.setProperty('font-size', fontSize + 'px', 'important');
+      let guard = 0;
+      while (titleEl.scrollWidth > availableWidth && fontSize > minFont && guard < 24) {
+        fontSize -= 0.5;
+        titleEl.style.setProperty('font-size', fontSize + 'px', 'important');
+        guard++;
+      }
+    }
+
+    function fitAllCalendarEvents(calendarEl) {
+      if (!calendarEl) return;
+      calendarEl.querySelectorAll('.fc-event').forEach(fitCalendarEventText);
+    }
+
     /* 수정사항 1: 캘린더에 시간 제외 제목만 노출 (displayEventTime: false 지정 및 title 시간 표기 제거) */
     function renderCalendarTab(container) {
       container.innerHTML = `
@@ -1107,11 +1139,19 @@
               }
             }
           },
+          eventDidMount: function(arg) {
+            // 셀 레이아웃이 완전히 잡힌 뒤 측정하도록 프레임을 한 번 더 대기
+            requestAnimationFrame(() => requestAnimationFrame(() => fitCalendarEventText(arg.el)));
+          },
           eventClick: function(info) {
             window.openEventDetail(info.event.id);
+          },
+          windowResize: function() {
+            fitAllCalendarEvents(calendarEl);
           }
         });
         calendar.render();
+        requestAnimationFrame(() => requestAnimationFrame(() => fitAllCalendarEvents(calendarEl)));
       }, 50);
     }
 
@@ -1403,6 +1443,18 @@
       document.getElementById('postDetailModal').classList.add('hidden');
     };
 
+    window.openImageLightbox = (src) => {
+      document.getElementById('lightboxImage').src = src;
+      const modal = document.getElementById('imageLightboxModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    };
+    window.closeImageLightbox = () => {
+      const modal = document.getElementById('imageLightboxModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    };
+
     function renderPostComments(postId) {
       const comments = sampleData.comments.filter(c => String(c.postId) === String(postId));
       const listEl = document.getElementById('postCommentsList');
@@ -1546,8 +1598,10 @@
       const pagedEvents = paginate(sortedEvents, 5, pageState.adminEvents);
 
       /* 2. 대상 일자 순서 정렬: 해당 날짜 기준으로 미래까지 순서대로(오름차순), 과거 일자는 아래로(내림차순) */
+      /* 일정 탭에 등록된 '정기운동' 일정 날짜를 기준으로 자동 반영 (참여 기록이 아직 없어도 목록에 노출) */
       const today = getTodayString();
-      const allVoteDates = Object.keys(sampleData.regularVotesByDate);
+      const regularEventDates = sampleData.events.filter(e => e.type === 'regular').map(e => e.date);
+      const allVoteDates = [...new Set([...regularEventDates, ...Object.keys(sampleData.regularVotesByDate)])];
       const futureDates = allVoteDates.filter(d => d >= today).sort((a, b) => a.localeCompare(b));
       const pastDates = allVoteDates.filter(d => d < today).sort((a, b) => b.localeCompare(a));
       const sortedVoteDates = [...futureDates, ...pastDates];
