@@ -1200,7 +1200,7 @@
         name: currentUser.name,
         choice: choice,
         reason: reason,
-        date: "09.14",
+        date: "getTodayMMDD()",
         createdAt: serverTimestamp()
       });
 
@@ -1574,7 +1574,7 @@
           title: voteTitle,
           itemCategory: itemCategory,
           content: `투표 항목: [${itemCategory}] / 마감일: ${formattedDeadline}`,
-          date: "09.14",
+          date: "getTodayMMDD()",
           author: currentUser.name,
           category: "투표게시판",
           createdAt: serverTimestamp()
@@ -1597,7 +1597,7 @@
       if (category === '🔒 익명 건의사항') {
         await addDoc(collection(db, "suggestions"), {
           text: title + (content ? ` - ${content}` : ''),
-          date: "09.14",
+          date: "getTodayMMDD()",
           status: "검토중",
           createdAt: serverTimestamp()
         });
@@ -1607,7 +1607,7 @@
           title: title,
           content: content,
           videoUrl: category === '영상게시판' ? videoUrl : null,
-          date: "09.14",
+          date: "getTodayMMDD()",
           author: currentUser.name,
           category: category,
           image: uploadedImageBase64 || null,
@@ -1713,7 +1713,7 @@
         postId: String(currentViewingPostId),
         author: currentUser.name,
         text: text,
-        date: "09.14",
+        date: "getTodayMMDD()",
         createdAt: serverTimestamp()
       });
 
