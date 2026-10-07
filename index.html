@@ -81,6 +81,27 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    /* [수정] 달력 일정 앞의 동그라미(점) 아이콘 제거 → 이모지 + 글자만 표시 */
+    .fc-daygrid-event-dot,
+    .fc-list-event-dot { display: none !important; }
+    .fc-daygrid-dot-event .fc-event-title { margin: 0 !important; }
+
+    /* [수정] 달력 글자(일정/공휴일)는 JS가 모두 동일한 크기로 맞춰 줌.
+       최소 크기까지 줄여도 넘칠 경우에만 줄바꿈하여 글자가 잘리지 않게 처리 */
+    .fc-wrap-mode .fc-event,
+    .fc-wrap-mode .fc-event-title,
+    .fc-wrap-mode .holiday-name-label {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: anywhere;
+      line-height: 1.15 !important;
+    }
+    .fc-wrap-mode .fc-daygrid-day-frame {
+      max-height: none !important;
+      overflow: visible !important;
+    }
   </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
@@ -430,6 +451,7 @@
     let uploadedImageBase64 = null;
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
+    let homeSuggestionDraft = ''; // [추가] 홈 건의사항 입력 임시 저장 (화면 갱신 시 입력 내용 유지)
 
     const roleOrder = { 'admin': 1, 'member': 2, 'rest': 3, 'coach': 4 };
     const roleLabels = { 'admin': '운영진', 'member': '일반회원', 'rest': '쉼회원', 'coach': '코치' };
@@ -939,6 +961,15 @@
 
     // ==================== 1. 홈 탭 ====================
     function renderHome(container) {
+      /* [추가] 화면 갱신(실시간 데이터 수신) 시에도 건의사항 입력 내용/커서 유지 */
+      const prevSugInput = document.getElementById('homeSuggestionInput');
+      let sugFocus = null;
+      if (prevSugInput) {
+        homeSuggestionDraft = prevSugInput.value;
+        if (document.activeElement === prevSugInput) {
+          sugFocus = { s: prevSugInput.selectionStart, e: prevSugInput.selectionEnd };
+        }
+      }
       const stats = sampleData.stats;
       const today = getTodayString();
       const regularEvents = sampleData.events
@@ -1123,12 +1154,81 @@
           </div>
           ${renderPaginationUI(videoPosts.length, 4, pageState.homeVideoPosts, 'changeHomeVideoPostsPage')}
         </section>
+
+        <!-- [추가] Box 6: 익명 건의사항 (홈 최하단) -->
+        <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 mt-5">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-2"><span>💬</span> 건의사항</h2>
+            <button onclick="window.switchTab('board', '🔒 익명 건의사항')" class="text-xs text-indigo-900 font-bold hover:underline">내 건의사항 보기 →</button>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed p-2.5 rounded-xl mb-3">
+            🔒 <strong>비밀글 · 익명</strong>으로 등록됩니다. 작성자 이름은 누구에게도 표시되지 않으며,
+            내용은 <strong>운영진</strong>과 <strong>작성자 본인</strong>만 볼 수 있습니다.
+          </div>
+          <textarea id="homeSuggestionInput" rows="3" maxlength="500"
+            oninput="window.handleHomeSuggestionInput(this)"
+            placeholder="${currentUser ? '운영진에게 전하고 싶은 의견을 자유롭게 남겨 주세요.' : '로그인 후 건의사항을 등록할 수 있습니다.'}"
+            class="w-full p-3 border border-gray-300 rounded-xl text-xs leading-relaxed resize-none focus:ring-2 focus:ring-indigo-600 focus:outline-none">${homeSuggestionDraft.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+          <div class="flex justify-between items-center mt-2">
+            <span id="homeSuggestionCounter" class="text-[11px] text-gray-400">${homeSuggestionDraft.length} / 500</span>
+            <button id="homeSuggestionSubmitBtn" onclick="window.submitHomeSuggestion()" class="bg-indigo-950 hover:bg-indigo-900 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition">
+              🔒 건의사항 등록
+            </button>
+          </div>
+        </section>
       `;
+
+      if (sugFocus) {
+        const nextSugInput = document.getElementById('homeSuggestionInput');
+        if (nextSugInput) {
+          nextSugInput.focus();
+          try { nextSugInput.setSelectionRange(sugFocus.s, sugFocus.e); } catch (err) {}
+        }
+      }
     }
 
     window.changeHomePostsPage = (p) => { pageState.homePosts = p; renderHome(document.getElementById('app')); };
     window.changeHomeUpcomingEventsPage = (p) => { pageState.homeUpcomingEvents = p; renderHome(document.getElementById('app')); };
     window.changeHomeVideoPostsPage = (p) => { pageState.homeVideoPosts = p; renderHome(document.getElementById('app')); };
+
+    /* [추가] 홈 화면 건의사항: 입력 내용 임시 저장 + 글자수 표시 */
+    window.handleHomeSuggestionInput = (el) => {
+      homeSuggestionDraft = el.value;
+      const counter = document.getElementById('homeSuggestionCounter');
+      if (counter) counter.innerText = `${el.value.length} / 500`;
+    };
+
+    /* [추가] 홈 화면 건의사항 등록: 게시판의 '🔒 익명 건의사항'(suggestions 컬렉션)에 동일하게 저장.
+       - 작성자 이름은 화면 어디에도 표시되지 않음 (본인 글 확인용 ownerKey만 내부 저장)
+       - 열람은 운영진 + 작성자 본인만 가능 (canViewSuggestion 으로 목록/상세 모두 재검증) */
+    window.submitHomeSuggestion = async () => {
+      if (!currentUser) return window.openLoginModal();
+      const input = document.getElementById('homeSuggestionInput');
+      const text = (input ? input.value : homeSuggestionDraft).trim();
+      if (!text) return alert('건의사항 내용을 입력해 주세요.');
+
+      const btn = document.getElementById('homeSuggestionSubmitBtn');
+      if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+      try {
+        await addDoc(collection(db, "suggestions"), {
+          text: text,
+          date: getTodayString(),
+          status: "검토중",
+          ownerKey: currentUser.name,
+          createdAt: serverTimestamp()
+        });
+        homeSuggestionDraft = '';
+        if (input) input.value = '';
+        const counter = document.getElementById('homeSuggestionCounter');
+        if (counter) counter.innerText = '0 / 500';
+        alert('건의사항이 익명 비밀글로 등록되었습니다.\n(운영진과 작성자 본인만 볼 수 있습니다)');
+      } catch (err) {
+        console.error(err);
+        alert('등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
+      }
+    };
 
     window.handleHomeDateChange = (dateStr) => {
       selectedHomeDate = dateStr;
@@ -1144,28 +1244,39 @@
     };
 
     // ==================== 2. 일정 탭 ====================
-    /* 모바일 등 좁은 화면에서 일정 제목이 셀 너비에 맞게 잘리지 않도록 글씨 크기를 자동으로 줄여준다 */
-    function fitCalendarEventText(el) {
-      const titleEl = el.querySelector('.fc-event-title');
-      if (!titleEl) return;
-      const maxFont = 11.5;
-      const minFont = 5.5;
-      const availableWidth = el.clientWidth - 6;
-      if (availableWidth <= 0) return;
-
-      let fontSize = maxFont;
-      titleEl.style.setProperty('font-size', fontSize + 'px', 'important');
-      let guard = 0;
-      while (titleEl.scrollWidth > availableWidth && fontSize > minFont && guard < 24) {
-        fontSize -= 0.5;
-        titleEl.style.setProperty('font-size', fontSize + 'px', 'important');
-        guard++;
-      }
-    }
-
+    /* [수정] 달력 안의 모든 글자(일정 + 공휴일명)를 '동일한 크기'로 맞추되,
+       가장 긴 글자도 잘리지 않도록 전체 크기를 함께 줄여준다.
+       최소 크기(6px)까지 줄여도 넘치면 줄바꿈으로 전환하여 끝까지 보이게 한다. */
     function fitAllCalendarEvents(calendarEl) {
       if (!calendarEl) return;
-      calendarEl.querySelectorAll('.fc-event').forEach(fitCalendarEventText);
+      const targets = Array.from(calendarEl.querySelectorAll('.fc-event-title, .holiday-name-label'));
+      if (targets.length === 0) return;
+      if (calendarEl.clientWidth === 0) return; // 탭이 보이지 않을 때는 측정 불가
+
+      const maxFont = 11;
+      const minFont = 6;
+      calendarEl.classList.remove('fc-wrap-mode');
+
+      const applySize = (px) => targets.forEach(el => el.style.setProperty('font-size', px + 'px', 'important'));
+      const isClipped = () => targets.some(el => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1);
+
+      let size = maxFont;
+      applySize(size);
+      let guard = 0;
+      while (isClipped() && size > minFont && guard < 30) {
+        size -= 0.5;
+        applySize(size);
+        guard++;
+      }
+      if (isClipped()) calendarEl.classList.add('fc-wrap-mode');
+    }
+
+    let calendarFitTimer = null;
+    function scheduleCalendarFit(calendarEl) {
+      if (calendarFitTimer) clearTimeout(calendarFitTimer);
+      calendarFitTimer = setTimeout(() => {
+        requestAnimationFrame(() => requestAnimationFrame(() => fitAllCalendarEvents(calendarEl)));
+      }, 30);
     }
 
     /* 수정사항 1: 캘린더에 시간 제외 제목만 노출 (displayEventTime: false 지정 및 title 시간 표기 제거) */
@@ -1232,19 +1343,22 @@
               }
             }
           },
-          eventDidMount: function(arg) {
-            // 셀 레이아웃이 완전히 잡힌 뒤 측정하도록 프레임을 한 번 더 대기
-            requestAnimationFrame(() => requestAnimationFrame(() => fitCalendarEventText(arg.el)));
+          eventDidMount: function() {
+            // 셀 레이아웃이 완전히 잡힌 뒤 전체 글자 크기를 한 번에 맞춤
+            scheduleCalendarFit(calendarEl);
+          },
+          datesSet: function() {
+            scheduleCalendarFit(calendarEl);
           },
           eventClick: function(info) {
             window.openEventDetail(info.event.id);
           },
           windowResize: function() {
-            fitAllCalendarEvents(calendarEl);
+            scheduleCalendarFit(calendarEl);
           }
         });
         calendar.render();
-        requestAnimationFrame(() => requestAnimationFrame(() => fitAllCalendarEvents(calendarEl)));
+        scheduleCalendarFit(calendarEl);
       }, 50);
     }
 
