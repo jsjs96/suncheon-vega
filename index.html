@@ -67,6 +67,7 @@
       white-space: nowrap !important;
       overflow: hidden !important;
       text-overflow: ellipsis !important;
+      cursor: pointer;
     }
     .fc-event-title {
       font-size: clamp(0.5rem, 2vw, 0.7rem);
@@ -157,7 +158,7 @@
     </div>
   </div>
 
-  <!-- 일정 상세 모달 -->
+  <!-- 일정 상세 모달 (운영진 전용 수정/삭제 버튼 추가) -->
   <div id="eventDetailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
     <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
       <div class="flex justify-between items-center mb-3 pb-2 border-b">
@@ -173,6 +174,15 @@
           <p id="eventDetailDesc" class="text-gray-600 whitespace-pre-line leading-relaxed break-all"></p>
         </div>
       </div>
+
+      <!-- [추가] 운영진 전용 일정 수정/삭제 영역 -->
+      <div id="eventDetailAdminActions" class="hidden">
+        <div class="flex gap-2 mb-2">
+          <button onclick="window.editCurrentEvent()" class="w-1/2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold py-2.5 rounded-xl text-xs transition">✏️ 일정 수정</button>
+          <button onclick="window.deleteCurrentEvent()" class="w-1/2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold py-2.5 rounded-xl text-xs transition">🗑️ 일정 삭제</button>
+        </div>
+      </div>
+
       <button onclick="closeEventDetailModal()" class="w-full bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">확인</button>
     </div>
   </div>
@@ -193,6 +203,12 @@
             <option value="🔒 익명 건의사항">🔒 익명 건의사항</option>
             <option value="공지사항">📢 공지사항 (운영진 전용)</option>
           </select>
+        </div>
+
+        <!-- [추가] 익명 건의사항 안내 문구 -->
+        <div id="suggestionNotice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed p-2.5 rounded-xl">
+          🔒 <strong>익명 건의사항</strong>은 작성자 이름이 어디에도 표시되지 않습니다.<br/>
+          열람은 <strong>운영진</strong>과 <strong>작성자 본인</strong>만 가능합니다.
         </div>
 
         <!-- 일반 게시글 폼 필드 -->
@@ -338,7 +354,7 @@
 
   <!-- [운영진 전용] 새 일정 추가 / 수정 모달 -->
   <div id="addEventModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4 pb-2 border-b">
         <h3 id="eventModalTitle" class="text-sm sm:text-base font-black text-indigo-950">📅 새 일정 추가</h3>
         <button onclick="closeAddEventModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
@@ -410,6 +426,7 @@
     let currentTab = 'home';
     let currentBoardCategory = '공지사항';
     let currentViewingPostId = null;
+    let currentViewingEventId = null; // [추가] 일정 상세 모달에서 수정 대상 식별용
     let uploadedImageBase64 = null;
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
@@ -449,7 +466,8 @@
       adminMembers: 1,
       adminSuggestions: 1,
       adminEvents: 1,
-      adminRegularVotes: 1
+      adminRegularVotes: 1,
+      adminAttendanceRank: 1   // [추가] 출석률 순위 페이지네이션
     };
 
     const sampleData = {
@@ -591,6 +609,74 @@
       sampleData.stats.myAttendance = `${myRate}%`;
       sampleData.stats.myCount = `${myAttendCount}/${totalPastEvents}회`;
       sampleData.stats.monthlyAttend = myAttendCount;
+    }
+
+    /* [추가] 출석률 순위 산출
+       - 모수: 오늘 이전에 끝난 '정기운동(regular)' 일정만 집계
+       - 대상: 운영진(admin) + 일반회원(member) (쉼회원/코치 제외)
+       - 정렬: 출석률 내림차순 → 참석 횟수 내림차순 → 이름 가나다순
+       - 동률은 같은 순위를 부여 */
+    function getAttendanceRanking() {
+      const today = getTodayString();
+      const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date < today);
+      const totalPastEvents = pastRegularEvents.length;
+
+      const targetMembers = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
+
+      const rows = targetMembers.map(m => {
+        let attendCount = 0;
+        let absentCount = 0;
+        pastRegularEvents.forEach(evt => {
+          const votes = sampleData.regularVotesByDate[evt.date] || {};
+          if (votes[m.name] === '참가') attendCount++;
+          else if (votes[m.name] === '불참') absentCount++;
+        });
+        const rate = totalPastEvents > 0 ? (attendCount / totalPastEvents) * 100 : 0;
+        return {
+          name: m.name,
+          role: m.role,
+          count: attendCount,
+          absent: absentCount,
+          total: totalPastEvents,
+          rate: rate
+        };
+      });
+
+      rows.sort((a, b) => {
+        if (b.rate !== a.rate) return b.rate - a.rate;
+        if (b.count !== a.count) return b.count - a.count;
+        return (a.name || '').localeCompare(b.name || '', 'ko');
+      });
+
+      let currentRank = 0;
+      let prevRate = null;
+      rows.forEach((r, i) => {
+        if (prevRate === null || Math.round(r.rate) !== Math.round(prevRate)) {
+          currentRank = i + 1;
+          prevRate = r.rate;
+        }
+        r.rank = currentRank;
+      });
+
+      const avgRate = rows.length > 0
+        ? rows.reduce((sum, r) => sum + r.rate, 0) / rows.length
+        : 0;
+
+      return { rows, totalPastEvents, avgRate };
+    }
+
+    /* [추가] 익명 건의사항 열람 권한 판별
+       - 운영진: 전체 열람 가능 (단, 작성자 정보는 화면에 절대 표시하지 않음)
+       - 일반 사용자: 본인이 작성한 건의사항만 열람 가능
+       - 비로그인: 열람 불가 */
+    function canViewSuggestion(s) {
+      if (!currentUser) return false;
+      if (currentUser.role === 'admin') return true;
+      return !!(s && s.ownerKey && s.ownerKey === currentUser.name);
+    }
+
+    function isMySuggestion(s) {
+      return !!(currentUser && s && s.ownerKey && s.ownerKey === currentUser.name);
     }
 
     let renderTimer = null;
@@ -1084,16 +1170,23 @@
 
     /* 수정사항 1: 캘린더에 시간 제외 제목만 노출 (displayEventTime: false 지정 및 title 시간 표기 제거) */
     function renderCalendarTab(container) {
+      const isAdmin = !!(currentUser && currentUser.role === 'admin');
+
       container.innerHTML = `
         <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2"><span>📅</span> VEGA 일정표</h2>
-            ${currentUser && currentUser.role === 'admin' ? `
+            ${isAdmin ? `
               <button onclick="window.openAddEventModal()" class="bg-indigo-950 text-white text-[11px] sm:text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-900 shadow-sm transition">
                 + 일정 추가
               </button>
             ` : ''}
           </div>
+          ${isAdmin ? `
+            <p class="text-[11px] text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 mb-3 leading-relaxed">
+              ✏️ 달력의 일정을 클릭하면 상세 화면에서 <strong>바로 수정 · 삭제</strong>할 수 있습니다.
+            </p>
+          ` : ''}
           <div id="calendar" class="w-full"></div>
         </div>
       `;
@@ -1155,9 +1248,12 @@
       }, 50);
     }
 
+    /* [수정] 일정 상세 모달: 운영진에게 수정/삭제 버튼 노출 */
     window.openEventDetail = (eventId) => {
       const evt = sampleData.events.find(e => String(e.id) === String(eventId));
       if (!evt) return;
+
+      currentViewingEventId = evt.id;
 
       const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
       document.getElementById('eventCategoryBadge').innerText = categoryNames[evt.type] || '일정';
@@ -1165,11 +1261,41 @@
       document.getElementById('eventDetailTime').innerText = `${evt.date} ${evt.time || ''}`;
       document.getElementById('eventDetailLocation').innerText = evt.location || '장소 미정';
       document.getElementById('eventDetailDesc').innerText = evt.description || '상세 내용이 없습니다.';
-      
+
+      const adminActions = document.getElementById('eventDetailAdminActions');
+      if (currentUser && currentUser.role === 'admin') {
+        adminActions.classList.remove('hidden');
+      } else {
+        adminActions.classList.add('hidden');
+      }
+
       document.getElementById('eventDetailModal').classList.remove('hidden');
     };
 
-    window.closeEventDetailModal = () => document.getElementById('eventDetailModal').classList.add('hidden');
+    window.closeEventDetailModal = () => {
+      currentViewingEventId = null;
+      document.getElementById('eventDetailModal').classList.add('hidden');
+    };
+
+    /* [추가] 달력에서 본 일정을 바로 수정 */
+    window.editCurrentEvent = () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('일정 수정은 운영진만 가능합니다.');
+      if (!currentViewingEventId) return;
+      const targetId = currentViewingEventId;
+      window.closeEventDetailModal();
+      window.openEditEventModal(targetId);
+    };
+
+    /* [추가] 달력에서 본 일정을 바로 삭제 */
+    window.deleteCurrentEvent = async () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('일정 삭제는 운영진만 가능합니다.');
+      if (!currentViewingEventId) return;
+      const targetId = currentViewingEventId;
+      if (!confirm('이 일정을 삭제하시겠습니까?')) return;
+      await deleteDoc(doc(db, "events", String(targetId)));
+      window.closeEventDetailModal();
+      alert('삭제되었습니다.');
+    };
 
     // ==================== 3. 게시판 탭 ====================
     window.changeCategory = (cat) => {
@@ -1182,22 +1308,55 @@
       const categories = ['공지사항', '자유게시판', '영상게시판', '🔒 익명 건의사항'];
       
       let posts = [];
-      if (currentBoardCategory === '🔒 익명 건의사항') {
-        posts = sortPostsByDate(sampleData.suggestions.map(s => ({
+      let noticeBanner = '';
+      const isSuggestionTab = currentBoardCategory === '🔒 익명 건의사항';
+
+      if (isSuggestionTab) {
+        /* [수정] 익명 건의사항은 운영진 또는 본인이 작성한 글만 목록에 노출 */
+        const visibleSuggestions = sampleData.suggestions.filter(canViewSuggestion);
+
+        posts = sortPostsByDate(visibleSuggestions.map(s => ({
           id: s.id,
           title: s.text,
           category: '🔒 익명 건의사항',
           author: '익명',
+          mine: isMySuggestion(s),
           date: s.date || '최근',
           type: '건의',
           content: s.text,
           createdAt: s.createdAt
         })));
+
+        if (!currentUser) {
+          noticeBanner = `
+            <div class="bg-gray-50 border border-gray-200 text-gray-600 text-[11px] leading-relaxed p-3 rounded-xl mb-3">
+              🔒 익명 건의사항은 <strong>운영진</strong>과 <strong>작성자 본인</strong>만 열람할 수 있습니다. 로그인 후 이용해 주세요.
+            </div>
+          `;
+        } else if (currentUser.role === 'admin') {
+          noticeBanner = `
+            <div class="bg-indigo-50 border border-indigo-100 text-indigo-900 text-[11px] leading-relaxed p-3 rounded-xl mb-3">
+              🛡️ <strong>운영진 권한</strong>으로 전체 건의사항을 열람하고 있습니다. 작성자 정보는 운영진에게도 표시되지 않습니다.
+            </div>
+          `;
+        } else {
+          noticeBanner = `
+            <div class="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed p-3 rounded-xl mb-3">
+              🔒 익명 건의사항 전체 목록은 <strong>운영진만</strong> 열람할 수 있습니다. 아래에는 <strong>내가 작성한 건의사항</strong>만 표시됩니다.
+            </div>
+          `;
+        }
       } else {
         posts = sortPostsByDate(sampleData.boardPosts.filter(p => p.category === currentBoardCategory));
       }
 
       const pagedPosts = paginate(posts, 5, pageState.boardPosts);
+
+      const emptyMessage = isSuggestionTab
+        ? (currentUser
+            ? (currentUser.role === 'admin' ? '접수된 건의사항이 없습니다.' : '내가 작성한 건의사항이 없습니다.')
+            : '로그인 후 확인할 수 있습니다.')
+        : '등록된 내용이 없습니다.';
 
       container.innerHTML = `
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
@@ -1214,18 +1373,22 @@
             <button onclick="window.openWritePostModal()" class="bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold shrink-0">+ 글쓰기</button>
           </div>
 
+          ${noticeBanner}
+
           <div class="space-y-2.5 min-h-[220px]">
-            ${pagedPosts.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">등록된 내용이 없습니다.</p>' : ''}
+            ${pagedPosts.length === 0 ? `<p class="text-xs text-gray-400 py-8 text-center">${emptyMessage}</p>` : ''}
             ${pagedPosts.map(p => {
               const clickAction = (p.category === '영상게시판' && p.videoUrl) ? `window.openYouTubeLink('${p.videoUrl}')` : `window.openPostDetail('${p.id}')`;
               
-              const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author);
+              /* [수정] 익명 건의사항은 author가 '익명'이므로 mine 플래그로 본인 여부 판정 */
+              const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author || p.mine === true);
 
               return `
                 <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition gap-2" onclick="${clickAction}">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">${p.author}</span>
+                      ${p.mine ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">내 글</span>' : ''}
                       ${p.itemCategory ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 shrink-0">${p.itemCategory}</span>` : ''}
                       ${p.status ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status === '진행중' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}">${p.status}</span>` : ''}
                       ${p.videoUrl ? '<span class="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-bold shrink-0">▶️ YouTube</span>' : ''}
@@ -1253,6 +1416,10 @@
     window.deletePostByAdmin = async (postId, category) => {
       if (confirm('이 글을 삭제하시겠습니까?')) {
         if (category === '🔒 익명 건의사항') {
+          /* [추가] 건의사항 삭제 권한 재확인: 운영진 또는 작성자 본인만 */
+          const sug = sampleData.suggestions.find(s => String(s.id) === String(postId));
+          const allowed = currentUser && (currentUser.role === 'admin' || isMySuggestion(sug));
+          if (!allowed) return alert('삭제 권한이 없습니다.');
           await deleteDoc(doc(db, "suggestions", String(postId)));
         } else {
           await deleteDoc(doc(db, "posts", String(postId)));
@@ -1269,14 +1436,24 @@
       }
 
       const isVideo = category === '영상게시판';
+      const isSuggestion = category === '🔒 익명 건의사항';
 
-      document.getElementById('writeModalTitle').innerText = '새 게시글 작성';
+      document.getElementById('writeModalTitle').innerText = isSuggestion ? '🔒 익명 건의사항 작성' : '새 게시글 작성';
       document.getElementById('submitBtnText').innerText = '등록하기';
 
       if (isVideo) {
         document.getElementById('videoUrlField').classList.remove('hidden');
       } else {
         document.getElementById('videoUrlField').classList.add('hidden');
+      }
+
+      /* [추가] 익명 건의사항 안내 문구 및 이미지 첨부 필드 토글 (건의사항은 이미지가 저장되지 않음) */
+      if (isSuggestion) {
+        document.getElementById('suggestionNotice').classList.remove('hidden');
+        document.getElementById('imageUploadField').classList.add('hidden');
+      } else {
+        document.getElementById('suggestionNotice').classList.add('hidden');
+        document.getElementById('imageUploadField').classList.remove('hidden');
       }
     };
 
@@ -1357,10 +1534,14 @@
       const videoUrl = document.getElementById('postVideoUrlInput').value.trim();
       
       if (category === '🔒 익명 건의사항') {
+        if (!currentUser) return window.openLoginModal();
+        /* [수정] 익명성은 유지하되, 본인 글 확인용 식별 키(ownerKey)만 내부 저장.
+           ownerKey는 목록/상세/운영진 화면 어디에도 출력하지 않습니다. */
         await addDoc(collection(db, "suggestions"), {
           text: title + (content ? ` - ${content}` : ''),
           date: getTodayString(),
           status: "검토중",
+          ownerKey: currentUser.name,
           createdAt: serverTimestamp()
         });
       } else {
@@ -1385,14 +1566,20 @@
 
     window.openPostDetail = (id) => {
       let post = sampleData.boardPosts.find(p => String(p.id) === String(id));
-      if (!post && currentBoardCategory === '🔒 익명 건의사항') {
+
+      if (!post) {
         const sug = sampleData.suggestions.find(s => String(s.id) === String(id));
         if (sug) {
+          /* [추가] 익명 건의사항 상세 열람 권한 재검증 */
+          if (!canViewSuggestion(sug)) {
+            return alert('익명 건의사항은 운영진과 작성자 본인만 열람할 수 있습니다.');
+          }
           post = {
             id: sug.id,
             title: sug.text,
             category: '🔒 익명 건의사항',
-            author: '익명',
+            author: isMySuggestion(sug) ? '익명 (내 글)' : '익명',
+            mine: isMySuggestion(sug),
             date: sug.date || '최근',
             content: sug.text
           };
@@ -1424,7 +1611,7 @@
       }
 
       const delBtn = document.getElementById('postDetailDeleteBtn');
-      if (currentUser && (currentUser.role === 'admin' || currentUser.name === post.author)) {
+      if (currentUser && (currentUser.role === 'admin' || currentUser.name === post.author || post.mine === true)) {
         delBtn.onclick = () => {
           window.deletePostByAdmin(post.id, post.category);
           window.closePostDetailModal();
@@ -1597,6 +1784,14 @@
       const pagedSuggestions = paginate(sampleData.suggestions, 5, pageState.adminSuggestions);
       const pagedEvents = paginate(sortedEvents, 5, pageState.adminEvents);
 
+      /* [추가] 출석률 순위 데이터 산출 */
+      const rankData = getAttendanceRanking();
+      const totalRankRows = rankData.rows.length;
+      const rankPageSize = 10;
+      const maxRankPage = Math.max(1, Math.ceil(totalRankRows / rankPageSize));
+      if (pageState.adminAttendanceRank > maxRankPage) pageState.adminAttendanceRank = maxRankPage;
+      const pagedRank = paginate(rankData.rows, rankPageSize, pageState.adminAttendanceRank);
+
       /* 2. 대상 일자 순서 정렬: 해당 날짜 기준으로 미래까지 순서대로(오름차순), 과거 일자는 아래로(내림차순) */
       /* 일정 탭에 등록된 '정기운동' 일정 날짜를 기준으로 자동 반영 (참여 기록이 아직 없어도 목록에 노출) */
       const today = getTodayString();
@@ -1625,6 +1820,66 @@
             <button onclick="window.openWritePostModal('공지사항')" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 text-xs font-bold px-3 py-2 rounded-xl transition shadow-md">
               📢 공지 작성
             </button>
+          </div>
+
+          <!-- [신규] Section 0: 회원 출석률 순위 -->
+          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start mb-1 flex-wrap gap-2">
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>🏆</span> 회원 출석률 순위</h3>
+              <span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full shrink-0">정기운동 ${rankData.totalPastEvents}회 기준 · 운영진/일반회원</span>
+            </div>
+            <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">오늘 이전에 종료된 <strong>정기운동</strong> 일정에서 '참가'로 기록된 비율이 높은 순서입니다. (쉼회원 · 코치 제외)</p>
+
+            ${rankData.totalPastEvents === 0 || totalRankRows === 0 ? `
+              <p class="text-xs text-gray-400 py-10 text-center">집계할 지난 정기운동 일정 또는 대상 회원이 없습니다.</p>
+            ` : `
+              <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="bg-gray-50 border border-gray-100 rounded-xl p-2.5 text-center">
+                  <span class="text-[10px] text-gray-500 block mb-0.5">집계 대상 인원</span>
+                  <span class="text-sm font-black text-indigo-950">${totalRankRows}명</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-100 rounded-xl p-2.5 text-center">
+                  <span class="text-[10px] text-gray-500 block mb-0.5">집계 정기운동</span>
+                  <span class="text-sm font-black text-indigo-950">${rankData.totalPastEvents}회</span>
+                </div>
+                <div class="bg-gray-50 border border-gray-100 rounded-xl p-2.5 text-center">
+                  <span class="text-[10px] text-gray-500 block mb-0.5">평균 출석률</span>
+                  <span class="text-sm font-black text-emerald-600">${Math.round(rankData.avgRate)}%</span>
+                </div>
+              </div>
+
+              <div class="space-y-2 min-h-[200px]">
+                ${pagedRank.map(r => {
+                  const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '';
+                  const barColor = r.rate >= 80 ? 'bg-emerald-500' : r.rate >= 60 ? 'bg-indigo-600' : r.rate >= 40 ? 'bg-amber-400' : 'bg-rose-400';
+                  const isMe = currentUser && currentUser.name === r.name;
+                  return `
+                    <div class="flex items-center gap-2 sm:gap-3 p-2 rounded-xl ${isMe ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50 border border-transparent'}">
+                      <div class="w-7 sm:w-8 text-center shrink-0">
+                        <span class="text-xs font-black ${r.rank <= 3 ? 'text-amber-500' : 'text-gray-400'}">${medal || r.rank}</span>
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                          <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="text-xs font-bold text-gray-900 truncate">${r.name}</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${r.role === 'admin' ? 'bg-indigo-100 text-indigo-900' : 'bg-gray-200 text-gray-700'}">${roleLabels[r.role] || '일반회원'}</span>
+                            ${isMe ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">나</span>' : ''}
+                          </div>
+                          <div class="flex items-baseline gap-1 shrink-0">
+                            <span class="text-xs font-black text-indigo-950">${Math.round(r.rate)}%</span>
+                            <span class="text-[10px] text-gray-400">(${r.count}/${r.total}회)</span>
+                          </div>
+                        </div>
+                        <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                          <div style="width: ${r.rate}%" class="${barColor} h-full rounded-full"></div>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              ${renderPaginationUI(totalRankRows, rankPageSize, pageState.adminAttendanceRank, 'changeAdminAttendanceRankPage')}
+            `}
           </div>
 
           <!-- Section 1: 정기운동 요일 일괄 설정 -->
@@ -1767,9 +2022,10 @@
             ${renderPaginationUI(sortedMembers.length, 5, pageState.adminRegularVotes, 'changeAdminRegularVotesPage')}
           </div>
 
-          <!-- Section 5: 익명 건의사항 검토 -->
+          <!-- Section 5: 익명 건의사항 검토 (작성자 비공개 유지) -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>🔒</span> 익명 건의사항 목록</h3>
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🔒</span> 익명 건의사항 목록</h3>
+            <p class="text-[11px] text-gray-400 mb-3">운영진만 열람 가능한 영역입니다. 작성자 정보는 운영진에게도 표시되지 않습니다.</p>
             <div class="space-y-2 min-h-[160px]">
               ${sampleData.suggestions.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">접수된 건의사항이 없습니다.</p>' : ''}
               ${pagedSuggestions.map(s => `
@@ -1792,6 +2048,7 @@
     window.changeAdminSuggestionsPage = (p) => { pageState.adminSuggestions = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminEventsPage = (p) => { pageState.adminEvents = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminRegularVotesPage = (p) => { pageState.adminRegularVotes = p; renderAdminTab(document.getElementById('app')); };
+    window.changeAdminAttendanceRankPage = (p) => { pageState.adminAttendanceRank = p; renderAdminTab(document.getElementById('app')); };
 
     window.handleAdminDateChange = (d) => {
       selectedAdminDate = d;
@@ -1886,6 +2143,7 @@
 
     /* 1. 일정 추가 및 수정 모달 열기 구현 */
     window.openAddEventModal = () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('일정 등록은 운영진만 가능합니다.');
       document.getElementById('editEventId').value = '';
       document.getElementById('eventModalTitle').innerText = '📅 새 일정 추가';
       document.getElementById('newEventTitle').value = '';
@@ -1899,6 +2157,7 @@
     };
 
     window.openEditEventModal = (eventId) => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('일정 수정은 운영진만 가능합니다.');
       const evt = sampleData.events.find(e => String(e.id) === String(eventId));
       if(!evt) return;
 
@@ -1918,6 +2177,8 @@
 
     window.handleCreateEvent = async (e) => {
       e.preventDefault();
+      if (!currentUser || currentUser.role !== 'admin') return alert('일정 저장은 운영진만 가능합니다.');
+
       const editId = document.getElementById('editEventId').value;
       const title = document.getElementById('newEventTitle').value.trim();
       const date = document.getElementById('newEventDate').value;
