@@ -216,6 +216,9 @@
         <button onclick="closeWritePostModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
       </div>
       <form onsubmit="handleCreatePost(event)" class="space-y-3">
+        <!-- [추가] 게시글 수정 모드 식별용 -->
+        <input type="hidden" id="editPostId" value="" />
+        <input type="hidden" id="editPostCategory" value="" />
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">카테고리</label>
           <select id="postCategorySelect" onchange="window.handleCategorySelectChange(this.value)" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white">
@@ -234,7 +237,7 @@
 
         <!-- 일반 게시글 폼 필드 -->
         <div id="generalPostFields" class="space-y-3">
-          <div>
+          <div id="postTitleField">
             <label class="block text-xs font-bold text-gray-700 mb-1">제목</label>
             <input type="text" id="postTitleInput" placeholder="제목을 입력하세요" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
           </div>
@@ -271,6 +274,10 @@
       <div class="flex justify-between items-center mb-3 pb-2 border-b">
         <span id="postDetailCategory" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-900"></span>
         <div class="flex items-center gap-2">
+          <!-- [추가] 작성자 본인 전용 수정 버튼 -->
+          <button id="postDetailEditBtn" onclick="" class="hidden text-xs bg-indigo-50 text-indigo-800 hover:bg-indigo-100 px-2 py-1 rounded-lg font-bold border border-indigo-200">
+            ✏️ 수정
+          </button>
           <button id="postDetailDeleteBtn" onclick="" class="hidden text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded-lg font-bold border border-rose-200">
             🗑️ 삭제
           </button>
@@ -449,6 +456,7 @@
     let currentViewingPostId = null;
     let currentViewingEventId = null; // [추가] 일정 상세 모달에서 수정 대상 식별용
     let uploadedImageBase64 = null;
+    let editingExistingImage = null; // [추가] 게시글 수정 시 기존 첨부 이미지 유지용
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
     let homeSuggestionDraft = ''; // [추가] 홈 건의사항 입력 임시 저장 (화면 갱신 시 입력 내용 유지)
@@ -1438,7 +1446,8 @@
           date: s.date || '최근',
           type: '건의',
           content: s.text,
-          createdAt: s.createdAt
+          createdAt: s.createdAt,
+          edited: !!s.edited
         })));
 
         if (!currentUser) {
@@ -1496,6 +1505,8 @@
               
               /* [수정] 익명 건의사항은 author가 '익명'이므로 mine 플래그로 본인 여부 판정 */
               const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author || p.mine === true);
+              /* [추가] 수정은 작성자 본인만 가능 (운영진도 남의 글은 수정 불가) */
+              const canEdit = currentUser && (p.mine === true || (p.category !== '🔒 익명 건의사항' && p.author === currentUser.name));
 
               return `
                 <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition gap-2" onclick="${clickAction}">
@@ -1512,6 +1523,9 @@
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <span class="text-[10px] sm:text-[11px] text-gray-400">${p.date}</span>
+                    ${canEdit ? `
+                      <button onclick="event.stopPropagation(); window.openEditPost('${p.id}')" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-1.5 py-0.5 rounded font-bold border border-indigo-200">수정</button>
+                    ` : ''}
                     ${canDelete ? `
                       <button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}', '${p.category}')" class="text-[10px] bg-rose-50 text-rose-600 hover:bg-rose-100 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
                     ` : ''}
@@ -1543,7 +1557,9 @@
     };
 
     window.handleCategorySelectChange = (category) => {
-      if (category === '공지사항' && (!currentUser || currentUser.role !== 'admin')) {
+      /* [수정] 수정 모드에서는 카테고리 권한 검사를 건너뜀 (카테고리 변경 불가 상태) */
+      const isEditMode = !!document.getElementById('editPostId').value;
+      if (!isEditMode && category === '공지사항' && (!currentUser || currentUser.role !== 'admin')) {
         alert(`${category} 작성 권한이 없습니다. 운영진만 가능합니다.`);
         document.getElementById('postCategorySelect').value = '자유게시판';
         category = '자유게시판';
@@ -1580,6 +1596,13 @@
         targetCat = '자유게시판';
       }
 
+      /* [추가] 새 글 작성 시 수정 모드 상태 초기화 */
+      document.getElementById('editPostId').value = '';
+      document.getElementById('editPostCategory').value = '';
+      document.getElementById('postCategorySelect').disabled = false;
+      document.getElementById('postTitleField').classList.remove('hidden');
+      editingExistingImage = null;
+
       document.getElementById('postCategorySelect').value = targetCat;
       
       document.getElementById('postTitleInput').value = '';
@@ -1590,6 +1613,63 @@
       uploadedImageBase64 = null;
 
       window.handleCategorySelectChange(targetCat);
+      document.getElementById('writePostModal').classList.remove('hidden');
+    };
+
+    /* [추가] 게시글 수정 모달 열기 (작성자 본인만)
+       - 공지/자유/영상: posts 컬렉션의 author 가 본인일 때만
+       - 익명 건의사항: ownerKey 로 본인 여부 확인 (수정해도 작성자 정보는 표시되지 않음)
+       - 카테고리는 변경 불가, 새 이미지를 고르지 않으면 기존 이미지 유지 */
+    window.openEditPost = (id) => {
+      if (!currentUser) return window.openLoginModal();
+
+      let category, title = '', content = '', videoUrl = '', image = null;
+      const post = sampleData.boardPosts.find(p => String(p.id) === String(id));
+
+      if (post) {
+        if (post.author !== currentUser.name) return alert('작성자 본인만 수정할 수 있습니다.');
+        category = post.category;
+        title = post.title || '';
+        content = post.content || '';
+        videoUrl = post.videoUrl || '';
+        image = post.image || null;
+      } else {
+        const sug = sampleData.suggestions.find(s => String(s.id) === String(id));
+        if (!sug || !isMySuggestion(sug)) return alert('작성자 본인만 수정할 수 있습니다.');
+        category = '🔒 익명 건의사항';
+        content = sug.text || '';
+      }
+
+      window.closePostDetailModal();
+
+      // 수정 모드 표시를 먼저 켜서 카테고리 권한 검사를 건너뛰게 함
+      document.getElementById('editPostId').value = id;
+      document.getElementById('editPostCategory').value = category;
+
+      document.getElementById('postCategorySelect').value = category;
+      window.handleCategorySelectChange(category);
+      document.getElementById('postCategorySelect').disabled = true; // 카테고리 변경 불가
+
+      document.getElementById('writeModalTitle').innerText = '✏️ 게시글 수정';
+      document.getElementById('submitBtnText').innerText = '수정 완료';
+
+      document.getElementById('postTitleInput').value = title;
+      document.getElementById('postContentInput').value = content;
+      document.getElementById('postVideoUrlInput').value = videoUrl;
+      document.getElementById('postImageInput').value = '';
+      uploadedImageBase64 = null;
+      editingExistingImage = image;
+
+      // 건의사항은 제목 없이 내용 하나로 저장되므로 제목 칸 숨김
+      document.getElementById('postTitleField').classList.toggle('hidden', category === '🔒 익명 건의사항');
+
+      if (image) {
+        document.getElementById('imagePreview').src = image;
+        document.getElementById('imagePreviewContainer').classList.remove('hidden');
+      } else {
+        document.getElementById('imagePreviewContainer').classList.add('hidden');
+      }
+
       document.getElementById('writePostModal').classList.remove('hidden');
     };
 
@@ -1640,12 +1720,50 @@
       const category = document.getElementById('postCategorySelect').value;
 
       if (category === '공지사항' && (!currentUser || currentUser.role !== 'admin')) {
-        return alert('공지사항 작성은 운영진만 가능합니다.');
+        /* 수정 모드에서는 아래 수정 분기에서 작성자 본인 여부를 별도로 검증 */
+        if (!document.getElementById('editPostId').value) {
+          return alert('공지사항 작성은 운영진만 가능합니다.');
+        }
       }
 
       const title = document.getElementById('postTitleInput').value.trim();
       const content = document.getElementById('postContentInput').value.trim();
       const videoUrl = document.getElementById('postVideoUrlInput').value.trim();
+
+      /* [추가] 게시글 수정 처리 (작성자 본인만) */
+      const editId = document.getElementById('editPostId').value;
+      const editCat = document.getElementById('editPostCategory').value;
+
+      if (editId) {
+        if (!currentUser) return window.openLoginModal();
+
+        if (editCat === '🔒 익명 건의사항') {
+          const sug = sampleData.suggestions.find(s => String(s.id) === String(editId));
+          if (!sug || !isMySuggestion(sug)) return alert('작성자 본인만 수정할 수 있습니다.');
+          if (!content) return alert('건의사항 내용을 입력해 주세요.');
+          await updateDoc(doc(db, "suggestions", String(editId)), {
+            text: content,
+            edited: true,
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          const post = sampleData.boardPosts.find(p => String(p.id) === String(editId));
+          if (!post || post.author !== currentUser.name) return alert('작성자 본인만 수정할 수 있습니다.');
+          if (!title) return alert('제목을 입력해 주세요.');
+          await updateDoc(doc(db, "posts", String(editId)), {
+            title: title,
+            content: content,
+            videoUrl: editCat === '영상게시판' ? videoUrl : null,
+            image: uploadedImageBase64 || editingExistingImage || null,
+            edited: true,
+            updatedAt: serverTimestamp()
+          });
+        }
+
+        alert('게시글이 수정되었습니다.');
+        window.closeWritePostModal();
+        return;
+      }
       
       if (category === '🔒 익명 건의사항') {
         if (!currentUser) return window.openLoginModal();
@@ -1695,7 +1813,8 @@
             author: isMySuggestion(sug) ? '익명 (내 글)' : '익명',
             mine: isMySuggestion(sug),
             date: sug.date || '최근',
-            content: sug.text
+            content: sug.text,
+            edited: !!sug.edited
           };
         }
       }
@@ -1705,7 +1824,7 @@
       document.getElementById('postDetailCategory').innerText = post.category || '게시글';
       document.getElementById('postDetailTitle').innerText = post.title;
       document.getElementById('postDetailAuthor').innerText = post.author;
-      document.getElementById('postDetailDate').innerText = post.date;
+      document.getElementById('postDetailDate').innerText = post.date + (post.edited ? ' (수정됨)' : '');
       document.getElementById('postDetailContent').innerText = post.content || post.title;
 
       const imgContainer = document.getElementById('postDetailImageContainer');
@@ -1722,6 +1841,16 @@
         videoContainer.classList.remove('hidden');
       } else {
         videoContainer.classList.add('hidden');
+      }
+
+      /* [추가] 수정 버튼: 작성자 본인에게만 노출 */
+      const editBtn = document.getElementById('postDetailEditBtn');
+      const isOwner = currentUser && (post.mine === true || (post.category !== '🔒 익명 건의사항' && post.author === currentUser.name));
+      if (isOwner) {
+        editBtn.onclick = () => window.openEditPost(post.id);
+        editBtn.classList.remove('hidden');
+      } else {
+        editBtn.classList.add('hidden');
       }
 
       const delBtn = document.getElementById('postDetailDeleteBtn');
@@ -2145,7 +2274,7 @@
               ${pagedSuggestions.map(s => `
                 <div class="p-3 bg-gray-50 rounded-xl text-xs space-y-1">
                   <div class="flex justify-between items-center">
-                    <span class="font-bold text-indigo-950">${s.date} 접수</span>
+                    <span class="font-bold text-indigo-950">${s.date} 접수${s.edited ? ' (수정됨)' : ''}</span>
                     <button onclick="window.deleteSuggestion('${s.id}')" class="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
                   </div>
                   <p class="text-gray-700 leading-relaxed">${s.text}</p>
