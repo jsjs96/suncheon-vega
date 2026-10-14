@@ -428,6 +428,9 @@
     </div>
   </div>
 
+  <!-- [추가] 응원 메시지 토스트 -->
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-8 z-[70] hidden max-w-[90vw] bg-indigo-950 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg text-center"></div>
+
   <!-- ==================== Firebase & App JavaScript Module ==================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -460,6 +463,18 @@
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
     let homeSuggestionDraft = ''; // [추가] 홈 건의사항 입력 임시 저장 (화면 갱신 시 입력 내용 유지)
+
+    /* [추가] 출석 독려 기능 설정값 */
+    const FULL_COURT_COUNT = 12;     // 풀코트 기준 인원 (6:6)
+    const SHOW_AHEAD_NAME = false;   // true: 앞 순위 회원 이름 공개 / false: '바로 앞 순위 회원'으로 표시
+    const REACTION_OPTIONS = [
+      { emoji: '🔥', label: '최고였어요' },
+      { emoji: '😆', label: '재밌었어요' },
+      { emoji: '💪', label: '땀 뺐어요' },
+      { emoji: '😅', label: '힘들었어요' },
+      { emoji: '😢', label: '아쉬워요' }
+    ];
+    let reactionsByDate = {};        // { 'YYYY-MM-DD': { 회원이름: 이모지 } }
 
     const roleOrder = { 'admin': 1, 'member': 2, 'rest': 3, 'coach': 4 };
     const roleLabels = { 'admin': '운영진', 'member': '일반회원', 'rest': '쉼회원', 'coach': '코치' };
@@ -709,6 +724,413 @@
       return !!(currentUser && s && s.ownerKey && s.ownerKey === currentUser.name);
     }
 
+    /* ==================== [추가] 출석 독려 기능 모음 ==================== */
+    const CHEER_MESSAGES = {
+      '참가': ['오늘도 코트 접수하러 가자! 🏐', '참가 확인! 스파이크 연습해 오세요 💥', '당신 덕분에 코트가 꽉 차요 🙌', '좋아요! 네트 앞에서 만나요 🔥', '출석 도장 쾅! 👊'],
+      '불참': ['다음엔 꼭 봬요 👋', '괜찮아요, 푹 쉬고 다음에 만나요 🍀', '몸 챙기시고 다음엔 코트에서 봐요 💪'],
+      '미정': ['천천히 정해도 괜찮아요 🤔 정해지면 꼭 알려 주세요!']
+    };
+
+    function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    /* 하루 동안 같은 문구가 유지되도록(화면 갱신 시 깜빡임 방지) 날짜+키 기반으로 고정 선택 */
+    function dailyPick(arr, key) {
+      const str = getTodayString() + '|' + key;
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+      return arr[h % arr.length];
+    }
+
+    let toastTimer = null;
+    function showToast(msg, ms = 2400) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.innerText = msg;
+      el.classList.remove('hidden');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+    }
+
+    function setupReactionsListener() {
+      onSnapshot(collection(db, "reactions"), (snapshot) => {
+        const r = {};
+        snapshot.docs.forEach(d => { r[d.id] = d.data().byUser || {}; });
+        reactionsByDate = r;
+        refreshCurrentTab();
+      });
+    }
+
+    function getPastRegularEventsAsc() {
+      const today = getTodayString();
+      return sampleData.events
+        .filter(e => e.type === 'regular' && e.date < today)
+        .sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    /* 지난 정기운동 순서(오래된 순)대로 '참가'였는지 true/false 배열 */
+    function getMemberHistory(name) {
+      return getPastRegularEventsAsc().map(evt => ((sampleData.regularVotesByDate[evt.date] || {})[name] === '참가'));
+    }
+
+    /* 연속 출석 정보: 현재 연속, 최고 연속, 현재 연속 직전의 결석 구간 길이 */
+    function getStreakInfo(name) {
+      const hist = getMemberHistory(name);
+      let current = 0;
+      for (let i = hist.length - 1; i >= 0 && hist[i]; i--) current++;
+
+      let best = 0, run = 0;
+      hist.forEach(a => { run = a ? run + 1 : 0; if (run > best) best = run; });
+
+      let gapBefore = 0, hadAttendBefore = false;
+      if (current > 0) {
+        let i = hist.length - current - 1;
+        while (i >= 0 && !hist[i]) { gapBefore++; i--; }
+        hadAttendBefore = i >= 0;
+      }
+      return { current, best, gapBefore, hadAttendBefore, total: hist.length };
+    }
+
+    /* 내 등수 + 앞/뒤 순위와의 격차 (기존 getAttendanceRanking 재사용) */
+    function getMyRankInfo() {
+      if (!currentUser) return null;
+      const { rows, totalPastEvents } = getAttendanceRanking();
+      const idx = rows.findIndex(r => r.name === currentUser.name);
+      if (idx === -1) return { excluded: true };
+      if (totalPastEvents === 0) return { empty: true };
+
+      const me = rows[idx];
+      const ahead = [...rows].reverse().find(r => r.count > me.count);
+      const behind = rows.find(r => r.count < me.count);
+
+      return {
+        rank: me.rank,
+        total: rows.length,
+        count: me.count,
+        played: totalPastEvents,
+        tied: rows.filter(r => r.rank === me.rank).length > 1,
+        aheadName: ahead ? ahead.name : null,
+        gapAhead: ahead ? ahead.count - me.count : 0,
+        gapBehind: behind ? me.count - behind.count : 0,
+        isFirst: me.rank === 1
+      };
+    }
+
+    function getRankMessage(info) {
+      const key = currentUser ? currentUser.name : '';
+      const g = info.gapAhead;
+      const who = (SHOW_AHEAD_NAME && info.aheadName) ? `${info.aheadName}님` : '바로 앞 순위 회원';
+      const topLimit = Math.ceil(info.total / 3);
+      const bottomLimit = Math.floor(info.total * 2 / 3);
+
+      if (info.count === 0) {
+        return {
+          title: '🏐 공이 외로워해요',
+          text: g > 0
+            ? dailyPick([
+                `아직 코트에서 못 뵌 분... 공이 외로워하고 있어요 🏐 ${who}와 ${g}회 차이, 한 번만 나와도 순위가 쑥 올라가요!`,
+                `네트가 당신을 기다리고 있어요 🥺 ${who}까지 ${g}회, 이번 운동이 첫걸음이에요!`
+              ], key)
+            : '모두가 아직 0회! 먼저 코트에 오는 분이 선두예요 🏃'
+        };
+      }
+      if (info.isFirst) {
+        return {
+          title: '👑 출석왕',
+          text: info.gapBehind > 0
+            ? dailyPick([
+                `왕관이 무겁진 않으세요? 뒤에서 ${info.gapBehind}회 차로 추격 중이에요 👀`,
+                `1등의 품격 ✨ 하지만 ${info.gapBehind}회 차로 쫓기는 중, 방심은 금물!`
+              ], key)
+            : '공동 선두! 왕관을 나눠 쓰는 중이에요 👑👑'
+        };
+      }
+      if (info.rank <= topLimit) {
+        return {
+          title: `🏃 ${info.rank}등, 선두권!`,
+          text: dailyPick([
+            `${who}와 딱 ${g}회 차이! 이번 운동에 나오면 추월 각이에요 🚀`,
+            `${g}회만 더 나오면 한 계단 위! 포디움이 코앞이에요 🥇`
+          ], key)
+        };
+      }
+      if (info.rank > bottomLimit) {
+        return {
+          title: `🌱 ${info.rank}등, 성장 중`,
+          text: dailyPick([
+            `네트가 당신을 기다리고 있어요 🥺 ${who}와 ${g}회 차이, 지금부터 충분히 따라잡을 수 있어요!`,
+            `코트가 그리웠어요 🏐 ${g}회만 나와도 순위가 확 올라가요!`
+          ], key)
+        };
+      }
+      return {
+        title: `🏃 ${info.rank}등`,
+        text: dailyPick([
+          `${who}와 ${g}회 차이, 이번 주만 나오면 역전이에요 💪`,
+          `딱 ${g}회! 한 번만 더 나오면 추월입니다 😎`
+        ], key)
+      };
+    }
+
+    function getStreakLineHTML(nextEvt) {
+      if (!currentUser) return '';
+      const st = getStreakInfo(currentUser.name);
+      if (st.total === 0) return '';
+      const nextLabel = nextEvt ? `${nextEvt.date.substring(5)} 운동에` : '다음 운동에';
+      let text;
+      if (st.current >= 1) {
+        text = `🔥 <strong>${st.current}연속</strong> 출석 중! ${nextLabel} 오시면 ${st.current + 1}연속!`;
+        if (st.best > st.current) text += ` <span class="text-gray-400">(최고 기록 ${st.best}연속)</span>`;
+      } else {
+        text = `🌱 연속 기록이 0이에요. ${nextLabel} 오시면 새 스트릭이 시작돼요!`;
+        if (st.best > 0) text += ` <span class="text-gray-400">(최고 기록 ${st.best}연속)</span>`;
+      }
+      return `<p class="text-[11px] sm:text-xs text-gray-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mt-3 leading-relaxed">${text}</p>`;
+    }
+
+    /* 홈: 내 등수 + 앞 순위와의 격차 카드 */
+    function renderMyRankCardHTML(nextEvt) {
+      const wrap = (inner) => `<section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 mb-5">${inner}</section>`;
+
+      if (!currentUser) {
+        return wrap(`
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-gray-600 leading-relaxed">🏐 로그인하면 <strong>나의 등수</strong>와 <strong>앞 순위와의 격차</strong>를 볼 수 있어요!</p>
+            <button onclick="window.openLoginModal()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0">로그인</button>
+          </div>
+        `);
+      }
+
+      const info = getMyRankInfo();
+
+      if (info.excluded) {
+        const isCoach = currentUser.role === 'coach';
+        return wrap(`
+          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">${isCoach ? '🧢 코치 모드' : '🛋️ 휴식 모드'}</h2>
+          <p class="text-xs text-gray-600 leading-relaxed">${isCoach
+            ? '코치님은 순위 집계 대상이 아니에요. 대신 코트의 든든한 기둥이세요! 💪'
+            : '지금은 쉬는 중이시네요. 돌아오시면 환영 박수 준비해 둘게요 👏'}</p>
+        `);
+      }
+
+      if (info.empty) {
+        return wrap(`
+          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">🏐 나의 출석 순위</h2>
+          <p class="text-xs text-gray-600 leading-relaxed">아직 집계할 지난 정기운동이 없어요. 첫 운동의 주인공이 되어 보세요!</p>
+        `);
+      }
+
+      const msg = getRankMessage(info);
+      const chips = [];
+      if (info.gapAhead > 0) chips.push(`<span class="text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-100 px-2 py-1 rounded-lg">⬆️ 앞 순위까지 ${info.gapAhead}회</span>`);
+      if (info.gapBehind > 0) chips.push(`<span class="text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200 px-2 py-1 rounded-lg">⬇️ 뒤 순위와 ${info.gapBehind}회 차이</span>`);
+      if (info.isFirst && info.gapBehind === 0) chips.push(`<span class="text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded-lg">👑 선두</span>`);
+
+      return wrap(`
+        <div class="flex items-center gap-3 sm:gap-4">
+          <div class="text-center shrink-0 bg-indigo-950 text-white rounded-2xl px-3 py-2.5 min-w-[72px]">
+            <span class="text-[10px] text-indigo-200 block">${info.tied ? '공동' : '나의 등수'}</span>
+            <span class="text-2xl font-black text-amber-400 leading-none">${info.rank}<span class="text-sm">등</span></span>
+            <span class="text-[10px] text-indigo-200 block mt-0.5">/ ${info.total}명</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">${msg.title}</h2>
+            <p class="text-xs text-gray-600 leading-relaxed">${msg.text}</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 mt-3">
+          <span class="text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-1 rounded-lg">나의 출석 ${info.count}/${info.played}회</span>
+          ${chips.join('')}
+        </div>
+        ${getStreakLineHTML(nextEvt)}
+      `);
+    }
+
+    /* 홈: 다음 정기운동 '미정' 알림 배너 */
+    function renderPendingBannerHTML(nextEvt) {
+      if (!currentUser || !nextEvt) return '';
+      if (currentUser.role !== 'admin' && currentUser.role !== 'member') return '';
+      const votes = sampleData.regularVotesByDate[nextEvt.date] || {};
+      const mine = votes[currentUser.name] || '미정';
+      if (mine !== '미정') return '';
+      const attendNow = Object.values(votes).filter(v => v === '참가').length;
+
+      return `
+        <section class="bg-amber-50 border border-amber-300 rounded-2xl p-3 sm:p-4 mb-5 shadow-sm">
+          <p class="text-xs sm:text-sm font-black text-amber-900 mb-1">👀 ${nextEvt.date.substring(5)} ${nextEvt.title} 투표, 아직이세요?</p>
+          <p class="text-[11px] text-amber-800 mb-2.5">지금까지 <strong>${attendNow}명</strong>이 참가를 눌렀어요. 버튼 한 번이면 끝!</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="window.updateHomeAttendance('${nextEvt.date}', '참가')" class="py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">참가 👍</button>
+            <button onclick="window.updateHomeAttendance('${nextEvt.date}', '불참')" class="py-2 rounded-xl font-bold text-xs bg-white hover:bg-gray-50 text-gray-700 border border-gray-300">불참 🖐️</button>
+          </div>
+        </section>
+      `;
+    }
+
+    /* 정기운동 카드: 풀코트 인원 게이지 */
+    function renderFullCourtGaugeHTML(attendCount, myStatus) {
+      const pct = Math.min(100, (attendCount / FULL_COURT_COUNT) * 100);
+      const remain = Math.max(0, FULL_COURT_COUNT - attendCount);
+      let msg;
+      if (remain === 0) msg = `🎉 풀코트 완성! ${attendCount}명 확정, 코트가 꽉 찹니다`;
+      else if (attendCount === 0) msg = '🏐 아직 확정 0명! 첫 번째 주인공이 되어 주세요';
+      else if (remain <= 3) msg = `🔥 ${attendCount}명 확정, ${remain}명만 더 오면 풀코트!`;
+      else msg = `${attendCount}명 확정, 풀코트까지 ${remain}명 남았어요`;
+      if (remain > 0 && currentUser && myStatus !== '참가') msg += ' · 당신이 필요해요 🙋';
+
+      const barColor = remain === 0 ? 'bg-emerald-500' : remain <= 3 ? 'bg-amber-400' : 'bg-indigo-500';
+      return `
+        <div class="mb-3">
+          <div class="flex justify-between items-center text-[11px] font-bold mb-1">
+            <span class="text-indigo-900">🏐 풀코트 게이지</span>
+            <span class="text-gray-500">${Math.min(attendCount, FULL_COURT_COUNT)} / ${FULL_COURT_COUNT}명</span>
+          </div>
+          <div class="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
+            <div style="width: ${pct}%" class="${barColor} h-full rounded-full transition-all"></div>
+          </div>
+          <p class="text-[11px] text-gray-600 mt-1.5 leading-relaxed">${msg}</p>
+        </div>
+      `;
+    }
+
+    /* 홈: 지난 운동 후기(이모지 반응) 카드 - 최근 7일 이내 정기운동 */
+    function renderReactionCardHTML() {
+      const past = getPastRegularEventsAsc();
+      if (past.length === 0) return '';
+      const last = past[past.length - 1];
+      const diffDays = Math.round((new Date(getTodayString()) - new Date(last.date)) / 86400000);
+      if (diffDays > 7) return '';
+
+      const votes = sampleData.regularVotesByDate[last.date] || {};
+      const attended = Object.values(votes).filter(v => v === '참가').length;
+      const byUser = reactionsByDate[last.date] || {};
+      const myReact = currentUser ? byUser[currentUser.name] : null;
+      const myAttended = !!(currentUser && votes[currentUser.name] === '참가');
+
+      const counts = {};
+      Object.values(byUser).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+
+      const when = diffDays === 1 ? '어제' : last.date.substring(5);
+      let fomo = '';
+      if (attended > 0) {
+        fomo = `🏐 ${attended}명이 코트를 달궜어요. `;
+        fomo += (currentUser && !myAttended) ? '다음엔 같이 뛰어요! 😢 버튼도 환영이에요' : '오늘의 소감을 남겨 주세요!';
+      }
+
+      return `
+        <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">💬 ${when} 운동 어땠나요?</h2>
+          <p class="text-[11px] text-gray-500 mb-3 leading-relaxed">${last.date} ${last.title}${fomo ? ' · ' + fomo : ''}</p>
+          <div class="grid grid-cols-5 gap-1.5">
+            ${REACTION_OPTIONS.map(o => `
+              <button onclick="window.toggleReaction('${last.date}', '${o.emoji}')" class="flex flex-col items-center py-2 rounded-xl border text-[10px] font-bold transition ${myReact === o.emoji ? 'bg-indigo-950 text-white border-indigo-950' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-indigo-50'}">
+                <span class="text-lg leading-none mb-0.5">${o.emoji}</span>
+                <span class="leading-tight text-center">${o.label}</span>
+                <span class="mt-0.5 ${myReact === o.emoji ? 'text-amber-300' : 'text-gray-400'}">${counts[o.emoji] || 0}</span>
+              </button>
+            `).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    window.toggleReaction = async (dateKey, emoji) => {
+      if (!currentUser) return window.openLoginModal();
+      const byUser = { ...(reactionsByDate[dateKey] || {}) };
+      const removing = byUser[currentUser.name] === emoji;
+      if (removing) delete byUser[currentUser.name];
+      else byUser[currentUser.name] = emoji;
+
+      try {
+        await setDoc(doc(db, "reactions", dateKey), { byUser });
+        if (!removing) showToast('소감이 등록되었어요 ' + emoji);
+      } catch (err) {
+        console.error(err);
+        alert('반응 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    };
+
+    /* 홈: 이달의 MVP (칭찬 위주, 하위권은 절대 노출하지 않음) */
+    function renderMvpCardHTML() {
+      const monthPrefix = getTodayString().substring(0, 7);
+      const monthEvents = getPastRegularEventsAsc().filter(e => e.date.startsWith(monthPrefix));
+      if (monthEvents.length === 0) return '';
+
+      const targets = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
+      if (targets.length === 0) return '';
+
+      const scored = targets.map(m => ({
+        name: m.name,
+        count: monthEvents.filter(e => ((sampleData.regularVotesByDate[e.date] || {})[m.name]) === '참가').length
+      }));
+      const max = Math.max(...scored.map(r => r.count));
+      if (max === 0) return '';
+
+      const mvps = scored.filter(r => r.count === max).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      const perfect = max === monthEvents.length;
+      const shown = mvps.slice(0, 8);
+      const rest = mvps.length - shown.length;
+      const monthNum = parseInt(getTodayString().substring(5, 7), 10);
+
+      return `
+        <section class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 sm:p-5 rounded-2xl shadow-sm border border-amber-200">
+          <div class="flex justify-between items-center mb-2 flex-wrap gap-1">
+            <h2 class="text-sm sm:text-base font-black text-amber-900">🏅 ${monthNum}월 MVP</h2>
+            <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">정기운동 ${monthEvents.length}회 중 ${perfect ? '개근' : max + '회 참석'}</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            ${shown.map(r => `<span class="text-xs font-bold bg-white text-amber-900 border border-amber-200 px-2.5 py-1 rounded-full shadow-sm">🏅 ${r.name}</span>`).join('')}
+            ${rest > 0 ? `<span class="text-xs font-bold text-amber-800 px-1 py-1">외 ${rest}명</span>` : ''}
+          </div>
+          <p class="text-[11px] text-amber-800 leading-relaxed">${perfect ? '개근 달성! 이분들 덕분에 코트가 살아 있어요 👏' : '이달 가장 열심히 코트를 지킨 분들이에요 👏'}</p>
+        </section>
+      `;
+    }
+
+    /* 나의 정보: 칭호/배지 */
+    function getMemberBadges(name) {
+      const hist = getMemberHistory(name);
+      const total = hist.length;
+      const count = hist.filter(Boolean).length;
+      const rate = total > 0 ? (count / total) * 100 : 0;
+      const st = getStreakInfo(name);
+      const rankRow = getAttendanceRanking().rows.find(r => r.name === name);
+
+      const monthPrefix = getTodayString().substring(0, 7);
+      const monthEvents = getPastRegularEventsAsc().filter(e => e.date.startsWith(monthPrefix));
+      const monthAttend = monthEvents.filter(e => ((sampleData.regularVotesByDate[e.date] || {})[name]) === '참가').length;
+
+      return [
+        { icon: '🏐', name: '첫 출석', desc: '정기운동에 처음 참가했어요', earned: count >= 1 },
+        { icon: '🔥', name: '불꽃 스트릭', desc: '3회 연속 출석 달성', earned: st.best >= 3 },
+        { icon: '🏅', name: '이달의 개근', desc: '이번 달 정기운동 개근 (2회 이상 열린 경우)', earned: monthEvents.length >= 2 && monthAttend === monthEvents.length },
+        { icon: '🧚', name: '출석 요정', desc: '5회 이상 집계 중 출석률 80% 이상', earned: total >= 5 && rate >= 80 },
+        { icon: '👑', name: '출석왕', desc: '출석률 1등 (3회 이상 집계 시)', earned: !!rankRow && total >= 3 && rankRow.rank === 1 && count > 0 },
+        { icon: '💯', name: '10회 출석 클럽', desc: '누적 10회 출석', earned: count >= 10 },
+        { icon: '🦸', name: '컴백 히어로', desc: '3회 이상 쉬다가 다시 출석', earned: st.current >= 1 && st.current <= 2 && st.gapBefore >= 3 && st.hadAttendBefore }
+      ];
+    }
+
+    function renderBadgesCardHTML(name) {
+      const badges = getMemberBadges(name);
+      const earnedCount = badges.filter(b => b.earned).length;
+      return `
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🎖️</span> 나의 칭호 (${earnedCount}/${badges.length})</h3>
+          <p class="text-[11px] text-gray-400 mb-3">정기운동 출석 기록에 따라 자동으로 획득돼요.</p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            ${badges.map(b => `
+              <div class="p-2.5 rounded-xl border text-center ${b.earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-50'}">
+                <div class="text-2xl mb-0.5 ${b.earned ? '' : 'grayscale'}">${b.icon}</div>
+                <div class="text-xs font-black ${b.earned ? 'text-amber-900' : 'text-gray-500'}">${b.name}</div>
+                <div class="text-[10px] leading-snug mt-0.5 ${b.earned ? 'text-amber-800' : 'text-gray-400'}">${b.desc}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    /* ==================== [추가] 끝 ==================== */
+
     let renderTimer = null;
     function refreshCurrentTab() {
       calculateAttendanceStats();
@@ -777,6 +1199,7 @@
     }
 
     setupFirestoreListeners();
+    setupReactionsListener();
 
     function paginate(array, pageSize, pageNumber) {
       return array.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
@@ -1010,6 +1433,13 @@
       const pendingPct = (pendingCount / totalCapacity) * 100;
 
       const myStatus = currentUser ? (curDateVotes[currentUser.name] || "미정") : "미정";
+
+      /* [추가] 출석 독려 위젯 */
+      const nextRegular = regularEvents[0] || null;
+      const pendingBannerHTML = renderPendingBannerHTML(nextRegular);
+      const rankCardHTML = renderMyRankCardHTML(nextRegular);
+      const reactionCardHTML = renderReactionCardHTML();
+      const mvpCardHTML = renderMvpCardHTML();
       const sortedBoardPosts = sortPostsByDate(sampleData.boardPosts);
       const pagedPosts = paginate(sortedBoardPosts, 5, pageState.homePosts);
       const upcomingEvents = sampleData.events
@@ -1028,6 +1458,8 @@
       };
 
       container.innerHTML = `
+        ${pendingBannerHTML}
+
         <section class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm sm:text-base font-black flex items-center gap-1.5 truncate"><span>📊</span> VEGA 출석 현황</h2>
@@ -1051,6 +1483,8 @@
           </div>
         </section>
 
+        ${rankCardHTML}
+
         <!-- 홈 그리드 레이아웃 -->
         <div class="grid grid-cols-1 gap-4 sm:gap-5 mb-5">
           <!-- Box 1: 정기운동 -->
@@ -1073,6 +1507,7 @@
               <p class="text-xs text-gray-500 mb-3 leading-relaxed">📍 ${currentEvent.location || '순천 조례초'}<br/>
               참석: <strong class="text-emerald-600">참가 ${attendCount}</strong> / <strong class="text-rose-600">불참 ${absentCount}</strong> / <strong class="text-amber-500">미정 ${pendingCount}</strong></p>
 
+              ${renderFullCourtGaugeHTML(attendCount, myStatus)}
               <div class="w-full bg-gray-200 h-4 rounded-full overflow-hidden flex mb-4 shadow-inner">
                 <div style="width: ${attendPct}%" class="bg-emerald-500 h-full flex items-center justify-center text-[9px] font-bold text-white">${attendCount}</div>
                 <div style="width: ${absentPct}%" class="bg-rose-500 h-full flex items-center justify-center text-[9px] font-bold text-white">${absentCount}</div>
@@ -1089,6 +1524,9 @@
               </div>
             </div>
           </section>
+
+          ${reactionCardHTML}
+          ${mvpCardHTML}
 
           <!-- Box 3: 게시판 요약 -->
           <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -1249,6 +1687,7 @@
       votesObj[currentUser.name] = status;
 
       await setDoc(doc(db, "regularVotes", dateKey), { votes: votesObj }, { merge: true });
+      if (CHEER_MESSAGES[status]) showToast(pickRandom(CHEER_MESSAGES[status]));
     };
 
     // ==================== 2. 일정 탭 ====================
@@ -1940,6 +2379,7 @@
 
       const stats = sampleData.stats;
       const myPosts = sortPostsByDate(sampleData.boardPosts.filter(p => p.author === currentUser.name));
+      const myStreak = getStreakInfo(currentUser.name);
       const myComments = sampleData.comments.filter(c => c.author === currentUser.name);
       const pagedMyPosts = paginate(myPosts, 5, pageState.myPosts);
       const pagedMyComments = paginate(myComments, 5, pageState.myComments);
@@ -1958,7 +2398,7 @@
 
           <div class="bg-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
             <h3 class="text-xs sm:text-sm font-black text-indigo-200 mb-3 flex items-center gap-1.5"><span>📊</span> 개인 출석 및 활동 요약</h3>
-            <div class="grid grid-cols-2 gap-3 text-center">
+            <div class="grid grid-cols-3 gap-2 sm:gap-3 text-center">
               <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
                 <span class="text-[11px] text-indigo-200 block mb-1">나의 출석률</span>
                 <span class="text-xl font-black text-amber-400">${stats.myAttendance}</span>
@@ -1967,8 +2407,14 @@
                 <span class="text-[11px] text-indigo-200 block mb-1">출석 횟수</span>
                 <span class="text-xl font-black text-emerald-400">${stats.myCount}</span>
               </div>
+              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
+                <span class="text-[11px] text-indigo-200 block mb-1">연속 출석</span>
+                <span class="text-xl font-black text-rose-400">🔥 ${myStreak.current}회</span>
+              </div>
             </div>
           </div>
+
+          ${renderBadgesCardHTML(currentUser.name)}
 
           <!-- 내가 작성한 글 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -2375,6 +2821,24 @@
       await setDoc(doc(db, "members", id), { name, role }, { merge: true });
       alert('회원 정보가 수정되었습니다.');
       window.closeEditMemberModal();
+    };
+
+    /* [수정] 회원 비밀번호 초기화 (운영진 전용) - 초기 비밀번호 0000으로 되돌림.
+       초기화된 회원은 다음 로그인 시 비밀번호 변경 창이 강제로 표시됩니다. */
+    window.handleResetPassword = async (name) => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('비밀번호 초기화는 운영진만 가능합니다.');
+      if (!confirm(`'${name}' 회원의 비밀번호를 초기값(0000)으로 초기화하시겠습니까?`)) return;
+
+      const member = sampleData.members.find(m => m.name === name);
+      const docId = member ? member.id : name;
+
+      try {
+        await setDoc(doc(db, "members", String(docId)), { password: "0000" }, { merge: true });
+        alert(`'${name}' 회원의 비밀번호가 0000으로 초기화되었습니다.\n다음 로그인 시 새 비밀번호로 변경해야 합니다.`);
+      } catch (err) {
+        console.error(err);
+        alert('비밀번호 초기화 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      }
     };
 
     window.handleDeleteMember = async (id) => {
