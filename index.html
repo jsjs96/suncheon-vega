@@ -465,7 +465,7 @@
     let homeSuggestionDraft = ''; // [추가] 홈 건의사항 입력 임시 저장 (화면 갱신 시 입력 내용 유지)
 
     /* [추가] 출석 독려 기능 설정값 */
-    const FULL_COURT_COUNT = 18;     // 풀코트 기준 인원 (6:6)
+    const FULL_COURT_COUNT = 18;     // 풀코트 기준 인원
     const SHOW_AHEAD_NAME = false;   // true: 앞 순위 회원 이름 공개 / false: '바로 앞 순위 회원'으로 표시
     const REACTION_OPTIONS = [
       { emoji: '🔥', label: '최고였어요' },
@@ -490,11 +490,11 @@
 
     function sortEventsByDate(events) {
       const today = getTodayString();
-      const future = events.filter(e => e.date >= today).sort((a, b) => {
+      const future = events.filter(e => !isEventPast(e)).sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return (a.time || '').localeCompare(b.time || '');
       });
-      const past = events.filter(e => e.date < today).sort((a, b) => {
+      const past = events.filter(e => isEventPast(e)).sort((a, b) => {
         if (a.date !== b.date) return b.date.localeCompare(a.date);
         return (b.time || '').localeCompare(a.time || '');
       });
@@ -512,7 +512,8 @@
       adminSuggestions: 1,
       adminEvents: 1,
       adminRegularVotes: 1,
-      adminAttendanceRank: 1   // [추가] 출석률 순위 페이지네이션
+      adminAttendanceRank: 1,  // [추가] 출석률 순위 페이지네이션
+      adminReactions: 1        // [추가] 운동 후기 기록 페이지네이션
     };
 
     const sampleData = {
@@ -615,7 +616,7 @@
     /* 출석률 계산 시 운영진과 일반 회원 대상으로만 정확히 계산 */
     function calculateAttendanceStats() {
       const today = getTodayString();
-      const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date < today);
+      const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && isEventPast(e));
       const totalPastEvents = pastRegularEvents.length;
 
       // 출석 집계 대상 회원: 운영진(admin) & 일반회원(member) 전용 (쉼회원, 코치 제외)
@@ -663,7 +664,7 @@
        - 동률은 같은 순위를 부여 */
     function getAttendanceRanking() {
       const today = getTodayString();
-      const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date < today);
+      const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && isEventPast(e));
       const totalPastEvents = pastRegularEvents.length;
 
       const targetMembers = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
@@ -725,6 +726,116 @@
     }
 
     /* ==================== [추가] 출석 독려 기능 모음 ==================== */
+    /* ==================== [추가] 금일 운동 종료 (운영진 전용) ====================
+       - 오늘 날짜의 정기운동에 finished:true 를 기록하면, 자정이 지나기 전에도
+         '지난 운동'으로 취급되어 출석률·순위·연속 출석·칭호·MVP에 즉시 반영됩니다. */
+    function isEventPast(e) {
+      return e.date < getTodayString() || e.finished === true;
+    }
+
+    function isVoteDatePast(d) {
+      return d < getTodayString() || sampleData.events.some(e => e.type === 'regular' && e.date === d && e.finished === true);
+    }
+
+    window.endTodayWorkout = async (eventId) => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('금일 운동 종료는 운영진만 가능합니다.');
+      const evt = sampleData.events.find(e => String(e.id) === String(eventId));
+      if (!evt) return alert('일정을 찾을 수 없습니다.');
+      if (evt.date !== getTodayString()) return alert('오늘 날짜의 정기운동만 종료할 수 있습니다.');
+      if (evt.finished) return alert('이미 종료된 운동입니다.');
+
+      const votes = sampleData.regularVotesByDate[evt.date] || {};
+      const attended = Object.values(votes).filter(v => v === '참가').length;
+      const ok = confirm(
+        `오늘(${evt.date}) ${evt.title}을(를) 종료하시겠습니까?\n\n` +
+        `참가 ${attended}명 기준으로 출석률·순위·연속 출석에 바로 반영되고, 오늘 운동은 '다가오는 일정'에서 빠집니다.\n` +
+        `(실제 출석과 다르면 먼저 운영진 탭의 '정기운동 참가 명단 수동 수정'에서 고쳐 주세요)`
+      );
+      if (!ok) return;
+
+      try {
+        await updateDoc(doc(db, "events", String(evt.id)), {
+          finished: true,
+          finishedAt: serverTimestamp(),
+          finishedBy: currentUser.name
+        });
+        showToast('수고하셨습니다! 오늘 운동이 종료되어 출석에 반영됐어요 🏐', 3200);
+      } catch (err) {
+        console.error(err);
+        alert('운동 종료 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    };
+
+    window.reopenTodayWorkout = async (eventId) => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('종료 취소는 운영진만 가능합니다.');
+      const evt = sampleData.events.find(e => String(e.id) === String(eventId));
+      if (!evt) return alert('일정을 찾을 수 없습니다.');
+      if (evt.date !== getTodayString()) return alert('오늘 날짜의 정기운동만 종료를 취소할 수 있습니다.');
+      if (!confirm('운동 종료를 취소하시겠습니까?\n오늘 운동이 다시 \'진행 중\'이 되고, 출석 집계에서 빠집니다.')) return;
+
+      try {
+        await updateDoc(doc(db, "events", String(evt.id)), {
+          finished: false,
+          finishedAt: null,
+          finishedBy: null
+        });
+        showToast('운동 종료를 취소했어요');
+      } catch (err) {
+        console.error(err);
+        alert('종료 취소 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    };
+
+    /* 홈 정기운동 카드: 운영진에게만 보이는 종료 버튼 (오늘 운동일 때만) */
+    function renderHomeEndButtonHTML(evt) {
+      if (!currentUser || currentUser.role !== 'admin') return '';
+      if (!evt || !evt.id || evt.date !== getTodayString() || evt.finished) return '';
+      return `
+        <button onclick="window.endTodayWorkout('${evt.id}')" class="w-full mb-3 py-2.5 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition">
+          🏁 금일 운동 종료 (운영진 전용)
+        </button>
+      `;
+    }
+
+    /* 운영진 탭: 오늘의 정기운동 관리 카드 */
+    function renderTodayWorkoutAdminCardHTML() {
+      const today = getTodayString();
+      const todays = sampleData.events.filter(e => e.type === 'regular' && e.date === today);
+
+      const body = todays.length === 0
+        ? '<p class="text-xs text-gray-500 py-3 text-center">오늘 예정된 정기운동이 없습니다.</p>'
+        : todays.map(evt => {
+            const votes = sampleData.regularVotesByDate[evt.date] || {};
+            const attend = Object.values(votes).filter(v => v === '참가').length;
+            const absent = Object.values(votes).filter(v => v === '불참').length;
+            const finished = evt.finished === true;
+            return `
+              <div class="p-3 rounded-xl border ${finished ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}">
+                <div class="flex justify-between items-center flex-wrap gap-1 mb-1">
+                  <span class="text-xs font-black text-indigo-950">🏐 ${evt.title} (${evt.time || ''})</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${finished ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-800'}">${finished ? '✅ 종료됨' : '진행 예정/진행 중'}</span>
+                </div>
+                <p class="text-[11px] text-gray-500 mb-2">📍 ${evt.location || '장소 미정'} · 참가 ${attend}명 / 불참 ${absent}명</p>
+                ${finished
+                  ? `<div class="flex items-center justify-between gap-2">
+                       <p class="text-[11px] text-emerald-800">참가 ${attend}명 기준으로 출석에 반영되었습니다.${evt.finishedBy ? ' (종료: ' + evt.finishedBy + ')' : ''}</p>
+                       <button onclick="window.reopenTodayWorkout('${evt.id}')" class="text-[11px] bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-2.5 py-1 rounded-lg font-bold shrink-0">종료 취소</button>
+                     </div>`
+                  : `<button onclick="window.endTodayWorkout('${evt.id}')" class="w-full py-2.5 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition">🏁 금일 운동 종료</button>`}
+              </div>
+            `;
+          }).join('');
+
+      return `
+        <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🏁</span> 오늘의 정기운동</h3>
+          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">운동이 끝나면 종료 버튼을 눌러 주세요. 그 즉시 오늘 출석이 순위·연속 출석·칭호에 반영됩니다. (누르지 않으면 자정 이후 자동 반영)</p>
+          <div class="space-y-2">${body}</div>
+        </div>
+      `;
+    }
+    /* ==================== [추가] 금일 운동 종료 끝 ==================== */
+
     const CHEER_MESSAGES = {
       '참가': ['오늘도 코트 접수하러 가자! 🏐', '참가 확인! 스파이크 연습해 오세요 💥', '당신 덕분에 코트가 꽉 차요 🙌', '좋아요! 네트 앞에서 만나요 🔥', '출석 도장 쾅! 👊'],
       '불참': ['다음엔 꼭 봬요 👋', '괜찮아요, 푹 쉬고 다음에 만나요 🍀', '몸 챙기시고 다음엔 코트에서 봐요 💪'],
@@ -763,7 +874,7 @@
     function getPastRegularEventsAsc() {
       const today = getTodayString();
       return sampleData.events
-        .filter(e => e.type === 'regular' && e.date < today)
+        .filter(e => e.type === 'regular' && isEventPast(e))
         .sort((a, b) => a.date.localeCompare(b.date));
     }
 
@@ -1009,7 +1120,7 @@
       const counts = {};
       Object.values(byUser).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
 
-      const when = diffDays === 1 ? '어제' : last.date.substring(5);
+      const when = diffDays === 0 ? '오늘' : diffDays === 1 ? '어제' : last.date.substring(5);
       let fomo = '';
       if (attended > 0) {
         fomo = `🏐 ${attended}명이 코트를 달궜어요. `;
@@ -1129,6 +1240,64 @@
         </div>
       `;
     }
+    /* [추가] 운영진 탭: 운동 후기(이모지 반응) 기록 - 날짜별 누적 보관, 홈 카드가 사라진 뒤에도 계속 확인 가능 */
+    function renderAdminReactionLogHTML() {
+      const dates = Object.keys(reactionsByDate)
+        .filter(d => Object.keys(reactionsByDate[d] || {}).length > 0)
+        .sort((a, b) => b.localeCompare(a));
+
+      const pageSize = 3;
+      const maxPage = Math.max(1, Math.ceil(dates.length / pageSize));
+      if (pageState.adminReactions > maxPage) pageState.adminReactions = maxPage;
+      const paged = paginate(dates, pageSize, pageState.adminReactions);
+
+      const totalReactions = dates.reduce((sum, d) => sum + Object.keys(reactionsByDate[d]).length, 0);
+
+      const cards = paged.map(d => {
+        const byUser = reactionsByDate[d] || {};
+        const evt = sampleData.events.find(e => e.type === 'regular' && e.date === d);
+        const votes = sampleData.regularVotesByDate[d] || {};
+        const attended = Object.values(votes).filter(v => v === '참가').length;
+        const reactedCount = Object.keys(byUser).length;
+
+        const rows = REACTION_OPTIONS.map(o => {
+          const names = Object.keys(byUser).filter(n => byUser[n] === o.emoji).sort((a, b) => a.localeCompare(b, 'ko'));
+          if (names.length === 0) return '';
+          return `
+            <div class="flex items-start gap-2 text-xs">
+              <div class="shrink-0 w-24 font-bold text-gray-700">${o.emoji} ${o.label} <span class="text-indigo-900">${names.length}</span></div>
+              <div class="flex flex-wrap gap-1 min-w-0">
+                ${names.map(n => `<span class="text-[10px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded">${n}</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="p-3 bg-gray-50 rounded-xl space-y-2">
+            <div class="flex justify-between items-center flex-wrap gap-1">
+              <span class="text-xs font-black text-indigo-950">${d} ${evt ? evt.title : '정기운동'}</span>
+              <span class="text-[10px] font-bold bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">참가 ${attended}명 · 반응 ${reactedCount}명</span>
+            </div>
+            ${rows}
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex justify-between items-start mb-1 flex-wrap gap-2">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>💬</span> 운동 후기 기록</h3>
+            <span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full shrink-0">총 ${dates.length}회 · 반응 ${totalReactions}건</span>
+          </div>
+          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">홈 화면의 "운동 어땠나요?"에 회원들이 남긴 반응이 날짜별로 보관됩니다. 😅·😢 반응이 많은 날은 운영 방식을 점검해 보세요.</p>
+          <div class="space-y-2 min-h-[120px]">
+            ${dates.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">아직 남겨진 후기 반응이 없습니다.</p>' : cards}
+          </div>
+          ${renderPaginationUI(dates.length, pageSize, pageState.adminReactions, 'changeAdminReactionsPage')}
+        </div>
+      `;
+    }
     /* ==================== [추가] 끝 ==================== */
 
     let renderTimer = null;
@@ -1179,7 +1348,7 @@
       onSnapshot(collection(db, "events"), (snapshot) => {
         sampleData.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const today = getTodayString();
-        const regularEvents = sampleData.events.filter(e => e.type === 'regular' && e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+        const regularEvents = sampleData.events.filter(e => e.type === 'regular' && !isEventPast(e)).sort((a, b) => a.date.localeCompare(b.date));
         if (regularEvents.length > 0 && (!selectedHomeDate || !regularEvents.some(e => e.date === selectedHomeDate))) {
           selectedHomeDate = regularEvents[0].date;
         }
@@ -1404,7 +1573,7 @@
       const stats = sampleData.stats;
       const today = getTodayString();
       const regularEvents = sampleData.events
-        .filter(e => e.type === 'regular' && e.date >= today)
+        .filter(e => e.type === 'regular' && !isEventPast(e))
         .sort((a, b) => a.date.localeCompare(b.date));
 
       if (!selectedHomeDate && regularEvents.length > 0) {
@@ -1440,10 +1609,11 @@
       const rankCardHTML = renderMyRankCardHTML(nextRegular);
       const reactionCardHTML = renderReactionCardHTML();
       const mvpCardHTML = renderMvpCardHTML();
+      const endBtnHTML = renderHomeEndButtonHTML(currentEvent);
       const sortedBoardPosts = sortPostsByDate(sampleData.boardPosts);
       const pagedPosts = paginate(sortedBoardPosts, 5, pageState.homePosts);
       const upcomingEvents = sampleData.events
-        .filter(e => e.date >= today)
+        .filter(e => !isEventPast(e))
         .sort((a, b) => a.date.localeCompare(b.date));
       const pagedUpcomingEvents = paginate(upcomingEvents, 5, pageState.homeUpcomingEvents);
 
@@ -1515,6 +1685,7 @@
               </div>
             </div>
 
+            ${endBtnHTML}
             <div class="bg-gray-50 p-3 rounded-xl">
               <p class="text-xs font-bold text-gray-600 mb-2">내 참여 상태 선택 (${currentEvent.date})</p>
               <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -2486,8 +2657,8 @@
       const today = getTodayString();
       const regularEventDates = sampleData.events.filter(e => e.type === 'regular').map(e => e.date);
       const allVoteDates = [...new Set([...regularEventDates, ...Object.keys(sampleData.regularVotesByDate)])];
-      const futureDates = allVoteDates.filter(d => d >= today).sort((a, b) => a.localeCompare(b));
-      const pastDates = allVoteDates.filter(d => d < today).sort((a, b) => b.localeCompare(a));
+      const futureDates = allVoteDates.filter(d => !isVoteDatePast(d)).sort((a, b) => a.localeCompare(b));
+      const pastDates = allVoteDates.filter(d => isVoteDatePast(d)).sort((a, b) => b.localeCompare(a));
       const sortedVoteDates = [...futureDates, ...pastDates];
 
       if (sortedVoteDates.length > 0 && (!selectedAdminDate || !allVoteDates.includes(selectedAdminDate))) {
@@ -2496,6 +2667,8 @@
 
       const curVotes = sampleData.regularVotesByDate[selectedAdminDate] || {};
       const pagedVoteMembers = paginate(sortedMembers, 5, pageState.adminRegularVotes);
+      const reactionLogHTML = renderAdminReactionLogHTML();
+      const todayEndCardHTML = renderTodayWorkoutAdminCardHTML();
 
       const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
 
@@ -2510,6 +2683,8 @@
               📢 공지 작성
             </button>
           </div>
+
+          ${todayEndCardHTML}
 
           <!-- [신규] Section 0: 회원 출석률 순위 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -2687,7 +2862,7 @@
               <div class="flex items-center gap-1">
                 <label class="text-[11px] font-bold text-gray-600">대상 일자:</label>
                 <select onchange="window.handleAdminDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 max-w-[140px] truncate">
-                  ${sortedVoteDates.map(d => `<option value="${d}" ${d === selectedAdminDate ? 'selected' : ''}>${d} ${d >= today ? '(예정)' : '(지난운동)'}</option>`).join('')}
+                  ${sortedVoteDates.map(d => `<option value="${d}" ${d === selectedAdminDate ? 'selected' : ''}>${d} ${!isVoteDatePast(d) ? '(예정)' : '(지난운동)'}</option>`).join('')}
                 </select>
               </div>
             </div>
@@ -2710,6 +2885,8 @@
             </div>
             ${renderPaginationUI(sortedMembers.length, 5, pageState.adminRegularVotes, 'changeAdminRegularVotesPage')}
           </div>
+
+          ${reactionLogHTML}
 
           <!-- Section 5: 익명 건의사항 검토 (작성자 비공개 유지) -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -2738,6 +2915,7 @@
     window.changeAdminEventsPage = (p) => { pageState.adminEvents = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminRegularVotesPage = (p) => { pageState.adminRegularVotes = p; renderAdminTab(document.getElementById('app')); };
     window.changeAdminAttendanceRankPage = (p) => { pageState.adminAttendanceRank = p; renderAdminTab(document.getElementById('app')); };
+    window.changeAdminReactionsPage = (p) => { pageState.adminReactions = p; renderAdminTab(document.getElementById('app')); };
 
     window.handleAdminDateChange = (d) => {
       selectedAdminDate = d;
