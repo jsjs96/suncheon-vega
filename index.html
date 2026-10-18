@@ -3105,6 +3105,15 @@
         alert('삭제되었습니다.');
       }
     };
+  
+    /* ===== VEGA 확장 모듈 연결 ===== */
+    window.__vega = {
+      db, sampleData, showToast, sortMembers, isEventPast, getTodayString,
+      user: () => currentUser,
+      tab: () => currentTab,
+      refresh: refreshCurrentTab
+    };
+    import('./vega-extras.js');
   </script>
 </body>
 </html>
