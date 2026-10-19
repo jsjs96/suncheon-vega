@@ -2407,7 +2407,8 @@
           image: uploadedImageBase64 || null,
           createdAt: serverTimestamp()
         };
-        await addDoc(collection(db, "posts"), newPost);
+        const postRef = await addDoc(collection(db, "posts"), newPost);
+        if (window.vxNotify && category === '공지사항') window.vxNotify('notice', postRef.id);
       }
 
       alert('게시글이 성공적으로 등록되었습니다.');
@@ -3094,7 +3095,8 @@
         await setDoc(doc(db, "events", String(editId)), eventData, { merge: true });
         alert('일정이 성공적으로 수정되었습니다.');
       } else {
-        await addDoc(collection(db, "events"), eventData);
+        const evRef = await addDoc(collection(db, "events"), eventData);
+        if (window.vxNotify && type !== 'regular') window.vxNotify('event', evRef.id);
         alert('새 일정이 추가되었습니다.');
       }
 

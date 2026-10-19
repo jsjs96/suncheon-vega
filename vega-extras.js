@@ -5,6 +5,12 @@ import { getApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.j
 import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
 const { showToast, sortMembers, isEventPast, getTodayString } = V;
+/* ★ 알림 서버(Apps Script 웹앱) 주소를 아래 따옴표 안에 붙여넣으세요. 비워 두면 자동 알림만 꺼집니다. */
+const NOTIFY_URL = '';
+window.vxNotify = (type, id) => {
+  if (!NOTIFY_URL) return;
+  try { fetch(NOTIFY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type, id: String(id) }) }); } catch (e) {}
+};
 /* ============================ 블록 시작 ============================ */
 sampleData.lineups = [];
 
@@ -343,6 +349,7 @@ window.saveLineup = async (status) => {
 
   try {
     await setDoc(doc(db, "lineups", String(L.eventId)), data, { merge: true });
+    if (status === 'published') window.vxNotify('lineup', L.eventId);
     showToast(status === 'published' ? '엔트리가 공개되었어요 📢' : '임시저장 되었어요', 2600);
     window.closeLineupModal();
   } catch (err) {
@@ -625,6 +632,7 @@ window.vxCoachSend = async (id) => {
   if (!text || !j) return alert('코멘트를 입력해 주세요.');
   try {
     await updateDoc(doc(db, 'journals', id), { coachComments: [...(j.coachComments || []), { by: U().name, text, date: getTodayString() }] });
+    window.vxNotify('comment', id);
     showToast('코멘트를 남겼어요'); window.vxClose();
   } catch (e) { alert('등록 중 오류가 발생했습니다.'); }
 };
