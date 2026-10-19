@@ -6,7 +6,7 @@ import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "htt
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
 const { showToast, sortMembers, isEventPast, getTodayString } = V;
 /* ★ 알림 서버(Apps Script 웹앱) 주소를 아래 따옴표 안에 붙여넣으세요. 비워 두면 자동 알림만 꺼집니다. */
-const NOTIFY_URL = '';
+const NOTIFY_URL = 'https://script.google.com/macros/s/AKfycbxULQVmiS61-yxOmOBWrLThJ9-X53A8eboayQ88fwiAs5a4gBOV99Ch40BZ4rjLrqf2/exec';
 window.vxNotify = (type, id) => {
   if (!NOTIFY_URL) return;
   try { fetch(NOTIFY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type, id: String(id) }) }); } catch (e) {}
