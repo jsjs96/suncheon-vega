@@ -1,6 +1,8 @@
 /* VEGA 확장 모듈: 코치 엔트리 + 배구 일지 + 코치 탭 + 팀 로고
    index.html 과 같은 폴더에 두면 자동으로 불러와집니다. */
 import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
 const { showToast, sortMembers, isEventPast, getTodayString } = V;
 /* ============================ 블록 시작 ============================ */
@@ -489,16 +491,16 @@ window.vxClose = () => { const m = document.getElementById('vxModal'); if (m) m.
 
 /* ===================== 팀 로고 (logo.png 가 있으면 우선 사용, 없으면 SVG) ===================== */
 const LOGO_SVG = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100" class="rounded-full shrink-0" role="img" aria-label="Suncheon VEGA"><circle cx="50" cy="50" r="50" fill="#fff"/><g fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"><path d="M30 36c4-12 16-18 30-17"/><path d="M62 24c10 6 14 18 8 30"/><path d="M30 44c-4 12 4 22 18 24"/><path d="M42 32c8 4 14 12 14 22"/><path d="M56 54c-8 2-18 0-24-8"/></g><text x="50" y="82" font-size="11" font-weight="900" text-anchor="middle" fill="#111" font-family="Arial Black,Arial,sans-serif">SUNCHEON</text><text x="50" y="93" font-size="8" text-anchor="middle" fill="#111" letter-spacing="2" font-family="Arial,sans-serif">V.E.G.A</text></svg>`;
-function makeLogo(sz) {
+function makeLogo(sz, file = 'logo.png') {
   const i = new Image();
   i.width = i.height = sz; i.alt = 'VEGA'; i.className = 'rounded-full bg-white shrink-0 object-contain';
   i.onerror = () => { const s = document.createElement('span'); s.innerHTML = LOGO_SVG(sz); i.replaceWith(s.firstChild); };
-  i.src = 'logo.png';
+  i.src = file;
   return i;
 }
 function applyLogo() {
   const h = document.querySelector('header span.text-xl');
-  if (h) h.replaceWith(makeLogo(36));
+  if (h) h.replaceWith(makeLogo(36, 'logo-mark.png'));
   const t = document.querySelector('#loginModal h2');
   if (t && !document.getElementById('vxLoginLogo')) {
     const w = document.createElement('div');
@@ -679,6 +681,62 @@ function planCardHTML() {
   const t = sampleData.plan && sampleData.plan.text;
   return t ? `<section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-indigo-200 mb-5"><h2 class="text-sm sm:text-base font-black text-gray-900 mb-2">🏋️ 이번 주 훈련</h2><p class="text-xs text-gray-700 leading-relaxed whitespace-pre-line">${lnEsc(t)}</p></section>` : '';
 }
+function installCardHTML() {
+  if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone || localStorage.getItem('vxInstallHide')) return '';
+  const wrap = (inner) => `<section class="bg-white p-4 rounded-2xl shadow-sm border border-indigo-200 mb-5"><div class="flex justify-between items-start gap-2"><div class="text-xs text-gray-700 leading-relaxed">${inner}</div><button onclick="window.vxInstallHide()" class="text-gray-400 font-bold text-lg leading-none shrink-0">&times;</button></div></section>`;
+  if (window.__deferredInstall) return wrap('<p class="font-black text-gray-900 mb-1">📲 홈 화면에 앱으로 설치</p><p class="mb-2">설치하면 아이콘으로 바로 열려요.</p><button onclick="window.vxInstall()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl">앱 설치하기</button>');
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return wrap('<p class="font-black text-gray-900 mb-1">📲 홈 화면에 앱으로 설치</p><p>Safari 하단의 <strong>공유 버튼</strong> → <strong>홈 화면에 추가</strong>를 눌러 주세요.</p>');
+  return '';
+}
+window.vxInstall = async () => { const p = window.__deferredInstall; if (!p) return; p.prompt(); try { await p.userChoice; } catch (e) {} window.__deferredInstall = null; paint(); };
+window.vxInstallHide = () => { localStorage.setItem('vxInstallHide', '1'); paint(); };
+window.__vegaPaint = () => paint();
+/* ===================== 푸시 알림 (FCM) ===================== */
+const VAPID_KEY = '';   /* 선택: Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징 > 웹 푸시 인증서 키. 비워도 기본 키로 동작 */
+let pushOK = false, fgBound = false, lastPushUser = null;
+const pushOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && localStorage.getItem('vxPush') === '1';
+function bindForeground() {
+  if (fgBound || !pushOK) return;
+  try { onMessage(getMessaging(getApp()), (p) => { const n = p.notification || {}; showToast('🔔 ' + (n.title || '') + ' ' + (n.body || ''), 4500); }); fgBound = true; } catch (e) {}
+}
+isSupported().then((ok) => { pushOK = ok; if (ok && pushOn()) bindForeground(); paint(); }).catch(() => {});
+function pushSync() {
+  const t = localStorage.getItem('vxPushToken');
+  if (!t || !pushOn()) return;
+  const u = U();
+  if (u && lastPushUser !== u.name) { lastPushUser = u.name; setDoc(doc(db, 'fcmTokens', t), { name: u.name, role: u.role, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
+  else if (!u && lastPushUser) { lastPushUser = null; deleteDoc(doc(db, 'fcmTokens', t)).catch(() => {}); }
+}
+function pushCardHTML(inMy) {
+  if (!U() || !pushOK) return '';
+  const on = pushOn(), denied = Notification.permission === 'denied';
+  if (!inMy && (on || denied || localStorage.getItem('vxPushHide'))) return '';
+  const what = '투표 마감 전날, 엔트리 공개, 코치 코멘트, 새 공지를 알려드려요.';
+  const body = on ? `<p class="font-black text-gray-900 mb-1">🔔 알림 켜짐</p><p class="mb-2">${what}</p><button onclick="window.vxPushDisable()" class="bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">알림 끄기</button>`
+    : denied ? '<p class="font-black text-gray-900 mb-1">🔕 알림이 차단되어 있어요</p><p>브라우저(또는 앱) 설정에서 이 사이트의 알림을 허용해 주세요.</p>'
+    : `<p class="font-black text-gray-900 mb-1">🔔 알림 받기</p><p class="mb-2">${what}</p><button onclick="window.vxPushEnable()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl">알림 켜기</button>`;
+  return `<section class="bg-white p-4 rounded-2xl shadow-sm border border-indigo-200 ${inMy ? 'mb-4' : 'mb-5'}"><div class="flex justify-between items-start gap-2"><div class="text-xs text-gray-700 leading-relaxed">${body}</div>${inMy ? '' : '<button onclick="window.vxPushHide()" class="text-gray-400 font-bold text-lg leading-none shrink-0">&times;</button>'}</div></section>`;
+}
+window.vxPushEnable = async () => {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return alert('알림 권한이 허용되지 않았어요. 브라우저(또는 앱) 설정에서 허용해 주세요.');
+    const reg = await navigator.serviceWorker.ready;
+    const token = await getToken(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}) });
+    if (!token) throw new Error('토큰 없음');
+    await setDoc(doc(db, 'fcmTokens', token), { name: U().name, role: U().role, ua: navigator.userAgent.slice(0, 120), updatedAt: serverTimestamp() });
+    localStorage.setItem('vxPush', '1'); localStorage.setItem('vxPushToken', token); lastPushUser = U().name;
+    bindForeground(); showToast('알림을 켰어요 🔔'); paint();
+  } catch (e) { console.error(e); alert('알림을 켜지 못했어요. 홈 화면에 설치한 앱에서 다시 시도해 주세요.'); }
+};
+window.vxPushDisable = async () => {
+  const t = localStorage.getItem('vxPushToken');
+  try { if (t) await deleteDoc(doc(db, 'fcmTokens', t)); await deleteToken(getMessaging(getApp())); } catch (e) {}
+  localStorage.removeItem('vxPush'); localStorage.removeItem('vxPushToken'); lastPushUser = null;
+  showToast('알림을 껐어요'); paint();
+};
+window.vxPushHide = () => { localStorage.setItem('vxPushHide', '1'); paint(); };
+
 function inject() {
   const app = document.getElementById('app');
   if (!app) return;
@@ -686,16 +744,17 @@ function inject() {
   if (t === 'home') {
     let w = document.getElementById('vxHome');
     if (!w) { w = document.createElement('div'); w.id = 'vxHome'; app.insertBefore(w, app.firstChild); }
-    w.innerHTML = renderLineupHomeCardHTML() + planCardHTML();
+    w.innerHTML = renderLineupHomeCardHTML() + planCardHTML() + installCardHTML() + pushCardHTML(false);
   } else if (t === 'myinfo' && U()) {
     let w = document.getElementById('vxJournal');
     const root = app.firstElementChild;
     if (!w && root) { w = document.createElement('div'); w.id = 'vxJournal'; root.appendChild(w); }
-    if (w) w.innerHTML = journalCardHTML();
+    if (w) w.innerHTML = pushCardHTML(true) + journalCardHTML();
   }
 }
 function paint() { if (V.tab() === 'coach') renderCoach(document.getElementById('app')); else inject(); }
 function syncNav() {
+  pushSync();
   const nav = document.querySelector('nav');
   let b = document.getElementById('nav-coach');
   if (nav && isStaff()) {

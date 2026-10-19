@@ -3,6 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e1b4b">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="VEGA">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <title>순천 VEGA 배구동호회</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -3114,6 +3123,12 @@
       refresh: refreshCurrentTab
     };
     import('./vega-extras.js');
+  </script>
+  <script>
+    /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */
+    if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__deferredInstall = e; if (window.__vegaPaint) window.__vegaPaint(); });
+    window.addEventListener('appinstalled', () => { window.__deferredInstall = null; if (window.__vegaPaint) window.__vegaPaint(); });
   </script>
 </body>
 </html>
