@@ -1,6 +1,6 @@
 /* VEGA 확장 모듈: 코치 엔트리 + 배구 일지 + 코치 탭 + 팀 로고
    index.html 과 같은 폴더에 두면 자동으로 불러와집니다. */
-import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
@@ -471,6 +471,7 @@ function renderLineupHomeCardHTML() {
 
 /* ===================== 공통 ===================== */
 const U = () => V.user();
+const agoStr = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const isStaff = () => !!U() && (U().role === 'coach' || U().role === 'admin');
 const isCoach = () => !!U() && U().role === 'coach';
 const TAGS = ['서브','리시브','토스','스파이크','블로킹','디그','커버','소통'];
@@ -523,11 +524,17 @@ function journalCardHTML() {
   const mine = myJournals(), m = thisMonth(mine);
   const avg = m.length ? (m.reduce((s, j) => s + (j.rating || 0), 0) / m.length).toFixed(1) : '-';
   const tt = topTags(m, 'improveTags', 3);
+  const soon = mine.filter((j) => (j.date || '') <= agoStr(358) && (j.date || '') >= agoStr(365)).length;
   return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4 sm:mt-5">
     <div class="flex justify-between items-center mb-3">
       <h3 class="text-xs sm:text-sm font-black text-gray-900">📓 나의 배구 일지</h3>
       <button onclick="window.vxJournalOpen()" class="bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold">+ 일지 쓰기</button>
     </div>
+    <div class="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
+      <p class="text-[11px] text-gray-600 leading-relaxed">📌 일지는 작성일로부터 <strong>1년간</strong> 보관돼요. 필요한 기록은 다운로드해 두세요.</p>
+      <button onclick="window.vxJournalDownload()" class="shrink-0 bg-white border border-gray-300 text-gray-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg">⬇️ 내 일지 다운로드</button>
+    </div>
+    ${soon ? `<p class="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 font-bold rounded-xl px-3 py-2 mb-3">⏰ ${soon}개의 일지가 일주일 안에 보관 기간(1년)이 끝나요. 지금 다운로드해 두세요.</p>` : ''}
     <div class="grid grid-cols-2 gap-2 mb-3">
       <div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">이번 달 작성</span><span class="text-lg font-black text-indigo-950">${m.length}회</span></div>
       <div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">평균 셀프 평가</span><span class="text-lg font-black text-indigo-950">${avg}${avg === '-' ? '' : '점'}</span></div>
@@ -547,6 +554,17 @@ function journalCardHTML() {
     ${mine.length > jLimit ? '<button onclick="window.vxJournalMore()" class="w-full mt-2 text-xs font-bold text-indigo-900 py-1.5">더보기</button>' : ''}
   </div>`;
 }
+window.vxJournalDownload = () => {
+  const rows = myJournals().slice().reverse();
+  if (!rows.length) return alert('다운로드할 일지가 없습니다.');
+  const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const head = ['날짜', '컨디션', '역할', '잘된 것', '아쉬운 것', '아쉬운 기술', '다음에 해볼 것', '다음 기술', '셀프 평가', '코치 공유', '코치 코멘트'];
+  const moodName = { bad: '힘들었어요', mid: '보통', good: '좋았어요' };
+  const line = (j) => [j.date, moodName[j.mood] || '', j.role, j.good, j.improve, (j.improveTags || []).join(', '), j.next, (j.nextTags || []).join(', '), j.rating, j.sharedWithCoach ? '공유' : '나만 보기', (j.coachComments || []).map((c) => c.by + ': ' + c.text).join(' / ')].map(q).join(',');
+  const csv = '\ufeff' + [head.map(q).join(','), ...rows.map(line)].join('\r\n');
+  window.vxDownload('배구일지_' + U().name + '_' + getTodayString() + '.csv', csv, 'text/csv;charset=utf-8');
+  showToast('일지를 내려받았어요 (엑셀로 열 수 있어요)', 3000);
+};
 window.vxJournalMore = () => { jLimit += 5; paint(); };
 
 function jSync() {
@@ -575,6 +593,7 @@ function jRender() {
   const fld = (id, label, val, ph) => `<label class="block text-xs font-bold text-gray-700 mt-3 mb-1">${label}</label><input id="${id}" value="${lnEsc(val || '')}" placeholder="${ph}" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs" />`;
   modal(`
     <div class="flex justify-between items-center mb-2 pb-2 border-b"><h3 class="text-sm font-black text-indigo-950">📓 배구 일지</h3><button onclick="window.vxClose()" class="text-gray-400 font-bold text-lg">&times;</button></div>
+    <p class="text-[10px] text-gray-400 mb-2">📌 일지는 작성일로부터 1년간 보관돼요.</p>
     ${prev ? `<p class="text-[11px] bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 mb-2">💡 지난번 다짐: ${lnEsc(prev.next)}</p>` : ''}
     <label class="block text-xs font-bold text-gray-700 mb-1">운동 선택 (참가한 정기운동)</label>
     <select onchange="window.vxPickEvent(this.value)" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white"><option value="">직접 날짜 입력</option>${evts.map(e => `<option value="${e.id}" ${String(e.id) === String(jd.eventId) ? 'selected' : ''}>${e.date} ${lnEsc(e.title)}</option>`).join('')}</select>
@@ -763,6 +782,7 @@ function inject() {
 function paint() { if (V.tab() === 'coach') renderCoach(document.getElementById('app')); else inject(); }
 function syncNav() {
   pushSync();
+  bindJournals();
   const nav = document.querySelector('nav');
   let b = document.getElementById('nav-coach');
   if (nav && isStaff()) {
@@ -776,8 +796,22 @@ window.switchTab = (tab, cat) => { _switch(tab, cat); if (tab === 'coach') rende
 const _detail = window.openEventDetail;
 window.openEventDetail = (id) => { _detail(id); window.injectLineupButtons(sampleData.events.find(e => String(e.id) === String(id))); };
 
-onSnapshot(collection(db, 'lineups'), (s) => { sampleData.lineups = s.docs.map(d => ({ id: d.id, ...d.data() })); V.refresh(); paint(); });
-onSnapshot(collection(db, 'journals'), (s) => { sampleData.journals = s.docs.map(d => ({ id: d.id, ...d.data() })); paint(); });
+onSnapshot(query(collection(db, 'lineups'), where('date', '>=', agoStr(365))), (s) => { sampleData.lineups = s.docs.map(d => ({ id: d.id, ...d.data() })); V.refresh(); paint(); });
+/* 일지: 일반회원은 내 일지만, 코치는 내 일지 + 공유된 일지만 불러옵니다 (읽기 절약 + 개인정보 보호) */
+let jUnsubs = [], jKey = null;
+function bindJournals() {
+  const u = U(), key = u ? u.name + '|' + u.role : '';
+  if (key === jKey) return;
+  jKey = key;
+  jUnsubs.forEach((f) => f()); jUnsubs = []; sampleData.journals = [];
+  if (!u) { paint(); return; }
+  const parts = { mine: [], shared: [] };
+  const merge = () => { const m = new Map(); [...parts.mine, ...parts.shared].forEach((j) => m.set(j.id, j)); sampleData.journals = [...m.values()]; paint(); };
+  const col = collection(db, 'journals');
+  jUnsubs.push(onSnapshot(query(col, where('author', '==', u.name)), (s) => { parts.mine = s.docs.map((d) => ({ id: d.id, ...d.data() })); merge(); }));
+  if (u.role === 'coach') jUnsubs.push(onSnapshot(query(col, where('sharedWithCoach', '==', true)), (s) => { parts.shared = s.docs.map((d) => ({ id: d.id, ...d.data() })); merge(); }));
+}
+bindJournals();
 onSnapshot(collection(db, 'trainingPlans'), (s) => { const d = s.docs.find(x => x.id === 'current'); sampleData.plan = d ? d.data() : null; V.refresh(); paint(); });
 new MutationObserver(inject).observe(document.getElementById('app'), { childList: true });
 setInterval(syncNav, 800);

@@ -443,8 +443,10 @@
   <!-- ==================== Firebase & App JavaScript Module ==================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-    import { 
-      getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, addDoc, deleteDoc, getDoc, serverTimestamp 
+    import {
+      getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+      collection, onSnapshot, doc, setDoc, updateDoc, addDoc, deleteDoc, getDoc, getDocs,
+      query, where, orderBy, limit, documentId, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -458,7 +460,10 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    /* 기기 저장(캐시): 받아 둔 데이터를 폰에 보관해 빠르게 열고 읽기 횟수를 줄입니다 */
+    let db;
+    try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+    catch (e) { db = getFirestore(app); }
 
     let currentUser = JSON.parse(localStorage.getItem('vega_user')) || JSON.parse(sessionStorage.getItem('vega_user')) || null;
     let isMustChangePassword = false;
@@ -1324,6 +1329,73 @@
       }, 50);
     }
 
+    /* ==================== 데이터 읽기 최소화: 1년 보관 · 더보기 · 사용자별 범위 ==================== */
+    const RETENTION_DAYS = 365, BACKUP_WARN_DAYS = 7, POST_PAGE = 40;
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dateAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
+    const cutoffDate = () => dateAgo(RETENTION_DAYS);
+    const mapDocs = (snap) => snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    /* 게시글: 최근 1년 중 최신 N개 + 더보기, 영상게시판은 기간 제한 없이 전부 */
+    let postLimit = POST_PAGE, postsHasMore = false, unsubPosts = null;
+    const postParts = { live: [], video: [] };
+    function rebuildPosts() {
+      const m = new Map();
+      [...postParts.live, ...postParts.video].forEach(p => m.set(p.id, p));
+      sampleData.boardPosts = [...m.values()];
+      refreshCurrentTab();
+    }
+    function bindPosts() {
+      if (unsubPosts) unsubPosts();
+      unsubPosts = onSnapshot(query(collection(db, "posts"), where("date", ">=", cutoffDate()), orderBy("date", "desc"), limit(postLimit)), (s) => {
+        postParts.live = mapDocs(s);
+        postsHasMore = s.size >= postLimit;
+        rebuildPosts();
+      });
+    }
+    window.loadMorePosts = () => { postLimit += POST_PAGE; bindPosts(); };
+
+    /* 댓글: 열어 본 게시글의 댓글 + 내가 쓴 댓글만 */
+    const commentParts = { post: [], mine: [] };
+    let unsubPostComments = null;
+    function rebuildComments() {
+      const m = new Map();
+      [...commentParts.post, ...commentParts.mine].forEach(c => m.set(c.id, c));
+      sampleData.comments = [...m.values()];
+      if (currentViewingPostId) renderPostComments(currentViewingPostId);
+      if (currentTab === 'myinfo') renderMyInfoTab(document.getElementById('app'));
+    }
+    window.__bindPostComments = (postId) => {
+      if (unsubPostComments) { unsubPostComments(); unsubPostComments = null; }
+      commentParts.post = [];
+      if (!postId) { rebuildComments(); return; }
+      unsubPostComments = onSnapshot(query(collection(db, "comments"), where("postId", "==", String(postId))), (s) => {
+        commentParts.post = mapDocs(s);
+        rebuildComments();
+      });
+    };
+    async function loadMyComments() {
+      if (!currentUser) { commentParts.mine = []; return; }
+      try {
+        const s = await getDocs(query(collection(db, "comments"), where("author", "==", currentUser.name)));
+        commentParts.mine = mapDocs(s);
+        rebuildComments();
+      } catch (e) { console.error(e); }
+    }
+
+    /* 로그인한 사용자에 따라 달라지는 데이터(건의사항): 운영진=최근 1년 전체, 일반회원=내 것만 */
+    let unsubUser = [], lastUserKey = null;
+    function syncUserListeners() {
+      const key = currentUser ? currentUser.name + '|' + currentUser.role : '';
+      if (key === lastUserKey) return;
+      lastUserKey = key;
+      unsubUser.forEach(u => u()); unsubUser = [];
+      if (!currentUser) { sampleData.suggestions = []; refreshCurrentTab(); return; }
+      const col = collection(db, "suggestions");
+      const q = currentUser.role === 'admin' ? query(col, where("date", ">=", cutoffDate())) : query(col, where("ownerKey", "==", currentUser.name));
+      unsubUser.push(onSnapshot(q, (s) => { sampleData.suggestions = mapDocs(s); refreshCurrentTab(); }));
+    }
+
     function setupFirestoreListeners() {
       onSnapshot(collection(db, "members"), (snapshot) => {
         sampleData.members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1335,28 +1407,15 @@
             else sessionStorage.setItem('vega_user', JSON.stringify(currentUser));
           }
         }
+        syncUserListeners();
         refreshCurrentTab();
       });
 
-      onSnapshot(collection(db, "posts"), (snapshot) => {
-        sampleData.boardPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        refreshCurrentTab();
-      });
+      bindPosts();
+      onSnapshot(query(collection(db, "posts"), where("category", "==", "영상게시판")), (s) => { postParts.video = mapDocs(s); rebuildPosts(); });
 
-      onSnapshot(collection(db, "comments"), (snapshot) => {
-        sampleData.comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (currentViewingPostId) renderPostComments(currentViewingPostId);
-        if (currentTab === 'myinfo') renderMyInfoTab(document.getElementById('app'));
-      });
-
-      onSnapshot(collection(db, "suggestions"), (snapshot) => {
-        sampleData.suggestions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        refreshCurrentTab();
-      });
-
-      onSnapshot(collection(db, "events"), (snapshot) => {
+      onSnapshot(query(collection(db, "events"), where("date", ">=", cutoffDate())), (snapshot) => {
         sampleData.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const today = getTodayString();
         const regularEvents = sampleData.events.filter(e => e.type === 'regular' && !isEventPast(e)).sort((a, b) => a.date.localeCompare(b.date));
         if (regularEvents.length > 0 && (!selectedHomeDate || !regularEvents.some(e => e.date === selectedHomeDate))) {
           selectedHomeDate = regularEvents[0].date;
@@ -1367,17 +1426,96 @@
         refreshCurrentTab();
       });
 
-      onSnapshot(collection(db, "regularVotes"), (snapshot) => {
+      onSnapshot(query(collection(db, "regularVotes"), where(documentId(), ">=", cutoffDate())), (snapshot) => {
         const votes = {};
         snapshot.docs.forEach(doc => { votes[doc.id] = doc.data().votes || {}; });
         sampleData.regularVotesByDate = votes;
         refreshCurrentTab();
       });
 
+      onSnapshot(query(collection(db, "reactions"), where(documentId(), ">=", cutoffDate())), (snapshot) => {
+        const r = {};
+        snapshot.docs.forEach(d => { r[d.id] = d.data().byUser || {}; });
+        reactionsByDate = r;
+        refreshCurrentTab();
+      });
+    }
+
+    /* ---------- 백업 · 정리 (운영진) ---------- */
+    window.vxDownload = (name, text, mime) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' }));
+      a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    };
+    const plainDoc = (o) => { const r = {}; Object.keys(o).forEach(k => { const v = o[k]; r[k] = (v && typeof v.toDate === 'function') ? v.toDate().toISOString() : v; }); return r; };
+
+    window.vxBackup = async () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('백업은 운영진만 가능합니다.');
+      showToast('백업 파일을 만드는 중이에요...', 3500);
+      try {
+        const out = { exportedAt: new Date().toISOString(), note: '순천 VEGA 백업 (회원 비밀번호와 익명 건의사항 작성자 정보, 회원 개인 일지는 포함하지 않음)' };
+        for (const c of ['members', 'events', 'regularVotes', 'reactions', 'posts', 'comments', 'suggestions', 'lineups']) {
+          const s = await getDocs(collection(db, c));
+          out[c] = s.docs.map(d => {
+            const o = plainDoc({ id: d.id, ...d.data() });
+            if (c === 'members') delete o.password;
+            if (c === 'suggestions') delete o.ownerKey;
+            return o;
+          });
+        }
+        window.vxDownload(`vega-backup-${getTodayString()}.json`, JSON.stringify(out, null, 1), 'application/json');
+        localStorage.setItem('vxBackupAt', String(Date.now()));
+        showToast('백업 파일을 내려받았어요 📦', 3000);
+        refreshCurrentTab();
+      } catch (e) { console.error(e); alert('백업 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'); }
+    };
+
+    window.vxCleanup = async () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('정리는 운영진만 가능합니다.');
+      if (Date.now() - Number(localStorage.getItem('vxBackupAt') || 0) > 7 * 86400000) return alert('먼저 "백업 다운로드"를 해 주세요. (최근 7일 안에 백업한 경우에만 정리할 수 있어요)');
+      const cut = cutoffDate();
+      if (!confirm(`${cut} 이전의 일정·투표·후기·게시글(영상게시판 제외)·댓글·건의사항·엔트리·회원 일지를 완전히 삭제합니다.\n삭제 후에는 되돌릴 수 없어요. 진행할까요?`)) return;
+      showToast('정리하는 중이에요...', 4000);
+      try {
+        let n = 0;
+        for (const [c, byId] of [['posts', 0], ['comments', 0], ['events', 0], ['suggestions', 0], ['lineups', 0], ['journals', 0], ['regularVotes', 1], ['reactions', 1]]) {
+          const s = await getDocs(query(collection(db, c), byId ? where(documentId(), '<', cut) : where('date', '<', cut)));
+          const targets = s.docs.filter(d => !(c === 'posts' && d.data().category === '영상게시판'));
+          for (let i = 0; i < targets.length; i += 20) await Promise.all(targets.slice(i, i + 20).map(d => deleteDoc(d.ref)));
+          n += targets.length;
+        }
+        alert(`${n}건을 정리했습니다.`);
+      } catch (e) { console.error(e); alert('정리 중 오류가 발생했습니다.'); }
+    };
+
+    function renderRetentionCardHTML() {
+      const warnDay = dateAgo(RETENTION_DAYS - BACKUP_WARN_DAYS);
+      const dates = [
+        ...sampleData.events.map(e => e.date),
+        ...sampleData.boardPosts.filter(p => p.category !== '영상게시판').map(p => p.date),
+        ...sampleData.suggestions.map(s => s.date),
+        ...Object.keys(sampleData.regularVotesByDate),
+        ...Object.keys(reactionsByDate)
+      ].filter(d => d && d <= warnDay).sort();
+      const n = dates.length;
+      const lastBk = Number(localStorage.getItem('vxBackupAt') || 0);
+      return `
+        <div class="p-4 sm:p-5 rounded-2xl shadow-sm border ${n ? 'bg-rose-50 border-rose-300' : 'bg-white border-gray-100'}">
+          <h3 class="text-xs sm:text-sm font-black ${n ? 'text-rose-800' : 'text-gray-900'} mb-1 flex items-center gap-1.5"><span>📦</span> ${n ? '백업 안내: 곧 1년이 되는 데이터가 있어요' : '데이터 보관 (1년)'}</h3>
+          ${n ? `<p class="text-xs text-rose-800 font-bold leading-relaxed mb-2">곧 1년이 되는 데이터가 <strong>${n}건</strong> 있어요 (가장 오래된 날짜 ${dates[0]}). 1년이 지나면 앱에서 보이지 않게 됩니다. 지금 백업해 두세요.</p>` : ''}
+          <p class="text-[11px] text-gray-500 leading-relaxed mb-1">일정·투표·후기·게시글·건의사항은 최근 <strong>1년</strong>치만 앱에 표시됩니다. (영상게시판은 계속 보관) 회원 일지는 각자 내려받아 보관하며, 백업 파일에는 포함되지 않아요.</p>
+          <p class="text-[11px] text-gray-400 mb-3">${lastBk ? '마지막 백업: ' + ymd(new Date(lastBk)) : '아직 백업한 적이 없어요'}</p>
+          <div class="flex gap-2">
+            <button onclick="window.vxBackup()" class="flex-1 bg-indigo-950 text-white text-xs font-bold py-2.5 rounded-xl">⬇️ 백업 다운로드</button>
+            <button onclick="window.vxCleanup()" class="flex-1 bg-white text-rose-600 border border-rose-200 text-xs font-bold py-2.5 rounded-xl">🧹 1년 지난 데이터 정리</button>
+          </div>
+        </div>`;
     }
 
     setupFirestoreListeners();
-    setupReactionsListener();
+    syncUserListeners();
 
     function paginate(array, pageSize, pageNumber) {
       return array.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
@@ -1507,6 +1645,8 @@
 
       window.closeLoginModal();
       renderHeader();
+      syncUserListeners();
+      if (currentTab === 'myinfo') loadMyComments();
 
       if (correctPass === "0000") {
         window.openPasswordModal(true);
@@ -1521,6 +1661,8 @@
         sessionStorage.removeItem('vega_user');
         currentUser = null;
         renderHeader();
+        syncUserListeners();
+        commentParts.mine = [];
         switchTab('home');
       }
     };
@@ -1546,6 +1688,7 @@
 
     window.switchTab = (tabName, categoryName) => {
       currentTab = tabName;
+      if (tabName === 'myinfo') loadMyComments();
       ['home', 'calendar', 'board', 'myinfo', 'admin'].forEach(tab => {
         const btn = document.getElementById(`nav-${tab}`);
         btn.className = (tab === tabName) 
@@ -2154,6 +2297,8 @@
             }).join('')}
           </div>
           ${renderPaginationUI(posts.length, 5, pageState.boardPosts, 'changeBoardPage')}
+          ${(!isSuggestionTab && currentBoardCategory !== '영상게시판' && postsHasMore) ? `<button onclick="window.loadMorePosts()" class="w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl">이전 글 더보기 ▾</button>` : ''}
+          ${(!isSuggestionTab && currentBoardCategory !== '영상게시판') ? '<p class="text-[11px] text-gray-400 text-center mt-2">게시글은 최근 1년치만 표시돼요. (영상게시판은 계속 보관)</p>' : ''}
         </div>
       `;
     }
@@ -2441,6 +2586,7 @@
       if (!post) return;
 
       currentViewingPostId = id;
+      window.__bindPostComments(id);
       document.getElementById('postDetailCategory').innerText = post.category || '게시글';
       document.getElementById('postDetailTitle').innerText = post.title;
       document.getElementById('postDetailAuthor').innerText = post.author;
@@ -2490,6 +2636,7 @@
 
     window.closePostDetailModal = () => {
       currentViewingPostId = null;
+      window.__bindPostComments(null);
       document.getElementById('postDetailModal').classList.add('hidden');
     };
 
@@ -2693,6 +2840,8 @@
               📢 공지 작성
             </button>
           </div>
+
+          ${renderRetentionCardHTML()}
 
           ${todayEndCardHTML}
 
