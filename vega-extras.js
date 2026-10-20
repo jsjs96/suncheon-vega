@@ -5,11 +5,12 @@ import { getApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.j
 import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
 const { showToast, sortMembers, isEventPast, getTodayString } = V;
-/* ★ 알림 서버(Apps Script 웹앱) 주소를 아래 따옴표 안에 붙여넣으세요. 비워 두면 자동 알림만 꺼집니다. */
-const NOTIFY_URL = 'https://script.google.com/macros/s/AKfycbxULQVmiS61-yxOmOBWrLThJ9-X53A8eboayQ88fwiAs5a4gBOV99Ch40BZ4rjLrqf2/exec';
+/* 알림 서버(Apps Script 웹앱) 주소는 이 파일이 아니라 vega-config.js 에 입력합니다. 비어 있으면 자동 알림만 꺼집니다. */
+const NOTIFY_URL = window.VEGA_NOTIFY_URL || '';   /* 주소는 vega-config.js 에 입력 */
+window.vxNotifyReady = !!NOTIFY_URL;
 window.vxNotify = (type, id) => {
-  if (!NOTIFY_URL) return;
-  try { fetch(NOTIFY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type, id: String(id) }) }); } catch (e) {}
+  if (!NOTIFY_URL) return false;
+  try { fetch(NOTIFY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type, id: String(id) }) }); return true; } catch (e) { return false; }
 };
 /* ============================ 블록 시작 ============================ */
 sampleData.lineups = [];
@@ -718,28 +719,54 @@ function installCardHTML() {
 window.vxInstall = async () => { const p = window.__deferredInstall; if (!p) return; p.prompt(); try { await p.userChoice; } catch (e) {} window.__deferredInstall = null; paint(); };
 window.vxInstallHide = () => { localStorage.setItem('vxInstallHide', '1'); paint(); };
 window.__vegaPaint = () => paint();
-/* ===================== 푸시 알림 (FCM) ===================== */
-const VAPID_KEY = '';   /* 선택: Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징 > 웹 푸시 인증서 키. 비워도 기본 키로 동작 */
-let pushOK = false, fgBound = false, lastPushUser = null;
-const pushOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && localStorage.getItem('vxPush') === '1';
+/* ===================== 푸시 알림 (FCM) : 자동 복구 포함 ===================== */
+const VAPID_KEY = '';   /* 선택: 비워도 기본 키로 동작 */
+let pushOK = false, fgBound = false, lastPushUser = null, pushBusy = false;
+const pushOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && localStorage.getItem('vxPushOff') !== '1' && !!localStorage.getItem('vxPushToken');
 function bindForeground() {
   if (fgBound || !pushOK) return;
   try { onMessage(getMessaging(getApp()), (p) => { const n = p.notification || {}; showToast('🔔 ' + (n.title || '') + ' ' + (n.body || ''), 4500); }); fgBound = true; } catch (e) {}
 }
-isSupported().then((ok) => { pushOK = ok; if (ok && pushOn()) bindForeground(); paint(); }).catch(() => {});
-function pushSync() {
-  const t = localStorage.getItem('vxPushToken');
-  if (!t || !pushOn()) return;
+/* 앱을 열 때마다(6시간에 한 번) 토큰을 다시 확인·등록해서, 저장소가 지워지거나 토큰이 바뀌어도 알림이 자동으로 이어지게 합니다 */
+async function refreshPush(force) {
   const u = U();
-  if (u && lastPushUser !== u.name) { lastPushUser = u.name; setDoc(doc(db, 'fcmTokens', t), { name: u.name, role: u.role, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
-  else if (!u && lastPushUser) { lastPushUser = null; deleteDoc(doc(db, 'fcmTokens', t)).catch(() => {}); }
+  if (pushBusy || !pushOK || !u || typeof Notification === 'undefined' || Notification.permission !== 'granted' || localStorage.getItem('vxPushOff') === '1') return;
+  const fresh = Date.now() - Number(localStorage.getItem('vxPushAt') || 0) < 6 * 3600 * 1000;
+  if (!force && fresh && localStorage.getItem('vxPushToken') && lastPushUser === u.name) return;
+  pushBusy = true;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const token = await getToken(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}) });
+    if (!token) return;
+    const old = localStorage.getItem('vxPushToken');
+    await setDoc(doc(db, 'fcmTokens', token), { name: u.name, role: u.role, ua: navigator.userAgent.slice(0, 120), updatedAt: serverTimestamp() }, { merge: true });
+    if (old && old !== token) deleteDoc(doc(db, 'fcmTokens', old)).catch(() => {});
+    localStorage.setItem('vxPush', '1'); localStorage.setItem('vxPushToken', token); localStorage.setItem('vxPushAt', String(Date.now()));
+    lastPushUser = u.name;
+    bindForeground();
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    paint();
+  } catch (e) { console.warn('푸시 토큰 갱신 실패', e); }
+  finally { pushBusy = false; }
+}
+isSupported().then((ok) => { pushOK = ok; if (ok) { bindForeground(); refreshPush(false); } paint(); }).catch(() => {});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshPush(false); });
+function pushSync() {
+  const u = U();
+  if (!u && lastPushUser) {   /* 로그아웃: 이 기기로 이전 회원의 알림이 가지 않게 등록 해제 */
+    const t = localStorage.getItem('vxPushToken');
+    lastPushUser = null;
+    if (t) deleteDoc(doc(db, 'fcmTokens', t)).catch(() => {});
+    return;
+  }
+  if (u) refreshPush(false);
 }
 function pushCardHTML(inMy) {
   if (!U() || !pushOK) return '';
   const on = pushOn(), denied = Notification.permission === 'denied';
   if (!inMy && (on || denied || localStorage.getItem('vxPushHide'))) return '';
   const what = '투표 마감 전날, 엔트리 공개, 코치 코멘트, 새 공지를 알려드려요.';
-  const body = on ? `<p class="font-black text-gray-900 mb-1">🔔 알림 켜짐</p><p class="mb-2">${what}</p><button onclick="window.vxPushDisable()" class="bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">알림 끄기</button>`
+  const body = on ? `<p class="font-black text-gray-900 mb-1">🔔 알림 켜짐</p><p class="mb-2">${what}</p><div class="flex gap-2"><button onclick="window.vxPushDisable()" class="bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">알림 끄기</button><button onclick="window.vxPushReconnect()" class="bg-white border border-gray-300 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">🔄 다시 연결</button></div><p class="text-[10px] text-gray-400 mt-2">알림이 안 오면 "다시 연결"을 눌러 보세요.</p>`
     : denied ? '<p class="font-black text-gray-900 mb-1">🔕 알림이 차단되어 있어요</p><p>브라우저(또는 앱) 설정에서 이 사이트의 알림을 허용해 주세요.</p>'
     : `<p class="font-black text-gray-900 mb-1">🔔 알림 받기</p><p class="mb-2">${what}</p><button onclick="window.vxPushEnable()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl">알림 켜기</button>`;
   return `<section class="bg-white p-4 rounded-2xl shadow-sm border border-indigo-200 ${inMy ? 'mb-4' : 'mb-5'}"><div class="flex justify-between items-start gap-2"><div class="text-xs text-gray-700 leading-relaxed">${body}</div>${inMy ? '' : '<button onclick="window.vxPushHide()" class="text-gray-400 font-bold text-lg leading-none shrink-0">&times;</button>'}</div></section>`;
@@ -748,16 +775,16 @@ window.vxPushEnable = async () => {
   try {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') return alert('알림 권한이 허용되지 않았어요. 브라우저(또는 앱) 설정에서 허용해 주세요.');
-    const reg = await navigator.serviceWorker.ready;
-    const token = await getToken(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}) });
-    if (!token) throw new Error('토큰 없음');
-    await setDoc(doc(db, 'fcmTokens', token), { name: U().name, role: U().role, ua: navigator.userAgent.slice(0, 120), updatedAt: serverTimestamp() });
-    localStorage.setItem('vxPush', '1'); localStorage.setItem('vxPushToken', token); lastPushUser = U().name;
-    bindForeground(); showToast('알림을 켰어요 🔔'); paint();
+    localStorage.removeItem('vxPushOff');
+    await refreshPush(true);
+    if (!localStorage.getItem('vxPushToken')) throw new Error('토큰 없음');
+    showToast('알림을 켰어요 🔔'); paint();
   } catch (e) { console.error(e); alert('알림을 켜지 못했어요. 홈 화면에 설치한 앱에서 다시 시도해 주세요.'); }
 };
+window.vxPushReconnect = async () => { await refreshPush(true); showToast('알림을 다시 연결했어요 🔄'); paint(); };
 window.vxPushDisable = async () => {
   const t = localStorage.getItem('vxPushToken');
+  localStorage.setItem('vxPushOff', '1');
   try { if (t) await deleteDoc(doc(db, 'fcmTokens', t)); await deleteToken(getMessaging(getApp())); } catch (e) {}
   localStorage.removeItem('vxPush'); localStorage.removeItem('vxPushToken'); lastPushUser = null;
   showToast('알림을 껐어요'); paint();

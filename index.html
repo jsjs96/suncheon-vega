@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="manifest.json">
+  <script src="vega-config.js"></script>
   <meta name="theme-color" content="#1e1b4b">
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1490,6 +1491,47 @@
       } catch (e) { console.error(e); alert('정리 중 오류가 발생했습니다.'); }
     };
 
+    function remindCandidates(d) {
+      const votes = sampleData.regularVotesByDate[d] || {};
+      return sampleData.members.filter(m => (m.role === 'admin' || m.role === 'member') && (!votes[m.name] || votes[m.name] === '미정')).map(m => m.name);
+    }
+    let remindDate = null;
+    window.vxRemindDate = (v) => { remindDate = v; renderAdminTab(document.getElementById('app')); };
+    function renderRemindCardHTML() {
+      const evs = sampleData.events.filter(e => e.type === 'regular' && !isEventPast(e)).sort((a, b) => a.date.localeCompare(b.date));
+      if (!evs.length) return '';
+      if (!remindDate || !evs.some(e => e.date === remindDate)) remindDate = evs[0].date;
+      const votes = sampleData.regularVotesByDate[remindDate] || {};
+      const pending = remindCandidates(remindDate);
+      const yes = Object.values(votes).filter(v => v === '참가').length, no = Object.values(votes).filter(v => v === '불참').length;
+      const wait = Math.max(0, Math.ceil((30 * 60000 - (Date.now() - Number(localStorage.getItem('vxRemind_' + remindDate) || 0))) / 60000));
+      return `
+        <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📣</span> 투표 독려 알림 (수동)</h3>
+          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">투표를 안 했거나 '미정'인 회원에게만 푸시 알림을 보냅니다. (알림을 켠 회원에게 전달 · 같은 날짜는 30분에 한 번)</p>
+          <select onchange="window.vxRemindDate(this.value)" class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50 mb-3">
+            ${evs.map(e => `<option value="${e.date}" ${e.date === remindDate ? 'selected' : ''}>${e.date} ${e.title} (${e.time || ''})</option>`).join('')}
+          </select>
+          <p class="text-xs text-gray-600 mb-2">참가 <strong class="text-emerald-600">${yes}</strong> · 불참 <strong class="text-rose-600">${no}</strong> · 미정 <strong class="text-amber-600">${pending.length}</strong></p>
+          ${pending.length ? `<div class="flex flex-wrap gap-1 mb-3">${pending.map(n => `<span class="text-[10px] bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded">${n}</span>`).join('')}</div>` : '<p class="text-xs text-emerald-700 font-bold mb-3">모두 투표했어요 🎉</p>'}
+          <button onclick="window.vxRemindSend()" ${pending.length === 0 || wait > 0 ? 'disabled' : ''} class="w-full py-2.5 rounded-xl font-bold text-xs ${pending.length === 0 || wait > 0 ? 'bg-gray-200 text-gray-400' : 'bg-indigo-950 hover:bg-indigo-900 text-white'}">
+            ${pending.length === 0 ? '보낼 대상이 없어요' : wait > 0 ? `${wait}분 뒤에 다시 보낼 수 있어요` : `📣 미정 ${pending.length}명에게 알림 보내기`}
+          </button>
+        </div>`;
+    }
+    window.vxRemindSend = () => {
+      if (!currentUser || currentUser.role !== 'admin') return alert('운영진만 가능합니다.');
+      if (!remindDate) return;
+      if (!window.vxNotifyReady) return alert('알림 서버 주소가 아직 설정되지 않았어요. vega-config.js 에 주소를 입력해 주세요.');
+      const pending = remindCandidates(remindDate);
+      if (!pending.length) return alert('모두 투표했어요 🎉');
+      if (!confirm(`${remindDate} 정기운동 투표 안 한 ${pending.length}명에게 알림을 보낼까요?\n\n${pending.join(', ')}\n\n(알림을 켠 회원에게만 전달돼요)`)) return;
+      window.vxNotify('remind', remindDate);
+      localStorage.setItem('vxRemind_' + remindDate, String(Date.now()));
+      showToast('독려 알림을 보냈어요 📣', 3000);
+      renderAdminTab(document.getElementById('app'));
+    };
+
     function renderRetentionCardHTML() {
       const warnDay = dateAgo(RETENTION_DAYS - BACKUP_WARN_DAYS);
       const dates = [
@@ -1514,7 +1556,8 @@
         </div>`;
     }
 
-    setupFirestoreListeners();
+/* ---------- 투표 독려 알림 (운영진 수동) ---------- */
+        setupFirestoreListeners();
     syncUserListeners();
 
     function paginate(array, pageSize, pageNumber) {
@@ -2844,6 +2887,8 @@
           ${renderRetentionCardHTML()}
 
           ${todayEndCardHTML}
+
+          ${renderRemindCardHTML()}
 
           <!-- [신규] Section 0: 회원 출석률 순위 -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
