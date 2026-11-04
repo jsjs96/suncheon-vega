@@ -355,6 +355,11 @@
           <label class="block text-xs font-bold text-gray-700 mb-1">초기 비밀번호 (4자리)</label>
           <input type="password" id="addMemberPassword" maxlength="4" required value="0000" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
         </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">가입일 (선택)</label>
+          <input type="date" id="addMemberJoinDate" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+          <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">입력하면 출석률을 가입일부터 계산해요. 비워 두면 동호회 시작부터 함께한 것으로 집계해요.</p>
+        </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeAddMemberModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
           <button type="submit" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">회원 등록</button>
@@ -381,6 +386,11 @@
             <option value="rest">쉼회원</option>
             <option value="coach">코치</option>
           </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">가입일 (선택)</label>
+          <input type="date" id="editMemberJoinDate" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+          <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">비우면 동호회 시작부터 함께한 것으로 집계해요.</p>
         </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeEditMemberModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
@@ -629,47 +639,43 @@
     }
 
     /* 출석률 계산 시 운영진과 일반 회원 대상으로만 정확히 계산 */
+    /* [추가] 가입일 기준 집계: 가입일이 있으면 그 날 이후 정기운동만, 비어 있으면 동호회 시작부터 */
+    /* [추가] 순위 집계 기준: 가입일 이후 정기운동이 이 횟수 이상 열린 회원만 순위에 올라요 (신규회원 보호) */
+    const MIN_RANK_EVENTS = 5;
+    function isEligibleEvent(name, evt) {
+      const m = sampleData.members.find(x => x.name === name);
+      const j = (m && m.joinDate) || '';
+      return !j || evt.date >= j;
+    }
+
     function calculateAttendanceStats() {
-      const today = getTodayString();
       const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && isEventPast(e));
-      const totalPastEvents = pastRegularEvents.length;
-
-      // 출석 집계 대상 회원: 운영진(admin) & 일반회원(member) 전용 (쉼회원, 코치 제외)
       const targetMembers = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
-      const totalTargetMembersCount = targetMembers.length;
-
-      if (totalPastEvents === 0) {
+      if (pastRegularEvents.length === 0) {
         sampleData.stats = { myAttendance: "0%", myCount: "0/0회", teamAttendance: "0%", monthlyAttend: 0 };
         return;
       }
+      const voted = (evt, name) => ((sampleData.regularVotesByDate[evt.date] || {})[name]) === "참가";
 
-      let myAttendCount = 0;
+      let myAttend = 0, myTotal = 0;
       if (currentUser) {
         pastRegularEvents.forEach(evt => {
-          const votes = sampleData.regularVotesByDate[evt.date] || {};
-          if (votes[currentUser.name] === "참가") myAttendCount++;
+          if (!isEligibleEvent(currentUser.name, evt)) return;
+          myTotal++;
+          if (voted(evt, currentUser.name)) myAttend++;
         });
       }
-      const myRate = Math.round((myAttendCount / totalPastEvents) * 100);
+      let teamAttend = 0, teamTotal = 0;
+      targetMembers.forEach(m => pastRegularEvents.forEach(evt => {
+        if (!isEligibleEvent(m.name, evt)) return;
+        teamTotal++;
+        if (voted(evt, m.name)) teamAttend++;
+      }));
 
-      let totalAttends = 0;
-
-      if (totalTargetMembersCount > 0) {
-        pastRegularEvents.forEach(evt => {
-          const votes = sampleData.regularVotesByDate[evt.date] || {};
-          targetMembers.forEach(m => {
-            if (votes[m.name] === "참가") totalAttends++;
-          });
-        });
-        const teamRate = Math.round((totalAttends / (totalPastEvents * totalTargetMembersCount)) * 100);
-        sampleData.stats.teamAttendance = `${teamRate}%`;
-      } else {
-        sampleData.stats.teamAttendance = "0%";
-      }
-
-      sampleData.stats.myAttendance = `${myRate}%`;
-      sampleData.stats.myCount = `${myAttendCount}/${totalPastEvents}회`;
-      sampleData.stats.monthlyAttend = myAttendCount;
+      sampleData.stats.teamAttendance = teamTotal > 0 ? `${Math.round((teamAttend / teamTotal) * 100)}%` : "0%";
+      sampleData.stats.myAttendance = `${myTotal > 0 ? Math.round((myAttend / myTotal) * 100) : 0}%`;
+      sampleData.stats.myCount = `${myAttend}/${myTotal}회`;
+      sampleData.stats.monthlyAttend = myAttend;
     }
 
     /* [추가] 출석률 순위 산출
@@ -678,32 +684,26 @@
        - 정렬: 출석률 내림차순 → 참석 횟수 내림차순 → 이름 가나다순
        - 동률은 같은 순위를 부여 */
     function getAttendanceRanking() {
-      const today = getTodayString();
       const pastRegularEvents = sampleData.events.filter(e => e.type === 'regular' && isEventPast(e));
       const totalPastEvents = pastRegularEvents.length;
-
+      const need = Math.min(MIN_RANK_EVENTS, totalPastEvents);   // 동호회 전체 운동이 기준 횟수보다 적으면 그만큼만 요구
       const targetMembers = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
 
       const rows = targetMembers.map(m => {
-        let attendCount = 0;
-        let absentCount = 0;
+        let attendCount = 0, absentCount = 0, total = 0;
         pastRegularEvents.forEach(evt => {
-          const votes = sampleData.regularVotesByDate[evt.date] || {};
-          if (votes[m.name] === '참가') attendCount++;
-          else if (votes[m.name] === '불참') absentCount++;
+          if (!isEligibleEvent(m.name, evt)) return;   // 가입 전 운동은 집계 제외
+          total++;
+          const v = (sampleData.regularVotesByDate[evt.date] || {})[m.name];
+          if (v === '참가') attendCount++;
+          else if (v === '불참') absentCount++;
         });
-        const rate = totalPastEvents > 0 ? (attendCount / totalPastEvents) * 100 : 0;
-        return {
-          name: m.name,
-          role: m.role,
-          count: attendCount,
-          absent: absentCount,
-          total: totalPastEvents,
-          rate: rate
-        };
+        const rate = total > 0 ? (attendCount / total) * 100 : 0;
+        return { name: m.name, role: m.role, count: attendCount, absent: absentCount, total: total, rate: rate, joinDate: m.joinDate || '', qualified: total >= need, need: need };
       });
 
       rows.sort((a, b) => {
+        if (a.qualified !== b.qualified) return a.qualified ? -1 : 1;   // 순위 대상이 먼저, 집계 중인 회원은 아래
         if (b.rate !== a.rate) return b.rate - a.rate;
         if (b.count !== a.count) return b.count - a.count;
         return (a.name || '').localeCompare(b.name || '', 'ko');
@@ -712,6 +712,7 @@
       let currentRank = 0;
       let prevRate = null;
       rows.forEach((r, i) => {
+        if (!r.qualified) { r.rank = null; return; }
         if (prevRate === null || Math.round(r.rate) !== Math.round(prevRate)) {
           currentRank = i + 1;
           prevRate = r.rate;
@@ -719,10 +720,8 @@
         r.rank = currentRank;
       });
 
-      const avgRate = rows.length > 0
-        ? rows.reduce((sum, r) => sum + r.rate, 0) / rows.length
-        : 0;
-
+      const counted = rows.filter(r => r.total > 0);
+      const avgRate = counted.length > 0 ? counted.reduce((sum, r) => sum + r.rate, 0) / counted.length : 0;
       return { rows, totalPastEvents, avgRate };
     }
 
@@ -895,7 +894,7 @@
 
     /* 지난 정기운동 순서(오래된 순)대로 '참가'였는지 true/false 배열 */
     function getMemberHistory(name) {
-      return getPastRegularEventsAsc().map(evt => ((sampleData.regularVotesByDate[evt.date] || {})[name] === '참가'));
+      return getPastRegularEventsAsc().filter(evt => isEligibleEvent(name, evt)).map(evt => ((sampleData.regularVotesByDate[evt.date] || {})[name] === '참가'));
     }
 
     /* 연속 출석 정보: 현재 연속, 최고 연속, 현재 연속 직전의 결석 구간 길이 */
@@ -925,15 +924,18 @@
       if (totalPastEvents === 0) return { empty: true };
 
       const me = rows[idx];
-      const ahead = [...rows].reverse().find(r => r.count > me.count);
-      const behind = rows.find(r => r.count < me.count);
+      if (!me.qualified) return { pending: true, count: me.count, played: me.total, need: me.need };
+
+      const ranked = rows.filter(r => r.qualified);
+      const ahead = [...ranked].reverse().find(r => r.count > me.count);
+      const behind = ranked.find(r => r.count < me.count);
 
       return {
         rank: me.rank,
-        total: rows.length,
+        total: ranked.length,
         count: me.count,
-        played: totalPastEvents,
-        tied: rows.filter(r => r.rank === me.rank).length > 1,
+        played: me.total,
+        tied: ranked.filter(r => r.rank === me.rank).length > 1,
         aheadName: ahead ? ahead.name : null,
         gapAhead: ahead ? ahead.count - me.count : 0,
         gapBehind: behind ? me.count - behind.count : 0,
@@ -1042,6 +1044,17 @@
         return wrap(`
           <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">🏐 나의 출석 순위</h2>
           <p class="text-xs text-gray-600 leading-relaxed">아직 집계할 지난 정기운동이 없어요. 첫 운동의 주인공이 되어 보세요!</p>
+        `);
+      }
+
+      if (info.pending) {
+        return wrap(`
+          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">🌱 순위 집계 준비 중</h2>
+          <p class="text-xs text-gray-600 leading-relaxed">가입 후 정기운동이 <strong>${info.need}회</strong> 열리면 순위가 매겨져요. 지금은 ${info.played}/${info.need}회 진행됐어요. 편하게 참여해 주세요!</p>
+          <div class="flex flex-wrap items-center gap-1.5 mt-3">
+            <span class="text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-1 rounded-lg">나의 출석 ${info.count}/${info.played}회</span>
+          </div>
+          ${getStreakLineHTML(nextEvt)}
         `);
       }
 
@@ -1222,7 +1235,7 @@
       const rankRow = getAttendanceRanking().rows.find(r => r.name === name);
 
       const monthPrefix = getTodayString().substring(0, 7);
-      const monthEvents = getPastRegularEventsAsc().filter(e => e.date.startsWith(monthPrefix));
+      const monthEvents = getPastRegularEventsAsc().filter(e => e.date.startsWith(monthPrefix) && isEligibleEvent(name, e));
       const monthAttend = monthEvents.filter(e => ((sampleData.regularVotesByDate[e.date] || {})[name]) === '참가').length;
 
       return [
@@ -2769,6 +2782,7 @@
 
           <div class="bg-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
             <h3 class="text-xs sm:text-sm font-black text-indigo-200 mb-3 flex items-center gap-1.5"><span>📊</span> 개인 출석 및 활동 요약</h3>
+            ${(() => { const _me = sampleData.members.find(x => x.name === currentUser.name); return _me && _me.joinDate ? `<p class="text-[11px] text-indigo-200 -mt-2 mb-3">출석은 가입일(${_me.joinDate})부터 집계돼요.</p>` : ''; })()}
             <div class="grid grid-cols-3 gap-2 sm:gap-3 text-center">
               <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
                 <span class="text-[11px] text-indigo-200 block mb-1">나의 출석률</span>
@@ -2896,7 +2910,7 @@
               <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>🏆</span> 회원 출석률 순위</h3>
               <span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full shrink-0">정기운동 ${rankData.totalPastEvents}회 기준 · 운영진/일반회원</span>
             </div>
-            <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">오늘 이전에 종료된 <strong>정기운동</strong> 일정에서 '참가'로 기록된 비율이 높은 순서입니다. (쉼회원 · 코치 제외)</p>
+            <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">오늘 이전에 종료된 <strong>정기운동</strong> 일정에서 '참가'로 기록된 비율이 높은 순서입니다. (쉼회원 · 코치 제외) 가입일이 입력된 회원은 <strong>가입일 이후</strong> 정기운동만 집계하고, 그 운동이 <strong>${MIN_RANK_EVENTS}회 미만</strong>이면 '집계 중'으로 표시되며 순위에서 제외돼요.</p>
 
             ${rankData.totalPastEvents === 0 || totalRankRows === 0 ? `
               <p class="text-xs text-gray-400 py-10 text-center">집계할 지난 정기운동 일정 또는 대상 회원이 없습니다.</p>
@@ -2924,13 +2938,15 @@
                   return `
                     <div class="flex items-center gap-2 sm:gap-3 p-2 rounded-xl ${isMe ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50 border border-transparent'}">
                       <div class="w-7 sm:w-8 text-center shrink-0">
-                        <span class="text-xs font-black ${r.rank <= 3 ? 'text-amber-500' : 'text-gray-400'}">${medal || r.rank}</span>
+                        <span class="text-xs font-black ${(r.rank != null && r.rank <= 3) ? 'text-amber-500' : 'text-gray-400'}">${medal || (r.rank == null ? '–' : r.rank)}</span>
                       </div>
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between gap-2 mb-1">
                           <div class="flex items-center gap-1.5 min-w-0">
                             <span class="text-xs font-bold text-gray-900 truncate">${r.name}</span>
                             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${r.role === 'admin' ? 'bg-indigo-100 text-indigo-900' : 'bg-gray-200 text-gray-700'}">${roleLabels[r.role] || '일반회원'}</span>
+                            ${r.qualified === false ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 shrink-0">집계 중 ${r.total}/${r.need}</span>` : ''}
+                            ${r.joinDate ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">가입 ${r.joinDate.substring(2)}</span>` : ''}
                             ${isMe ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">나</span>' : ''}
                           </div>
                           <div class="flex items-baseline gap-1 shrink-0">
@@ -3000,11 +3016,12 @@
             </div>
 
             <div class="overflow-x-auto min-h-[200px]">
-              <table class="w-full text-left border-collapse min-w-[500px]">
+              <table class="w-full text-left border-collapse min-w-[560px]">
                 <thead>
                   <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-400 uppercase bg-gray-50">
                     <th class="p-2.5 rounded-l-xl">이름</th>
                     <th class="p-2.5">직책</th>
+                    <th class="p-2.5">가입일</th>
                     <th class="p-2.5">비밀번호</th>
                     <th class="p-2.5 text-right rounded-r-xl">관리</th>
                   </tr>
@@ -3019,6 +3036,7 @@
                           ${roleLabels[m.role] || '일반회원'}
                         </span>
                       </td>
+                      <td class="p-2.5 text-[11px] text-gray-600">${m.joinDate || '<span class="text-gray-400">처음부터</span>'}</td>
                       <td class="p-2.5 font-mono text-gray-600 font-bold">${m.password || '0000'}</td>
                       <td class="p-2.5 text-right space-x-1">
                         <button onclick="window.openEditMemberModal('${m.id}', '${m.name}', '${m.role}', '${m.password || '0000'}')" class="text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded-lg font-bold border border-gray-200">수정</button>
@@ -3181,7 +3199,7 @@
       const role = document.getElementById('addMemberRole').value;
       const pass = document.getElementById('addMemberPassword').value.trim();
 
-      await setDoc(doc(db, "members", name), { name, role, password: pass });
+      await setDoc(doc(db, "members", name), { name, role, password: pass, joinDate: document.getElementById('addMemberJoinDate').value || '' });
       alert('새 회원이 등록되었습니다.');
       window.closeAddMemberModal();
     };
@@ -3190,6 +3208,8 @@
       document.getElementById('editMemberDocId').value = id;
       document.getElementById('editMemberName').value = name;
       document.getElementById('editMemberRole').value = role;
+      const _jm = sampleData.members.find(m => String(m.id) === String(id));
+      document.getElementById('editMemberJoinDate').value = (_jm && _jm.joinDate) || '';
       document.getElementById('editMemberModal').classList.remove('hidden');
     };
     window.closeEditMemberModal = () => document.getElementById('editMemberModal').classList.add('hidden');
@@ -3200,7 +3220,7 @@
       const name = document.getElementById('editMemberName').value.trim();
       const role = document.getElementById('editMemberRole').value;
 
-      await setDoc(doc(db, "members", id), { name, role }, { merge: true });
+      await setDoc(doc(db, "members", id), { name, role, joinDate: document.getElementById('editMemberJoinDate').value || '' }, { merge: true });
       alert('회원 정보가 수정되었습니다.');
       window.closeEditMemberModal();
     };
