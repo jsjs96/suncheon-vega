@@ -2,7 +2,7 @@
 import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 const V = window.__vega, db = V.db, S = V.sampleData, U = () => V.user(), esc = V.esc, toast = V.showToast;
 const isStaff = () => !!U() && (U().role === 'admin' || U().role === 'coach');
-const POS = ['세터', '레프트', '라이트', '센터', '리베로', '올라운더'], LV = ['', '입문', '초급', '중급', '상급', '선출급'];
+const POS = ['세터', '레프트', '라이트', '센터(속공)', '앞차', '백차', '라이트백', '레프트백', '센터백', '올라운더'], LV = ['', '입문', '초급', '중급', '상급', '선출급'];
 const t0 = Date.now(), ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 let matches = [], profiles = {};
 onSnapshot(collection(db, 'matches'), (s) => { matches = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.date || '').localeCompare(a.date || '')); inject(); }, () => {});
