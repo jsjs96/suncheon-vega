@@ -1,0 +1,328 @@
+/* ==========================================================================
+   순천 VEGA 테마 — 유니폼 블랙 · 레드 · 화이트
+   기능 코드(JS)는 건드리지 않고, 기존 Tailwind 클래스 색만 덮어씁니다.
+   · 기본은 블랙 테마(html.dark), 🌙/☀️ 버튼으로 라이트 테마 전환
+   · 색을 바꾸고 싶으면 아래 :root / html.dark 변수만 수정하세요
+   ========================================================================== */
+
+:root {
+  --vg-red: #d91920;          /* 유니폼 VEGA 로고 레드 */
+  --vg-red-deep: #a8121a;
+  --vg-red-text: #b3121a;     /* 라이트 배경 위 레드 글자 */
+  --vg-ink: #0a0a0a;          /* 헤더·하단 탭 (두 테마 공통) */
+
+  --vg-bg: #efeff0;
+  --vg-surface: #ffffff;
+  --vg-surface-2: #f5f5f6;
+  --vg-surface-3: #e8e8ea;
+  --vg-line: #e3e3e6;
+  --vg-line-2: #d0d0d5;
+
+  --vg-text: #111113;
+  --vg-muted: #505058;
+  --vg-faint: #6f6f78;
+
+  --vg-soft: rgba(217, 25, 32, .08);
+  --vg-soft-2: rgba(217, 25, 32, .14);
+  --vg-soft-line: rgba(217, 25, 32, .28);
+
+  --vg-sat: #2563eb;
+  --vg-sun: #d91920;
+
+  --vg-font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --vg-slab: 'Alfa Slab One', 'Rockwell', 'Roboto Slab', Georgia, serif;
+}
+
+/* 블랙 테마. 로그인 창은 라이트 모드에서도 항상 블랙으로 보여 줍니다. */
+html.dark,
+#loginModal {
+  --vg-red-text: #ff5c61;
+
+  --vg-bg: #0a0a0a;
+  --vg-surface: #151516;
+  --vg-surface-2: #1c1c1e;
+  --vg-surface-3: #28282b;
+  --vg-line: #2b2b2e;
+  --vg-line-2: #3b3b40;
+
+  --vg-text: #f5f5f6;
+  --vg-muted: #b6b6bd;
+  --vg-faint: #8d8d95;
+
+  --vg-soft: rgba(217, 25, 32, .16);
+  --vg-soft-2: rgba(217, 25, 32, .26);
+  --vg-soft-line: rgba(255, 92, 97, .38);
+
+  --vg-sat: #6ea8ff;
+  --vg-sun: #ff5c61;
+}
+html.dark { color-scheme: dark; }
+
+/* ---------- 기본 ---------- */
+html body { font-family: var(--vg-font) !important; color: var(--vg-text); letter-spacing: -0.005em; }
+html body.bg-gray-100 { background: var(--vg-bg) !important; }
+html * { border-color: var(--vg-line); }
+
+/* ---------- 중립색(회색) → 테마 변수 ---------- */
+html body .bg-white { background-color: var(--vg-surface) !important; }
+html body .bg-gray-50 { background-color: var(--vg-surface-2) !important; }
+html body .bg-gray-100 { background-color: var(--vg-surface-3) !important; }
+html body .bg-gray-200 { background-color: var(--vg-line-2) !important; }
+html body .hover\:bg-gray-50:hover { background-color: var(--vg-surface-2) !important; }
+html body .hover\:bg-gray-100:hover { background-color: var(--vg-surface-3) !important; }
+html body .hover\:bg-gray-200:hover { background-color: var(--vg-line-2) !important; }
+
+html body .text-gray-900,
+html body .text-gray-800,
+html body .text-gray-700 { color: var(--vg-text) !important; }
+html body .text-gray-600,
+html body .text-gray-500 { color: var(--vg-muted) !important; }
+html body .text-gray-400,
+html body .text-gray-300 { color: var(--vg-faint) !important; }
+html body .hover\:text-gray-600:hover { color: var(--vg-text) !important; }
+
+html body .border-gray-100,
+html body .border-gray-200 { border-color: var(--vg-line) !important; }
+html body .border-gray-300 { border-color: var(--vg-line-2) !important; }
+html body .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html body .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--vg-line) !important; }
+
+/* ---------- 입력창 ---------- */
+html body input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),
+html body select,
+html body textarea {
+  background-color: var(--vg-surface-2);
+  color: var(--vg-text);
+  border-color: var(--vg-line-2);
+}
+html body input::placeholder,
+html body textarea::placeholder { color: var(--vg-faint); opacity: 1; }
+html body input:focus,
+html body select:focus,
+html body textarea:focus {
+  border-color: var(--vg-red) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--vg-soft-2);
+}
+html body .focus\:ring-2:focus,
+html body .focus\:ring-indigo-600:focus,
+html body .ring-indigo-600 { --tw-ring-color: var(--vg-soft-2) !important; }
+html body input[type=checkbox] { accent-color: var(--vg-red); }
+html body input[type=file]::file-selector-button { background: var(--vg-soft); color: var(--vg-red-text); }
+
+/* ---------- 남색(indigo) → VEGA 레드 / 블랙 ---------- */
+/* 버튼·칩의 주 색상: 레드 */
+html body .bg-indigo-950,
+html body .bg-indigo-900,
+html body .bg-indigo-800,
+html body .bg-indigo-600 { background-color: var(--vg-red) !important; color: #fff; }
+html body .hover\:bg-indigo-900:hover,
+html body .hover\:bg-indigo-800:hover { background-color: var(--vg-red-deep) !important; }
+html body button.bg-indigo-950,
+html body button.bg-indigo-900 { box-shadow: 0 1px 0 rgba(255,255,255,.12) inset; }
+html body button.bg-indigo-950:active,
+html body button.bg-indigo-900:active { background-color: var(--vg-red-deep) !important; }
+
+/* 블랙 패널: 홈 요약 카드, 등수 칩, 리포트 카드 */
+html body div.bg-indigo-950,
+html body [class*="from-indigo-950"] {
+  background: linear-gradient(135deg, #0a0a0a 0%, #1d0a0c 100%) !important;
+  border: 1px solid rgba(255, 92, 97, .28);
+  color: #fff;
+}
+html body div.bg-indigo-950 .text-indigo-200,
+html body [class*="from-indigo-950"] .text-indigo-200,
+html body div.bg-indigo-950 .text-indigo-100,
+html body [class*="from-indigo-950"] .text-indigo-100 { color: #c9c9cf !important; }
+
+/* 글자색 */
+html body .text-indigo-950 { color: var(--vg-text) !important; }
+html body .text-indigo-900,
+html body .text-indigo-800,
+html body .text-indigo-700,
+html body .text-indigo-600 { color: var(--vg-red-text) !important; }
+html body .hover\:text-indigo-900:hover { color: var(--vg-red-text) !important; }
+html body .text-indigo-200,
+html body .text-indigo-100 { color: #c9c9cf !important; }
+
+/* 연한 배경(배지·강조 박스) */
+html body .bg-indigo-50 { background-color: var(--vg-soft) !important; }
+html body .bg-indigo-100 { background-color: var(--vg-soft-2) !important; }
+html body .hover\:bg-indigo-50:hover { background-color: var(--vg-soft-2) !important; }
+html body .hover\:bg-indigo-100:hover { background-color: var(--vg-soft-2) !important; }
+html body .border-indigo-100,
+html body .border-indigo-200 { border-color: var(--vg-soft-line) !important; }
+html body .file\:bg-indigo-50::file-selector-button { background: var(--vg-soft) !important; }
+
+/* 선택된 칩/탭의 흰 글자 유지 */
+html body .bg-indigo-950.text-white,
+html body .bg-indigo-900.text-white { color: #fff !important; }
+
+/* ---------- 의미색(주의·경고·성공) 블랙 테마용 ---------- */
+html.dark body .bg-amber-50 { background-color: rgba(245, 158, 11, .10) !important; }
+html.dark body .bg-amber-100 { background-color: rgba(245, 158, 11, .18) !important; }
+html.dark body [class*="from-amber-50"] { background: rgba(245, 158, 11, .10) !important; }
+html.dark body .border-amber-200,
+html.dark body .border-amber-300 { border-color: rgba(245, 158, 11, .38) !important; }
+html.dark body .text-amber-600,
+html.dark body .text-amber-700,
+html.dark body .text-amber-800,
+html.dark body .text-amber-900 { color: #fbbf24 !important; }
+html.dark body .hover\:bg-amber-100:hover { background-color: rgba(245, 158, 11, .2) !important; }
+
+html.dark body .bg-rose-50 { background-color: rgba(244, 63, 94, .10) !important; }
+html.dark body .bg-rose-100 { background-color: rgba(244, 63, 94, .18) !important; }
+html.dark body .border-rose-100,
+html.dark body .border-rose-200 { border-color: rgba(244, 63, 94, .38) !important; }
+html.dark body .text-rose-600,
+html.dark body .text-rose-700,
+html.dark body .text-rose-800 { color: #fb7185 !important; }
+html.dark body .hover\:bg-rose-100:hover { background-color: rgba(244, 63, 94, .2) !important; }
+
+html.dark body .bg-emerald-50 { background-color: rgba(16, 185, 129, .10) !important; }
+html.dark body .bg-emerald-100 { background-color: rgba(16, 185, 129, .18) !important; }
+html.dark body .border-emerald-100,
+html.dark body .border-emerald-300 { border-color: rgba(16, 185, 129, .38) !important; }
+html.dark body .text-emerald-700,
+html.dark body .text-emerald-800,
+html.dark body .text-emerald-900 { color: #34d399 !important; }
+
+/* ==========================================================================
+   헤더 — 블랙 바 + 레드 라인, 슬랩 서체 워드마크
+   ========================================================================== */
+html body header.bg-indigo-950 {
+  background: var(--vg-ink) !important;
+  border: 0;
+  border-bottom: 2px solid var(--vg-red);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+}
+.vg-wordmark { display: flex; flex-direction: column; line-height: 1; min-width: 0; }
+.vg-wordmark small {
+  font-size: .62rem; font-weight: 600; letter-spacing: .32em; color: #a9a9b0;
+  padding-left: .08rem; margin-bottom: .22rem;
+}
+.vg-wordmark b {
+  font-family: var(--vg-slab); font-weight: 400; font-size: 1.55rem;
+  letter-spacing: .04em; color: var(--vg-red);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
+}
+html body header img.rounded-full { background: transparent !important; border-radius: 0 !important; width: 38px; height: 38px; }
+header h1.vg-title { letter-spacing: normal; }
+
+/* ==========================================================================
+   하단 탭 / 데스크톱 상단 탭
+   ========================================================================== */
+html body nav.fixed {
+  background: var(--vg-ink) !important;
+  border-color: #26262a !important;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .3);
+}
+html body nav.fixed button {
+  position: relative; color: #8d8d95 !important; gap: 2px;
+  min-width: 52px; padding: 4px 6px; transition: color .15s;
+}
+html body nav.fixed button:hover { color: #fff !important; }
+html body nav.fixed button.text-indigo-900 { color: #fff !important; }
+html body nav.fixed button.text-indigo-900 svg { color: var(--vg-red-text); }
+html body nav.fixed button.text-indigo-900::before {
+  content: ''; position: absolute; top: -5px; left: 22%; right: 22%; height: 3px;
+  background: var(--vg-red); border-radius: 0 0 3px 3px;
+}
+@media (min-width: 768px) {
+  html body nav.fixed button.text-indigo-900::before { top: auto; bottom: -7px; border-radius: 3px 3px 0 0; }
+  html body nav.fixed { box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+}
+.vg-ico { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (min-width: 768px) { .vg-ico { width: 18px; height: 18px; } }
+
+/* ==========================================================================
+   카드·모달
+   ========================================================================== */
+html body .rounded-2xl.bg-white,
+html body .rounded-xl.bg-white { border: 1px solid var(--vg-line); }
+html.dark body .shadow-sm,
+html.dark body .shadow-md { box-shadow: none; }
+html body .rounded-2xl.shadow-2xl { border: 1px solid var(--vg-line-2); }
+html body .rounded-2xl.shadow-2xl h2,
+html body .rounded-2xl.shadow-2xl h3 { letter-spacing: -0.01em; }
+
+/* 로그인 창: 항상 블랙 + 레드 상단 라인 */
+#loginModal { background: rgba(0, 0, 0, .78) !important; }
+#loginModal > div {
+  background: linear-gradient(180deg, #121213 0%, #0c0c0d 100%) !important;
+  border: 1px solid #2b2b2e !important;
+  border-top: 3px solid var(--vg-red) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+}
+#loginModal h2 { font-family: var(--vg-slab); font-weight: 400 !important; letter-spacing: .03em; color: #fff !important; font-size: 1.25rem; }
+#loginModal label { color: #d6d6db !important; }
+#vxLoginLogo img { background: transparent !important; border-radius: 0 !important; width: 104px; height: 104px; }
+
+/* 토스트 */
+html body #toast { background: var(--vg-ink) !important; border: 1px solid var(--vg-red); box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+
+/* 다크모드 전환 버튼(우하단 원형) */
+html body #vmDarkBtn {
+  background: var(--vg-ink) !important; border: 1px solid #3b3b40 !important; color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4) !important; opacity: 1 !important;
+}
+
+/* ==========================================================================
+   달력 (FullCalendar)
+   ========================================================================== */
+html body .fc {
+  --fc-border-color: var(--vg-line);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--vg-surface-2);
+  --fc-today-bg-color: var(--vg-soft);
+  --fc-list-event-hover-bg-color: var(--vg-surface-2);
+  --fc-event-border-color: transparent;
+  color: var(--vg-text);
+}
+html body .fc-theme-standard .fc-scrollgrid,
+html body .fc-theme-standard td,
+html body .fc-theme-standard th { border-color: var(--vg-line) !important; }
+html body .fc-toolbar-title { color: var(--vg-text) !important; }
+html body .fc-col-header-cell { background: var(--vg-surface-2); }
+html body .fc-col-header-cell-cushion,
+html body .fc-daygrid-day-number { color: var(--vg-text); }
+html body .fc-day-sat .fc-col-header-cell-cushion,
+html body .fc-day-sat .fc-daygrid-day-number { color: var(--vg-sat) !important; }
+html body .fc-day-sun .fc-col-header-cell-cushion,
+html body .fc-day-sun .fc-daygrid-day-number,
+html body .holiday-cell .fc-daygrid-day-number { color: var(--vg-sun) !important; }
+html body .holiday-name-label { color: var(--vg-sun) !important; }
+html body .fc-day-other .fc-daygrid-day-top { opacity: .4; }
+html body .fc-day-today { box-shadow: inset 0 0 0 1.5px var(--vg-red); }
+html body .fc-button-primary {
+  background-color: var(--vg-red) !important; border-color: var(--vg-red) !important; color: #fff !important;
+}
+html body .fc-button-primary:hover { background-color: var(--vg-red-deep) !important; border-color: var(--vg-red-deep) !important; }
+html body .fc-button-primary:disabled { opacity: .45; }
+html body .fc-event { box-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+html body .fc-more-link { color: var(--vg-red-text); font-weight: 700; }
+html body .fc-popover { background: var(--vg-surface); border-color: var(--vg-line-2); }
+html body .fc-popover-header { background: var(--vg-surface-2); color: var(--vg-text); }
+
+/* ==========================================================================
+   숫자 강조 — 유니폼 등번호처럼 굵은 슬랩 서체 (이 앱의 기억에 남는 한 곳)
+   ========================================================================== */
+html body div.bg-indigo-950 .text-xl.font-black,
+html body [class*="from-indigo-950"] .text-xl.font-black,
+html body div.bg-indigo-950 .text-2xl.font-black,
+html body .text-2xl.font-black.text-amber-400 {
+  font-family: var(--vg-slab); font-weight: 400; letter-spacing: .01em;
+}
+
+/* ---------- 접근성 ---------- */
+html body button:focus-visible,
+html body a:focus-visible,
+html body [onclick]:focus-visible { outline: 2px solid var(--vg-red-text); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  html body * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* 스크롤바(블랙 테마) */
+html.dark ::-webkit-scrollbar { width: 8px; height: 8px; }
+html.dark ::-webkit-scrollbar-thumb { background: #3b3b40; border-radius: 8px; }
+html.dark ::-webkit-scrollbar-track { background: transparent; }

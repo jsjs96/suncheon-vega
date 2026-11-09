@@ -498,7 +498,7 @@ window.vxClose = () => { const m = document.getElementById('vxModal'); if (m) m.
 
 /* ===================== 팀 로고 (logo.png 가 있으면 우선 사용, 없으면 SVG) ===================== */
 const LOGO_SVG = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100" class="rounded-full shrink-0" role="img" aria-label="Suncheon VEGA"><circle cx="50" cy="50" r="50" fill="#fff"/><g fill="none" stroke="#111" stroke-width="3" stroke-linecap="round"><path d="M30 36c4-12 16-18 30-17"/><path d="M62 24c10 6 14 18 8 30"/><path d="M30 44c-4 12 4 22 18 24"/><path d="M42 32c8 4 14 12 14 22"/><path d="M56 54c-8 2-18 0-24-8"/></g><text x="50" y="82" font-size="11" font-weight="900" text-anchor="middle" fill="#111" font-family="Arial Black,Arial,sans-serif">SUNCHEON</text><text x="50" y="93" font-size="8" text-anchor="middle" fill="#111" letter-spacing="2" font-family="Arial,sans-serif">V.E.G.A</text></svg>`;
-function makeLogo(sz, file = 'logo.png') {
+function makeLogo(sz, file = 'logo-w.png') {
   const i = new Image();
   i.width = i.height = sz; i.alt = 'VEGA'; i.className = 'rounded-full bg-white shrink-0 object-contain';
   i.onerror = () => { const s = document.createElement('span'); s.innerHTML = LOGO_SVG(sz); i.replaceWith(s.firstChild); };
@@ -507,12 +507,12 @@ function makeLogo(sz, file = 'logo.png') {
 }
 function applyLogo() {
   const h = document.querySelector('header span.text-xl');
-  if (h) h.replaceWith(makeLogo(36, 'logo-mark.png'));
+  if (h) h.replaceWith(makeLogo(36, 'logo-mark-w.png'));
   const t = document.querySelector('#loginModal h2');
   if (t && !document.getElementById('vxLoginLogo')) {
     const w = document.createElement('div');
     w.id = 'vxLoginLogo'; w.className = 'flex justify-center mb-2';
-    w.appendChild(makeLogo(72));
+    w.appendChild(makeLogo(72, 'logo-w.png'));
     t.parentNode.insertBefore(w, t);
   }
 }
@@ -813,7 +813,7 @@ function syncNav() {
   const nav = document.querySelector('nav');
   let b = document.getElementById('nav-coach');
   if (nav && isStaff()) {
-    if (!b) { b = document.createElement('button'); b.id = 'nav-coach'; b.onclick = () => window.switchTab('coach'); b.innerHTML = '<span class="text-base md:text-sm">🧢</span> 코치'; nav.appendChild(b); }
+    if (!b) { b = document.createElement('button'); b.id = 'nav-coach'; b.onclick = () => window.switchTab('coach'); b.innerHTML = '<svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5h6v2.5H9z"/><path d="m8.8 13 2.2 2.2 4.2-4.4"/></svg> 코치'; nav.appendChild(b); }
     b.className = 'flex flex-col items-center text-[10px] sm:text-xs font-bold ' + (V.tab() === 'coach' ? 'text-indigo-900' : 'text-gray-400 hover:text-indigo-900');
   } else if (b) b.remove();
   applyLogo();

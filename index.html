@@ -4,12 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="manifest.json">
-  <script>try{var d=localStorage.getItem('vxDark');if(d==='1'||(d===null&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}</script>
-  <style>
-    html.dark{background:#fff;filter:invert(1) hue-rotate(180deg)}
-    html.dark img,html.dark video,html.dark iframe{filter:invert(1) hue-rotate(180deg)}
-  </style>
-  <meta name="theme-color" content="#1e1b4b">
+  <script>try{var d=localStorage.getItem('vxDark');if(d!=='0')document.documentElement.classList.add('dark');}catch(e){}</script>
+  <meta name="theme-color" content="#0a0a0a">
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
@@ -117,6 +113,12 @@
       overflow: visible !important;
     }
   </style>
+  <!-- VEGA 테마: 서체 + 색상 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="vega-theme.css">
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
 
@@ -124,7 +126,7 @@
   <header class="bg-indigo-950 text-white px-4 shadow-md fixed top-0 left-0 right-0 z-50 flex justify-between items-center h-16">
     <div class="flex items-center space-x-2 min-w-0">
       <span class="text-xl sm:text-2xl shrink-0">🏐</span>
-      <h1 class="text-lg sm:text-xl font-black tracking-wider cursor-pointer truncate" onclick="switchTab('home')">순천 VEGA</h1>
+      <h1 class="vg-title cursor-pointer" onclick="switchTab('home')" aria-label="순천 VEGA"><span class="vg-wordmark"><small>SUNCHEON</small><b>VEGA</b></span></h1>
     </div>
     <div id="userHeaderArea" class="flex items-center gap-2 shrink-0"></div>
   </header>
@@ -132,19 +134,19 @@
   <!-- ==================== Navigation Bar ==================== -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-1 sm:p-2 z-40 md:top-16 md:bottom-auto md:border-b md:border-t-0 md:justify-center md:gap-12 shadow-md h-14 md:h-12 items-center">
     <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-[10px] sm:text-xs font-bold text-indigo-900">
-      <span class="text-base md:text-sm">🏠</span> 홈
+      <svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.8V20h13V9.8"/><path d="M10 20v-5.5h4V20"/></svg> 홈
     </button>
     <button onclick="switchTab('calendar')" id="nav-calendar" class="flex flex-col items-center text-[10px] sm:text-xs font-bold text-gray-400 hover:text-indigo-900">
-      <span class="text-base md:text-sm">📅</span> 일정
+      <svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg> 일정
     </button>
     <button onclick="switchTab('board')" id="nav-board" class="flex flex-col items-center text-[10px] sm:text-xs font-bold text-gray-400 hover:text-indigo-900">
-      <span class="text-base md:text-sm">📋</span> 게시판
+      <svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V6A1.5 1.5 0 0 1 5 4.5Z"/><path d="M7.5 9h9M7.5 12.5h9M7.5 16h5"/></svg> 게시판
     </button>
     <button onclick="switchTab('myinfo')" id="nav-myinfo" class="flex flex-col items-center text-[10px] sm:text-xs font-bold text-gray-400 hover:text-indigo-900">
-      <span class="text-base md:text-sm">👤</span> 나의 정보
+      <svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.9-4 4-6 7.5-6s6.6 2 7.5 6"/></svg> 나의 정보
     </button>
     <button onclick="switchTab('admin')" id="nav-admin" class="flex flex-col items-center text-[10px] sm:text-xs font-bold text-gray-400 hover:text-indigo-900">
-      <span class="text-base md:text-sm">⚙️</span> 운영진
+      <svg class="vg-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19.5 6v5.5c0 4.4-3.1 7.6-7.5 9-4.4-1.4-7.5-4.6-7.5-9V6L12 3.5Z"/><path d="m9 12 2.2 2.2L15.2 10"/></svg> 운영진
     </button>
   </nav>
 
@@ -2325,7 +2327,7 @@
         // 캘린더 이벤트 구성 (시간 표기 제외, 제목만 표시)
         const calendarEvents = sampleData.events.map(evt => {
           let icon = '🏐';
-          let bgColor = '#1e1b4b';
+          let bgColor = '#c8141b';
           if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
           else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
           else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }

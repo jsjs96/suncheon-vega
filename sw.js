@@ -1,6 +1,6 @@
 /* VEGA 서비스 워커: 오프라인 캐시(최신 화면 우선). 푸시 알림 기능은 제거되었습니다. */
-const CACHE = 'vega-v3';
-self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'icon-192.png', 'logo.png']).catch(() => {}))); });
+const CACHE = 'vega-v4';
+self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'vega-theme.css', 'icon-192.png', 'logo-w.png', 'logo-mark-w.png']).catch(() => {}))); });
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x))))

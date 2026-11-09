@@ -81,7 +81,7 @@ setInterval(checkBadges, 4000);
 const isDark = () => document.documentElement.classList.contains('dark');
 function applyDark(on) {
   document.documentElement.classList.toggle('dark', on);
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = on ? '#000000' : '#1e1b4b';
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = '#0a0a0a';
   const b = document.getElementById('vmDarkBtn'); if (b) b.textContent = on ? '☀️' : '🌙';
 }
 window.vmDark = () => { const on = !isDark(); localStorage.setItem('vxDark', on ? '1' : '0'); applyDark(on); inject(); };
