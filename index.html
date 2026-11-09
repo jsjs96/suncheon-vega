@@ -1916,6 +1916,18 @@
 
     /* 홈: 공지사항 (최신 공지 3개, 3일 이내는 NEW) */
     const escH = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    /* 본문/댓글의 http(s):// · www. 주소를 자동으로 클릭 가능한 링크로 변환 (HTML은 먼저 이스케이프) */
+    function linkify(text) {
+      return escH(text).replace(/(https?:\/\/|www\.)[^\s<]+/gi, (m) => {
+        let url = m, tail = '';
+        const t = url.match(/[.,!?;:'"\])}>]+$/);                       /* 문장 끝 구두점은 링크에서 제외 */
+        if (t) { tail = t[0]; url = url.slice(0, -tail.length); }
+        if (url.includes('(') && !url.includes(')') && tail.startsWith(')')) { url += ')'; tail = tail.slice(1); }
+        if (!/^(https?:\/\/|www\.)[^\s]{3,}/i.test(url)) return m;
+        const href = /^www\./i.test(url) ? 'https://' + url : url;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="text-indigo-600 underline break-all">${url}</a>${tail}`;
+      });
+    }
     function renderHomeNoticeHTML() {
       const notices = sortPostsByDate(sampleData.boardPosts.filter(p => p.category === '공지사항')).slice(0, 3);
       if (notices.length === 0) return '';
@@ -2826,7 +2838,7 @@
       document.getElementById('postDetailTitle').innerText = post.title;
       document.getElementById('postDetailAuthor').innerText = post.author;
       document.getElementById('postDetailDate').innerText = post.date + (post.edited ? ' (수정됨)' : '');
-      document.getElementById('postDetailContent').innerText = post.content || post.title;
+      document.getElementById('postDetailContent').innerHTML = linkify(post.content || post.title);
 
       const imgContainer = document.getElementById('postDetailImageContainer');
       if (post.image) {
@@ -2898,8 +2910,8 @@
       listEl.innerHTML = comments.map(c => `
         <div class="bg-gray-50 p-2 rounded-lg border border-gray-100 flex justify-between items-start text-xs">
           <div>
-            <span class="font-bold text-indigo-950 mr-1.5">${c.author}</span>
-            <span class="text-gray-700">${c.text}</span>
+            <span class="font-bold text-indigo-950 mr-1.5">${escH(c.author)}</span>
+            <span class="text-gray-700 break-all">${linkify(c.text)}</span>
           </div>
           <span class="text-[10px] text-gray-400 shrink-0 ml-2">${c.date || ''}</span>
         </div>
