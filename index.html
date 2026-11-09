@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="manifest.json">
-  <script src="vega-config.js"></script>
+  <script>try{var d=localStorage.getItem('vxDark');if(d==='1'||(d===null&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}</script>
+  <style>
+    html.dark{background:#fff;filter:invert(1) hue-rotate(180deg)}
+    html.dark img,html.dark video,html.dark iframe{filter:invert(1) hue-rotate(180deg)}
+  </style>
   <meta name="theme-color" content="#1e1b4b">
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -500,6 +504,7 @@
       { emoji: '😢', label: '아쉬워요' }
     ];
     let reactionsByDate = {};        // { 'YYYY-MM-DD': { 회원이름: 이모지 } }
+    let reactionsReady = false, votesReady = false;   // 데이터 수신 전에는 만족도 팝업을 띄우지 않음
 
     const roleOrder = { 'admin': 1, 'member': 2, 'rest': 3, 'coach': 4 };
     const roleLabels = { 'admin': '운영진', 'member': '일반회원', 'rest': '쉼회원', 'coach': '코치' };
@@ -881,6 +886,7 @@
         const r = {};
         snapshot.docs.forEach(d => { r[d.id] = d.data().byUser || {}; });
         reactionsByDate = r;
+        reactionsReady = true;
         refreshCurrentTab();
       });
     }
@@ -1225,7 +1231,7 @@
       `;
     }
 
-    /* 나의 정보: 칭호/배지 */
+    /* 나의 정보: 칭호/배지 (출석 · 출석률 · 연속 · 이달 · 소통/기록 · 특별) */
     function getMemberBadges(name) {
       const hist = getMemberHistory(name);
       const total = hist.length;
@@ -1235,36 +1241,115 @@
       const rankRow = getAttendanceRanking().rows.find(r => r.name === name);
 
       const monthPrefix = getTodayString().substring(0, 7);
-      const monthEvents = getPastRegularEventsAsc().filter(e => e.date.startsWith(monthPrefix) && isEligibleEvent(name, e));
-      const monthAttend = monthEvents.filter(e => ((sampleData.regularVotesByDate[e.date] || {})[name]) === '참가').length;
+      const pastAll = getPastRegularEventsAsc();
+      const monthEvents = pastAll.filter(e => e.date.startsWith(monthPrefix) && isEligibleEvent(name, e));
+      const attendedOn = (n, e) => ((sampleData.regularVotesByDate[e.date] || {})[n]) === '참가';
+      const monthAttend = monthEvents.filter(e => attendedOn(name, e)).length;
+
+      /* 개근한 달 수 (정기운동이 2회 이상 열린 달 중 전부 출석) */
+      const byMonth = {};
+      pastAll.filter(e => isEligibleEvent(name, e)).forEach(e => { (byMonth[e.date.substring(0, 7)] = byMonth[e.date.substring(0, 7)] || []).push(attendedOn(name, e)); });
+      const perfectMonths = Object.values(byMonth).filter(a => a.length >= 2 && a.every(Boolean)).length;
+
+      /* 이달의 MVP (이달 최다 출석, 홈 MVP 카드와 동일 기준) */
+      let isMvp = false;
+      const mvpEvents = pastAll.filter(e => e.date.startsWith(monthPrefix));
+      if (mvpEvents.length > 0) {
+        const scores = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member')
+          .map(m => ({ n: m.name, c: mvpEvents.filter(e => attendedOn(m.name, e)).length }));
+        const max = Math.max(0, ...scores.map(s => s.c));
+        isMvp = max > 0 && scores.some(s => s.n === name && s.c === max);
+      }
+
+      const myReacts = Object.keys(reactionsByDate).filter(d => (reactionsByDate[d] || {})[name]).length;
+      const myPosts = sampleData.boardPosts.filter(p => p.author === name);
+      const myVideos = myPosts.filter(p => p.category === '영상게시판').length;
+      const myComments = (sampleData.comments || []).filter(c => c.author === name).length;
+      const myJournals = (sampleData.journals || []).filter(j => j.author === name).length;
+      const me = sampleData.members.find(m => m.name === name);
+      const role = me ? me.role : '';
+      const rankOK = !!rankRow && total >= 3 && count > 0;
 
       return [
-        { icon: '🏐', name: '첫 출석', desc: '정기운동에 처음 참가했어요', earned: count >= 1 },
-        { icon: '🔥', name: '불꽃 스트릭', desc: '3회 연속 출석 달성', earned: st.best >= 3 },
-        { icon: '🏅', name: '이달의 개근', desc: '이번 달 정기운동 개근 (2회 이상 열린 경우)', earned: monthEvents.length >= 2 && monthAttend === monthEvents.length },
-        { icon: '🧚', name: '출석 요정', desc: '5회 이상 집계 중 출석률 80% 이상', earned: total >= 5 && rate >= 80 },
-        { icon: '👑', name: '출석왕', desc: '출석률 1등 (3회 이상 집계 시)', earned: !!rankRow && total >= 3 && rankRow.rank === 1 && count > 0 },
-        { icon: '💯', name: '10회 출석 클럽', desc: '누적 10회 출석', earned: count >= 10 },
-        { icon: '🦸', name: '컴백 히어로', desc: '3회 이상 쉬다가 다시 출석', earned: st.current >= 1 && st.current <= 2 && st.gapBefore >= 3 && st.hadAttendBefore }
+        /* ── 누적 출석 ── */
+        { cat: '📈 누적 출석', icon: '🏐', name: '첫 출석', desc: '정기운동에 처음 참가했어요', earned: count >= 1 },
+        { cat: '📈 누적 출석', icon: '🌱', name: '새싹 선수', desc: '누적 5회 출석', earned: count >= 5 },
+        { cat: '📈 누적 출석', icon: '💯', name: '10회 출석 클럽', desc: '누적 10회 출석', earned: count >= 10 },
+        { cat: '📈 누적 출석', icon: '🥉', name: '코트 단골', desc: '누적 20회 출석', earned: count >= 20 },
+        { cat: '📈 누적 출석', icon: '🥈', name: '코트 터줏대감', desc: '누적 30회 출석', earned: count >= 30 },
+        { cat: '📈 누적 출석', icon: '🥇', name: '반백 클럽', desc: '누적 50회 출석', earned: count >= 50 },
+        { cat: '📈 누적 출석', icon: '🏆', name: '레전드', desc: '누적 100회 출석', earned: count >= 100 },
+
+        /* ── 출석률 · 순위 ── */
+        { cat: '🎯 출석률 · 순위', icon: '🧚', name: '출석 요정', desc: '5회 이상 집계 중 출석률 80% 이상', earned: total >= 5 && rate >= 80 },
+        { cat: '🎯 출석률 · 순위', icon: '🌟', name: '출석 스타', desc: '10회 이상 집계 중 출석률 90% 이상', earned: total >= 10 && rate >= 90 },
+        { cat: '🎯 출석률 · 순위', icon: '💎', name: '완벽 출석', desc: '5회 이상 집계 중 출석률 100%', earned: total >= 5 && rate === 100 },
+        { cat: '🎯 출석률 · 순위', icon: '🎖️', name: '출석 TOP 3', desc: '출석률 3위 이내 (3회 이상 집계 시)', earned: rankOK && rankRow.rank <= 3 },
+        { cat: '🎯 출석률 · 순위', icon: '👑', name: '출석왕', desc: '출석률 1등 (3회 이상 집계 시)', earned: rankOK && rankRow.rank === 1 },
+
+        /* ── 연속 출석 ── */
+        { cat: '🔥 연속 출석', icon: '🔥', name: '불꽃 스트릭', desc: '3회 연속 출석 달성', earned: st.best >= 3 },
+        { cat: '🔥 연속 출석', icon: '⚡', name: '번개 스트릭', desc: '5회 연속 출석 달성', earned: st.best >= 5 },
+        { cat: '🔥 연속 출석', icon: '🚀', name: '로켓 스트릭', desc: '10회 연속 출석 달성', earned: st.best >= 10 },
+        { cat: '🔥 연속 출석', icon: '☄️', name: '불멸의 스트릭', desc: '20회 연속 출석 달성', earned: st.best >= 20 },
+        { cat: '🔥 연속 출석', icon: '🏃', name: '지금 연속 중!', desc: '현재 3회 이상 연속 출석 진행 중', earned: st.current >= 3 },
+        { cat: '🔥 연속 출석', icon: '🦸', name: '컴백 히어로', desc: '3회 이상 쉬다가 다시 출석', earned: st.current >= 1 && st.current <= 2 && st.gapBefore >= 3 && st.hadAttendBefore },
+
+        /* ── 이달의 기록 ── */
+        { cat: '🗓️ 월간 기록', icon: '🏅', name: '이달의 개근', desc: '이번 달 정기운동 개근 (2회 이상 열린 경우)', earned: monthEvents.length >= 2 && monthAttend === monthEvents.length },
+        { cat: '🗓️ 월간 기록', icon: '🌕', name: '이달의 MVP', desc: '이번 달 최다 출석 (공동 포함)', earned: isMvp },
+        { cat: '🗓️ 월간 기록', icon: '📅', name: '이달 3회 출석', desc: '이번 달 3회 이상 출석', earned: monthAttend >= 3 },
+        { cat: '🗓️ 월간 기록', icon: '🗒️', name: '이달 5회 출석', desc: '이번 달 5회 이상 출석', earned: monthAttend >= 5 },
+        { cat: '🗓️ 월간 기록', icon: '📆', name: '개근 달인', desc: '개근한 달이 1번 이상', earned: perfectMonths >= 1 },
+        { cat: '🗓️ 월간 기록', icon: '🏵️', name: '개근 마스터', desc: '개근한 달이 3번 이상', earned: perfectMonths >= 3 },
+
+        /* ── 소통 · 기록 ── */
+        { cat: '💬 소통 · 기록', icon: '💬', name: '첫 소감', desc: '운동 만족도/소감을 처음 남겼어요', earned: myReacts >= 1 },
+        { cat: '💬 소통 · 기록', icon: '📣', name: '소감 요정', desc: '운동 만족도/소감 5회', earned: myReacts >= 5 },
+        { cat: '💬 소통 · 기록', icon: '🎤', name: '후기 마스터', desc: '운동 만족도/소감 10회', earned: myReacts >= 10 },
+        { cat: '💬 소통 · 기록', icon: '✍️', name: '첫 글', desc: '게시판에 첫 글을 썼어요', earned: myPosts.length >= 1 },
+        { cat: '💬 소통 · 기록', icon: '📝', name: '게시판 작가', desc: '게시글 5개 작성', earned: myPosts.length >= 5 },
+        { cat: '💬 소통 · 기록', icon: '🎬', name: '영상 크리에이터', desc: '영상게시판에 영상 등록', earned: myVideos >= 1 },
+        { cat: '💬 소통 · 기록', icon: '🗨️', name: '수다쟁이', desc: '댓글 10개 작성', earned: myComments >= 10 },
+        { cat: '💬 소통 · 기록', icon: '📒', name: '배구 일지 시작', desc: '배구 일지 첫 작성', earned: myJournals >= 1 },
+        { cat: '💬 소통 · 기록', icon: '📚', name: '성실한 기록가', desc: '배구 일지 10개 작성', earned: myJournals >= 10 },
+
+        /* ── 특별 ── */
+        { cat: '🌈 특별', icon: '🛡️', name: '운영진', desc: 'VEGA를 이끄는 운영진', earned: role === 'admin' },
+        { cat: '🌈 특별', icon: '🧢', name: '코치', desc: 'VEGA를 지도하는 코치', earned: role === 'coach' }
       ];
     }
 
     function renderBadgesCardHTML(name) {
-      const badges = getMemberBadges(name);
+      const badges = getMemberBadges(name).filter(b => b.earned || !((b.name === '운영진' || b.name === '코치')));   /* 해당 없는 역할 칭호는 숨김 */
       const earnedCount = badges.filter(b => b.earned).length;
+      const cats = [];
+      badges.forEach(b => { if (!cats.includes(b.cat)) cats.push(b.cat); });
+      const sections = cats.map(c => {
+        const list = badges.filter(b => b.cat === c);
+        const got = list.filter(b => b.earned).length;
+        return `
+          <div class="mb-3 last:mb-0">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-black text-gray-700">${c}</span>
+              <span class="text-[10px] font-bold text-gray-400">${got}/${list.length}</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              ${list.map(b => `
+                <div class="p-2.5 rounded-xl border text-center ${b.earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-50'}">
+                  <div class="text-2xl mb-0.5 ${b.earned ? '' : 'grayscale'}">${b.icon}</div>
+                  <div class="text-xs font-black ${b.earned ? 'text-amber-900' : 'text-gray-500'}">${b.name}</div>
+                  <div class="text-[10px] leading-snug mt-0.5 ${b.earned ? 'text-amber-800' : 'text-gray-400'}">${b.desc}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+      }).join('');
       return `
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🎖️</span> 나의 칭호 (${earnedCount}/${badges.length})</h3>
-          <p class="text-[11px] text-gray-400 mb-3">정기운동 출석 기록에 따라 자동으로 획득돼요.</p>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            ${badges.map(b => `
-              <div class="p-2.5 rounded-xl border text-center ${b.earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-50'}">
-                <div class="text-2xl mb-0.5 ${b.earned ? '' : 'grayscale'}">${b.icon}</div>
-                <div class="text-xs font-black ${b.earned ? 'text-amber-900' : 'text-gray-500'}">${b.name}</div>
-                <div class="text-[10px] leading-snug mt-0.5 ${b.earned ? 'text-amber-800' : 'text-gray-400'}">${b.desc}</div>
-              </div>
-            `).join('')}
-          </div>
+          <p class="text-[11px] text-gray-400 mb-3">출석·소통 기록에 따라 자동으로 획득돼요.</p>
+          ${sections}
         </div>
       `;
     }
@@ -1305,7 +1390,7 @@
           <div class="p-3 bg-gray-50 rounded-xl space-y-2">
             <div class="flex justify-between items-center flex-wrap gap-1">
               <span class="text-xs font-black text-indigo-950">${d} ${evt ? evt.title : '정기운동'}</span>
-              <span class="text-[10px] font-bold bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">참가 ${attended}명 · 반응 ${reactedCount}명</span>
+              <span class="text-[10px] font-bold bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">참가 ${attended}명 · 응답 ${reactedCount}명${attended > 0 ? ' (' + Math.min(100, Math.round(reactedCount / attended * 100)) + '%)' : ''}</span>
             </div>
             ${rows}
           </div>
@@ -1315,10 +1400,10 @@
       return `
         <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex justify-between items-start mb-1 flex-wrap gap-2">
-            <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>💬</span> 운동 후기 기록</h3>
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>💬</span> 운동 만족도 기록</h3>
             <span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full shrink-0">총 ${dates.length}회 · 반응 ${totalReactions}건</span>
           </div>
-          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">홈 화면의 "운동 어땠나요?"에 회원들이 남긴 반응이 날짜별로 보관됩니다. 😅·😢 반응이 많은 날은 운영 방식을 점검해 보세요.</p>
+          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">운동 후 참석자에게 뜨는 만족도 팝업(과 홈의 "운동 어땠나요?")에 남긴 반응이 날짜별로 보관됩니다. 😅·😢 반응이 많은 날은 운영 방식을 점검해 보세요.</p>
           <div class="space-y-2 min-h-[120px]">
             ${dates.length === 0 ? '<p class="text-xs text-gray-400 py-8 text-center">아직 남겨진 후기 반응이 없습니다.</p>' : cards}
           </div>
@@ -1329,6 +1414,68 @@
     /* ==================== [추가] 끝 ==================== */
 
     let renderTimer = null;
+
+    /* ==================== 운동 만족도 조사 팝업 (참석자 · 1회 · 선택 즉시 닫힘) ==================== */
+    const surveySeenKey = (date) => 'vxSurveySeen_' + (currentUser ? currentUser.name : '') + '_' + date;
+    function findSurveyTarget() {
+      if (!currentUser || !reactionsReady || !votesReady) return null;
+      const today = getTodayString();
+      const cands = sampleData.events
+        .filter(e => e.type === 'regular' && (e.finished === true || e.date < today))
+        .filter(e => Math.round((new Date(today) - new Date(e.date)) / 86400000) <= 3)
+        .sort((a, b) => b.date.localeCompare(a.date));
+      for (const e of cands) {
+        const attended = (sampleData.regularVotesByDate[e.date] || {})[currentUser.name] === '참가';
+        if (!attended) continue;
+        if ((reactionsByDate[e.date] || {})[currentUser.name]) continue;     // 이미 응답함
+        if (localStorage.getItem(surveySeenKey(e.date))) continue;           // 이미 팝업을 봄
+        return e;
+      }
+      return null;
+    }
+    function maybeShowSurvey() {
+      if (document.getElementById('vxSurveyPop')) return;
+      const evt = findSurveyTarget();
+      if (!evt) return;
+      localStorage.setItem(surveySeenKey(evt.date), '1');   // 한 번만 띄움
+      const wrap = document.createElement('div');
+      wrap.id = 'vxSurveyPop';
+      wrap.className = 'fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4';
+      wrap.innerHTML = `
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 text-center">
+          <div class="text-3xl mb-1">🏐</div>
+          <h3 class="text-base font-black text-gray-900">오늘 운동 만족도는 어땠나요?</h3>
+          <p class="text-[11px] text-gray-500 mt-1 mb-4">${evt.date} ${evt.title} · 선택하면 바로 제출돼요</p>
+          <div class="grid grid-cols-5 gap-1.5">
+            ${REACTION_OPTIONS.map(o => `
+              <button data-emoji="${o.emoji}" class="vx-survey-opt flex flex-col items-center py-2.5 rounded-xl border border-gray-200 bg-gray-50 active:scale-95 hover:bg-indigo-50 text-[10px] font-bold text-gray-700 transition">
+                <span class="text-2xl leading-none mb-1">${o.emoji}</span>
+                <span class="leading-tight">${o.label}</span>
+              </button>`).join('')}
+          </div>
+          <button id="vxSurveyLater" class="mt-4 text-[11px] text-gray-400 underline">다음에 할게요</button>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = () => { const p = document.getElementById('vxSurveyPop'); if (p) p.remove(); };
+      document.getElementById('vxSurveyLater').onclick = close;
+      wrap.addEventListener('click', (ev) => { if (ev.target === wrap) close(); });
+      wrap.querySelectorAll('.vx-survey-opt').forEach(btn => {
+        btn.onclick = async () => {
+          const emoji = btn.dataset.emoji;
+          close();                                   // 선택 즉시 닫기
+          try {
+            await setDoc(doc(db, "reactions", evt.date), { byUser: { [currentUser.name]: emoji } }, { merge: true });
+            showToast('소중한 의견 감사합니다 ' + emoji);
+          } catch (err) {
+            console.error(err);
+            localStorage.removeItem(surveySeenKey(evt.date));   // 실패하면 다음에 다시 물어봄
+            alert('만족도 등록 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
+          }
+        };
+      });
+    }
+    /* ==================== 만족도 조사 끝 ==================== */
+
     function refreshCurrentTab() {
       calculateAttendanceStats();
       if (renderTimer) clearTimeout(renderTimer);
@@ -1340,6 +1487,7 @@
         else if (currentTab === 'board') renderBoardTab(app);
         else if (currentTab === 'myinfo') renderMyInfoTab(app);
         else if (currentTab === 'admin') renderAdminTab(app);
+        maybeShowSurvey();
       }, 50);
     }
 
@@ -1444,6 +1592,7 @@
         const votes = {};
         snapshot.docs.forEach(doc => { votes[doc.id] = doc.data().votes || {}; });
         sampleData.regularVotesByDate = votes;
+        votesReady = true;
         refreshCurrentTab();
       });
 
@@ -1517,32 +1666,29 @@
       const votes = sampleData.regularVotesByDate[remindDate] || {};
       const pending = remindCandidates(remindDate);
       const yes = Object.values(votes).filter(v => v === '참가').length, no = Object.values(votes).filter(v => v === '불참').length;
-      const wait = Math.max(0, Math.ceil((30 * 60000 - (Date.now() - Number(localStorage.getItem('vxRemind_' + remindDate) || 0))) / 60000));
       return `
         <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📣</span> 투표 독려 알림 (수동)</h3>
-          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">투표를 안 했거나 '미정'인 회원에게만 푸시 알림을 보냅니다. (알림을 켠 회원에게 전달 · 같은 날짜는 30분에 한 번)</p>
+          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📣</span> 투표 독려 문구 복사</h3>
+          <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">투표를 안 했거나 '미정'인 회원 이름이 들어간 안내 문구를 복사해서 단톡방에 붙여넣으세요.</p>
           <select onchange="window.vxRemindDate(this.value)" class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50 mb-3">
             ${evs.map(e => `<option value="${e.date}" ${e.date === remindDate ? 'selected' : ''}>${e.date} ${e.title} (${e.time || ''})</option>`).join('')}
           </select>
           <p class="text-xs text-gray-600 mb-2">참가 <strong class="text-emerald-600">${yes}</strong> · 불참 <strong class="text-rose-600">${no}</strong> · 미정 <strong class="text-amber-600">${pending.length}</strong></p>
           ${pending.length ? `<div class="flex flex-wrap gap-1 mb-3">${pending.map(n => `<span class="text-[10px] bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded">${n}</span>`).join('')}</div>` : '<p class="text-xs text-emerald-700 font-bold mb-3">모두 투표했어요 🎉</p>'}
-          <button onclick="window.vxRemindSend()" ${pending.length === 0 || wait > 0 ? 'disabled' : ''} class="w-full py-2.5 rounded-xl font-bold text-xs ${pending.length === 0 || wait > 0 ? 'bg-gray-200 text-gray-400' : 'bg-indigo-950 hover:bg-indigo-900 text-white'}">
-            ${pending.length === 0 ? '보낼 대상이 없어요' : wait > 0 ? `${wait}분 뒤에 다시 보낼 수 있어요` : `📣 미정 ${pending.length}명에게 알림 보내기`}
+          <button onclick="window.vxRemindCopy()" ${pending.length === 0 ? 'disabled' : ''} class="w-full py-2.5 rounded-xl font-bold text-xs ${pending.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-indigo-950 hover:bg-indigo-900 text-white'}">
+            ${pending.length === 0 ? '안내할 대상이 없어요' : `📋 미정 ${pending.length}명 안내 문구 복사`}
           </button>
         </div>`;
     }
-    window.vxRemindSend = () => {
+    window.vxRemindCopy = async () => {
       if (!currentUser || currentUser.role !== 'admin') return alert('운영진만 가능합니다.');
       if (!remindDate) return;
-      if (!window.vxNotifyReady) return alert('알림 서버 주소가 아직 설정되지 않았어요. vega-config.js 에 주소를 입력해 주세요.');
       const pending = remindCandidates(remindDate);
       if (!pending.length) return alert('모두 투표했어요 🎉');
-      if (!confirm(`${remindDate} 정기운동 투표 안 한 ${pending.length}명에게 알림을 보낼까요?\n\n${pending.join(', ')}\n\n(알림을 켠 회원에게만 전달돼요)`)) return;
-      window.vxNotify('remind', remindDate);
-      localStorage.setItem('vxRemind_' + remindDate, String(Date.now()));
-      showToast('독려 알림을 보냈어요 📣', 3000);
-      renderAdminTab(document.getElementById('app'));
+      const evt = sampleData.events.find(e => e.type === 'regular' && e.date === remindDate);
+      const text = `[순천 VEGA 투표 안내]\n${remindDate} ${evt ? evt.title + ' (' + (evt.time || '') + ')' : '정기운동'} 참석 여부를 아직 선택하지 않으셨어요.\n\n${pending.join(', ')}\n\n앱 홈에서 참가 / 불참 / 미정 중 선택해 주세요 🏐`;
+      try { await navigator.clipboard.writeText(text); showToast('안내 문구를 복사했어요. 단톡방에 붙여넣으세요', 3500); }
+      catch (e) { prompt('아래 문구를 복사해 주세요', text); }
     };
 
     function renderRetentionCardHTML() {
@@ -1569,7 +1715,6 @@
         </div>`;
     }
 
-/* ---------- 투표 독려 알림 (운영진 수동) ---------- */
         setupFirestoreListeners();
     syncUserListeners();
 
@@ -1768,6 +1913,39 @@
     };
 
     // ==================== 1. 홈 탭 ====================
+
+    /* 홈: 공지사항 (최신 공지 3개, 3일 이내는 NEW) */
+    const escH = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    function renderHomeNoticeHTML() {
+      const notices = sortPostsByDate(sampleData.boardPosts.filter(p => p.category === '공지사항')).slice(0, 3);
+      if (notices.length === 0) return '';
+      const today = getTodayString();
+      const isNew = (d) => d && Math.round((new Date(today) - new Date(d)) / 86400000) <= 3;
+      return `
+        <section id="homeNotice" class="bg-rose-50 border border-rose-200 p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
+          <div class="flex justify-between items-center mb-2">
+            <h2 class="text-sm sm:text-base font-black text-rose-800 flex items-center gap-1.5"><span>📢</span> 공지사항</h2>
+            <button onclick="window.switchTab('board', '공지사항')" class="text-xs text-rose-700 font-bold hover:underline">전체보기 →</button>
+          </div>
+          <ul class="space-y-1.5">
+            ${notices.map(p => {
+              const preview = escH((p.content || '').replace(/\s+/g, ' ').trim().slice(0, 50));
+              return `
+              <li onclick="window.openPostDetail('${p.id}')" class="bg-white border border-rose-100 rounded-xl px-3 py-2 cursor-pointer hover:bg-rose-50/60 transition">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    ${isNew(p.date) ? '<span class="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded shrink-0">NEW</span>' : ''}
+                    <span class="text-xs font-bold text-gray-900 truncate">${escH(p.title)}</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400 shrink-0">${(p.date || '').substring(5)}</span>
+                </div>
+                ${preview ? `<p class="text-[11px] text-gray-500 mt-0.5 truncate">${preview}</p>` : ''}
+              </li>`;
+            }).join('')}
+          </ul>
+        </section>`;
+    }
+
     function renderHome(container) {
       /* [추가] 화면 갱신(실시간 데이터 수신) 시에도 건의사항 입력 내용/커서 유지 */
       const prevSugInput = document.getElementById('homeSuggestionInput');
@@ -1836,6 +2014,8 @@
       };
 
       container.innerHTML = `
+        ${renderHomeNoticeHTML()}
+
         ${pendingBannerHTML}
 
         <section class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
@@ -2608,8 +2788,7 @@
           image: uploadedImageBase64 || null,
           createdAt: serverTimestamp()
         };
-        const postRef = await addDoc(collection(db, "posts"), newPost);
-        if (window.vxNotify && category === '공지사항') window.vxNotify('notice', postRef.id);
+        await addDoc(collection(db, "posts"), newPost);
       }
 
       alert('게시글이 성공적으로 등록되었습니다.');
@@ -3309,8 +3488,7 @@
         await setDoc(doc(db, "events", String(editId)), eventData, { merge: true });
         alert('일정이 성공적으로 수정되었습니다.');
       } else {
-        const evRef = await addDoc(collection(db, "events"), eventData);
-        if (window.vxNotify && type !== 'regular') window.vxNotify('event', evRef.id);
+        await addDoc(collection(db, "events"), eventData);
         alert('새 일정이 추가되었습니다.');
       }
 
@@ -3336,9 +3514,12 @@
       db, sampleData, showToast, sortMembers, isEventPast, getTodayString,
       user: () => currentUser,
       tab: () => currentTab,
-      refresh: refreshCurrentTab
+      refresh: refreshCurrentTab,
+      esc: escH, badges: getMemberBadges, rank: getAttendanceRanking, past: getPastRegularEventsAsc,
+      eligible: isEligibleEvent, reactions: () => reactionsByDate
     };
     import('./vega-extras.js');
+    import('./vega-more.js');
   </script>
   <script>
     /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */

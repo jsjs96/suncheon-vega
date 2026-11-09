@@ -1,17 +1,16 @@
 /* VEGA 확장 모듈: 코치 엔트리 + 배구 일지 + 코치 탭 + 팀 로고
    index.html 과 같은 폴더에 두면 자동으로 불러와집니다. */
 import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
-import { getApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getMessaging, getToken, deleteToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 const V = window.__vega, db = V.db, sampleData = V.sampleData;
 const { showToast, sortMembers, isEventPast, getTodayString } = V;
-/* 알림 서버(Apps Script 웹앱) 주소는 이 파일이 아니라 vega-config.js 에 입력합니다. 비어 있으면 자동 알림만 꺼집니다. */
-const NOTIFY_URL = window.VEGA_NOTIFY_URL || '';   /* 주소는 vega-config.js 에 입력 */
-window.vxNotifyReady = !!NOTIFY_URL;
-window.vxNotify = (type, id) => {
-  if (!NOTIFY_URL) return false;
-  try { fetch(NOTIFY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type, id: String(id) }) }); return true; } catch (e) { return false; }
-};
+/* 푸시 알림 기능은 제거되었습니다. 이전에 알림을 켜 둔 기기에 남은 토큰/구독은 한 번 정리합니다. */
+(function cleanupOldPush() {
+  try {
+    const t = localStorage.getItem('vxPushToken');
+    if (t) deleteDoc(doc(db, 'fcmTokens', t)).catch(() => {});
+    ['vxPush', 'vxPushToken', 'vxPushAt', 'vxPushOff', 'vxPushHide'].forEach((k) => localStorage.removeItem(k));
+  } catch (e) {}
+})();
 /* ============================ 블록 시작 ============================ */
 sampleData.lineups = [];
 
@@ -350,7 +349,6 @@ window.saveLineup = async (status) => {
 
   try {
     await setDoc(doc(db, "lineups", String(L.eventId)), data, { merge: true });
-    if (status === 'published') window.vxNotify('lineup', L.eventId);
     showToast(status === 'published' ? '엔트리가 공개되었어요 📢' : '임시저장 되었어요', 2600);
     window.closeLineupModal();
   } catch (err) {
@@ -652,7 +650,6 @@ window.vxCoachSend = async (id) => {
   if (!text || !j) return alert('코멘트를 입력해 주세요.');
   try {
     await updateDoc(doc(db, 'journals', id), { coachComments: [...(j.coachComments || []), { by: U().name, text, date: getTodayString() }] });
-    window.vxNotify('comment', id);
     showToast('코멘트를 남겼어요'); window.vxClose();
   } catch (e) { alert('등록 중 오류가 발생했습니다.'); }
 };
@@ -719,90 +716,16 @@ function installCardHTML() {
 window.vxInstall = async () => { const p = window.__deferredInstall; if (!p) return; p.prompt(); try { await p.userChoice; } catch (e) {} window.__deferredInstall = null; paint(); };
 window.vxInstallHide = () => { localStorage.setItem('vxInstallHide', '1'); paint(); };
 window.__vegaPaint = () => paint();
-/* ===================== 푸시 알림 (FCM) : 자동 복구 포함 ===================== */
-const VAPID_KEY = '';   /* 선택: 비워도 기본 키로 동작 */
-let pushOK = false, fgBound = false, lastPushUser = null, pushBusy = false;
-const pushOn = () => typeof Notification !== 'undefined' && Notification.permission === 'granted' && localStorage.getItem('vxPushOff') !== '1' && !!localStorage.getItem('vxPushToken');
-function bindForeground() {
-  if (fgBound || !pushOK) return;
-  try { onMessage(getMessaging(getApp()), (p) => { const n = p.notification || {}; showToast('🔔 ' + (n.title || '') + ' ' + (n.body || ''), 4500); }); fgBound = true; } catch (e) {}
-}
-/* 앱을 열 때마다(6시간에 한 번) 토큰을 다시 확인·등록해서, 저장소가 지워지거나 토큰이 바뀌어도 알림이 자동으로 이어지게 합니다 */
-async function refreshPush(force) {
-  const u = U();
-  if (pushBusy || !pushOK || !u || typeof Notification === 'undefined' || Notification.permission !== 'granted' || localStorage.getItem('vxPushOff') === '1') return;
-  const fresh = Date.now() - Number(localStorage.getItem('vxPushAt') || 0) < 3600 * 1000;
-  if (!force && fresh && localStorage.getItem('vxPushToken') && lastPushUser === u.name) return;
-  pushBusy = true;
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    const token = await getToken(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}) });
-    if (!token) return;
-    const old = localStorage.getItem('vxPushToken');
-    await setDoc(doc(db, 'fcmTokens', token), { name: u.name, role: u.role, ua: navigator.userAgent.slice(0, 120), updatedAt: serverTimestamp() }, { merge: true });
-    if (old && old !== token) deleteDoc(doc(db, 'fcmTokens', old)).catch(() => {});
-    localStorage.setItem('vxPush', '1'); localStorage.setItem('vxPushToken', token); localStorage.setItem('vxPushAt', String(Date.now()));
-    lastPushUser = u.name;
-    bindForeground();
-    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-    paint();
-  } catch (e) { console.warn('푸시 토큰 갱신 실패', e); }
-  finally { pushBusy = false; }
-}
-isSupported().then((ok) => { pushOK = ok; if (ok) { bindForeground(); refreshPush(false); } paint(); }).catch(() => {});
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshPush(false); });
-function pushSync() {
-  const u = U();
-  if (!u && lastPushUser) {   /* 로그아웃: 이 기기로 이전 회원의 알림이 가지 않게 등록 해제 */
-    const t = localStorage.getItem('vxPushToken');
-    lastPushUser = null;
-    if (t) deleteDoc(doc(db, 'fcmTokens', t)).catch(() => {});
-    return;
-  }
-  if (u) refreshPush(false);
-}
-function pushCardHTML(inMy) {
-  if (!U() || !pushOK) return '';
-  const on = pushOn(), denied = Notification.permission === 'denied';
-  if (!inMy && on) return '';
-  const what = '투표 마감 전날, 엔트리 공개, 코치 코멘트, 새 공지를 알려드려요.';
-  const body = on ? `<p class="font-black text-gray-900 mb-1">🔔 알림 켜짐</p><p class="mb-2">${what}</p><div class="flex gap-2"><button onclick="window.vxPushDisable()" class="bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">알림 끄기</button><button onclick="window.vxPushReconnect()" class="bg-white border border-gray-300 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">🔄 다시 연결</button></div><p class="text-[10px] text-gray-400 mt-2">알림이 안 오면 "다시 연결"을 눌러 보세요.</p>`
-    : denied ? '<p class="font-black text-gray-900 mb-1">🔕 알림이 차단되어 있어요</p><p>브라우저(또는 앱) 설정에서 이 사이트의 알림을 허용해 주세요.</p>'
-    : `<p class="font-black ${inMy ? 'text-gray-900' : 'text-amber-900'} mb-1">${inMy ? '🔔 알림 받기' : '🔕 알림이 꺼져 있어요'}</p><p class="mb-2">${what}</p><button onclick="window.vxPushEnable()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl">알림 켜기</button>`;
-  const alertStyle = !inMy && !on ? 'bg-amber-50 border-2 border-amber-400' : 'bg-white border border-indigo-200';
-  return `<section class="${alertStyle} p-4 rounded-2xl shadow-sm ${inMy ? 'mb-4' : 'mb-5'}"><div class="text-xs text-gray-700 leading-relaxed">${body}</div></section>`;
-}
-window.vxPushEnable = async () => {
-  try {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') return alert('알림 권한이 허용되지 않았어요. 브라우저(또는 앱) 설정에서 허용해 주세요.');
-    localStorage.removeItem('vxPushOff');
-    await refreshPush(true);
-    if (!localStorage.getItem('vxPushToken')) throw new Error('토큰 없음');
-    showToast('알림을 켰어요 🔔'); paint();
-  } catch (e) { console.error(e); alert('알림을 켜지 못했어요. 홈 화면에 설치한 앱에서 다시 시도해 주세요.'); }
-};
-window.vxPushReconnect = async () => { await refreshPush(true); showToast('알림을 다시 연결했어요 🔄'); paint(); };
-window.vxPushDisable = async () => {
-  const t = localStorage.getItem('vxPushToken');
-  localStorage.setItem('vxPushOff', '1');
-  try { if (t) await deleteDoc(doc(db, 'fcmTokens', t)); await deleteToken(getMessaging(getApp())); } catch (e) {}
-  localStorage.removeItem('vxPush'); localStorage.removeItem('vxPushToken'); lastPushUser = null;
-  showToast('알림을 껐어요'); paint();
-};
-window.vxPushHide = () => { localStorage.setItem('vxPushHide', '1'); paint(); };
-
-/* ===================== 앱 설치·알림 현황 ===================== */
+/* ===================== 앱 설치 현황 ===================== */
 function reportStatus(force) {
   const u = U();
   if (!u) return;
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const ua = navigator.userAgent, platform = /iphone|ipad|ipod/i.test(ua) ? 'ios' : /android/i.test(ua) ? 'android' : 'pc';
-  const push = typeof Notification === 'undefined' ? 'na' : Notification.permission === 'denied' ? 'blocked' : pushOn() ? 'on' : 'off';
-  const key = [u.name, standalone, platform, push].join('|');
+  const key = [u.name, standalone, platform].join('|');
   if (!force && key === localStorage.getItem('vxStatusKey') && Date.now() - Number(localStorage.getItem('vxStatusAt') || 0) < 6 * 3600 * 1000) return;
   localStorage.setItem('vxStatusKey', key); localStorage.setItem('vxStatusAt', String(Date.now()));
-  const data = { name: u.name, platform, push, lastSeen: serverTimestamp() };
+  const data = { name: u.name, platform, lastSeen: serverTimestamp() };
   data[standalone ? 'standaloneAt' : 'browserAt'] = serverTimestamp();
   setDoc(doc(db, 'appStatus', u.name), data, { merge: true }).catch(() => {});
 }
@@ -824,30 +747,28 @@ function statusRows() {
   return sortMembers(sampleData.members).map((m) => {
     const s = st[m.name] || null;
     const inst = s && s.standaloneAt ? 'app' : s && s.browserAt ? 'web' : 'none';
-    const push = s && s.push ? s.push : 'none';
     const rest = m.role === 'rest';
     const stale = s && tsMs(s.lastSeen) && Date.now() - tsMs(s.lastSeen) > 14 * 86400000;
-    return { name: m.name, rest, s, inst, push, stale, problem: !rest && (inst !== 'app' || push !== 'on') };
+    return { name: m.name, rest, s, inst, stale, problem: !rest && inst !== 'app' };
   });
 }
 function statusCardHTML() {
   const rows = statusRows(), active = rows.filter((r) => !r.rest);
-  const appN = active.filter((r) => r.inst === 'app').length, onN = active.filter((r) => r.push === 'on').length;
+  const appN = active.filter((r) => r.inst === 'app').length, webN = active.filter((r) => r.inst === 'web').length;
   const instLabel = { app: '<span class="text-emerald-700">📲 설치 앱</span>', web: '<span class="text-amber-700">🌐 브라우저만</span>', none: '<span class="text-gray-400">❔ 기록 없음</span>' };
-  const pushLabel = { on: '<span class="text-emerald-700">🔔 켜짐</span>', off: '<span class="text-rose-600">🔕 꺼짐</span>', blocked: '<span class="text-rose-600">⛔ 차단</span>', na: '<span class="text-gray-400">미지원</span>', none: '<span class="text-gray-400">❔</span>' };
   const plat = { ios: 'iOS', android: '안드로이드', pc: 'PC' };
   const sorted = [...rows].sort((a, b) => (b.problem - a.problem) || a.name.localeCompare(b.name, 'ko'));
   return `<div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-    <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📲</span> 앱 설치·알림 현황</h3>
+    <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📲</span> 앱 설치 현황</h3>
     <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">회원이 <strong>새 버전으로 앱을 한 번 열어야</strong> 기록돼요. 설치만 하고 열지 않은 경우는 알 수 없어요. (쉼회원은 집계 제외)</p>
     <div class="grid grid-cols-2 gap-2 mb-3">
       <div class="bg-gray-50 rounded-xl p-3 text-center"><span class="text-[11px] text-gray-500 block">설치 앱으로 접속</span><span class="text-lg font-black text-indigo-950">${appN} / ${active.length}명</span></div>
-      <div class="bg-gray-50 rounded-xl p-3 text-center"><span class="text-[11px] text-gray-500 block">알림 켜짐</span><span class="text-lg font-black text-indigo-950">${onN} / ${active.length}명</span></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-center"><span class="text-[11px] text-gray-500 block">브라우저로만 접속</span><span class="text-lg font-black text-indigo-950">${webN} / ${active.length}명</span></div>
     </div>
     <div class="space-y-1.5 max-h-96 overflow-y-auto">
       ${sorted.map((r) => `<div class="flex items-center justify-between gap-2 p-2 rounded-xl text-xs ${r.problem ? 'bg-rose-50' : 'bg-gray-50'} ${r.rest ? 'opacity-50' : ''}">
         <span class="font-bold text-gray-900 min-w-0 truncate">${lnEsc(r.name)}${r.rest ? ' <span class="text-[10px] text-gray-400">쉼</span>' : ''}</span>
-        <span class="flex items-center gap-2 shrink-0 text-[11px]">${instLabel[r.inst]} ${pushLabel[r.push] || pushLabel.none}<span class="text-gray-400 w-14 text-right">${r.s ? agoText(r.s.lastSeen) : '-'}${r.stale ? ' ⚠️' : ''}</span></span>
+        <span class="flex items-center gap-2 shrink-0 text-[11px]">${instLabel[r.inst]}<span class="text-gray-400 w-14 text-right">${r.s ? agoText(r.s.lastSeen) : '-'}${r.stale ? ' ⚠️' : ''}</span></span>
       </div>`).join('')}
     </div>
     <p class="text-[10px] text-gray-400 mt-2">기기 종류는 마지막 접속 기준이에요. ⚠️ 는 14일 넘게 접속하지 않은 회원이에요.</p>
@@ -857,12 +778,9 @@ function statusCardHTML() {
 window.vxCopyStatusGuide = async () => {
   const rows = statusRows().filter((r) => !r.rest);
   const needInstall = rows.filter((r) => r.inst !== 'app').map((r) => r.name);
-  const needPush = rows.filter((r) => r.inst === 'app' && r.push !== 'on').map((r) => r.name);
-  if (!needInstall.length && !needPush.length) return alert('안내가 필요한 분이 없어요. 모두 설치하고 알림을 켰어요 🎉');
-  const text = '[순천 VEGA 앱 안내]\n' +
-    (needInstall.length ? '📲 앱 설치 후 새 앱으로 접속이 필요한 분:\n' + needInstall.join(', ') + '\n\n' : '') +
-    (needPush.length ? '🔔 앱을 열고 "알림 켜기"를 눌러 주세요:\n' + needPush.join(', ') + '\n\n' : '') +
-    '주소: https://jsjs96.github.io/suncheon-vega/\n홈 화면에 추가 → 설치한 앱을 열어 로그인 → 홈의 "알림 켜기" → 허용';
+  if (!needInstall.length) return alert('안내가 필요한 분이 없어요. 모두 설치 앱으로 접속했어요 🎉');
+  const text = '[순천 VEGA 앱 안내]\n📲 앱 설치 후 새 앱으로 접속이 필요한 분:\n' + needInstall.join(', ') + '\n\n' +
+    '주소: https://jsjs96.github.io/suncheon-vega/\n홈 화면에 추가 → 설치한 앱을 열어 로그인';
   try { await navigator.clipboard.writeText(text); showToast('안내 문구를 복사했어요. 단톡방에 붙여넣으세요', 3500); }
   catch (e) { prompt('아래 문구를 복사해 주세요', text); }
 };
@@ -873,8 +791,8 @@ function inject() {
   const t = V.tab();
   if (t === 'home') {
     let w = document.getElementById('vxHome');
-    if (!w) { w = document.createElement('div'); w.id = 'vxHome'; app.insertBefore(w, app.firstChild); }
-    w.innerHTML = pushCardHTML(false) + installCardHTML() + renderLineupHomeCardHTML() + planCardHTML();
+    if (!w) { w = document.createElement('div'); w.id = 'vxHome'; const nt = document.getElementById('homeNotice'); app.insertBefore(w, nt ? nt.nextSibling : app.firstChild); }
+    w.innerHTML = installCardHTML() + renderLineupHomeCardHTML() + planCardHTML();
   } else if (t === 'admin' && U() && U().role === 'admin') {
     let w = document.getElementById('vxStatus');
     const root = app.firstElementChild;
@@ -884,12 +802,11 @@ function inject() {
     let w = document.getElementById('vxJournal');
     const root = app.firstElementChild;
     if (!w && root) { w = document.createElement('div'); w.id = 'vxJournal'; root.appendChild(w); }
-    if (w) w.innerHTML = pushCardHTML(true) + journalCardHTML();
+    if (w) w.innerHTML = journalCardHTML();
   }
 }
 function paint() { if (V.tab() === 'coach') renderCoach(document.getElementById('app')); else inject(); }
 function syncNav() {
-  pushSync();
   bindJournals();
   bindStatus();
   reportStatus(false);
