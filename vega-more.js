@@ -1,13 +1,6 @@
-/* VEGA 추가 기능: 경기 기록 · 팀 나누기 · 포지션/실력 프로필 · 월간 리포트 · 연말 결산 · 칭호 축하 팝업 · 다크모드 */
-import { collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
-const V = window.__vega, db = V.db, S = V.sampleData, U = () => V.user(), esc = V.esc, toast = V.showToast;
-const isStaff = () => !!U() && (U().role === 'admin' || U().role === 'coach');
-const POS = ['세터', '레프트', '라이트', '센터(속공)', '앞차', '백차', '라이트백', '레프트백', '센터백', '올라운더'], LV = ['', '입문', '초급', '중급', '상급', '선출급'];
-const t0 = Date.now(), ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-let matches = [], profiles = {};
-onSnapshot(collection(db, 'matches'), (s) => { matches = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.date || '').localeCompare(a.date || '')); inject(); }, () => {});
-onSnapshot(collection(db, 'profiles'), (s) => { profiles = {}; s.docs.forEach((d) => { profiles[d.id] = d.data(); }); inject(); }, () => {});
-
+/* VEGA 추가 기능: 월간 리포트 · 연말 결산 · 칭호 축하 팝업 · 다크모드 */
+const V = window.__vega, S = V.sampleData, U = () => V.user(), esc = V.esc, toast = V.showToast;
+const t0 = Date.now();
 /* ---------- 공통 모달 ---------- */
 const close = window.vmClose = () => { const m = document.getElementById('vmModal'); if (m) m.remove(); };
 function modal(html) {
@@ -18,66 +11,6 @@ function modal(html) {
 const hd = (t) => `<div class="flex justify-between items-center mb-3"><h3 class="text-sm font-black text-gray-900">${t}</h3><button onclick="vmClose()" class="text-gray-400 text-lg px-2">✕</button></div>`;
 const btn = 'bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl';
 const copy = async (text) => { try { await navigator.clipboard.writeText(text); toast('복사했어요. 단톡방에 붙여넣으세요', 3000); } catch (e) { prompt('아래 문구를 복사해 주세요', text); } };
-
-/* ---------- 경기 기록 ---------- */
-const res = (m) => { let a = 0, b = 0; (m.sets || []).forEach((s) => { if (s.a > s.b) a++; else if (s.b > s.a) b++; }); return { a, b, win: a > b, draw: a === b }; };
-const record = (list) => list.reduce((r, m) => { const x = res(m); if (x.win) r.w++; else if (x.draw) r.d++; else r.l++; return r; }, { w: 0, d: 0, l: 0 });
-window.vmMatches = () => {
-  const r = record(matches);
-  const rows = matches.slice(0, 15).map((m) => { const x = res(m); return `<div class="p-2.5 rounded-xl bg-gray-50 border border-gray-100 text-xs">
-    <div class="flex justify-between items-center gap-2"><b class="truncate">${esc(m.opponent || '자체 경기')}</b><span class="shrink-0 font-black ${x.win ? 'text-emerald-600' : x.draw ? 'text-gray-500' : 'text-rose-600'}">${x.win ? '승' : x.draw ? '무' : '패'} ${x.a}:${x.b}</span></div>
-    <div class="text-[10px] text-gray-400 mt-0.5">${esc(m.date)} · ${(m.sets || []).map((s) => s.a + ':' + s.b).join(' / ')}${m.note ? ' · ' + esc(m.note) : ''}</div>
-    ${U() && U().role === 'admin' ? `<button onclick="vmMatchDel('${m.id}')" class="text-[10px] text-rose-500 mt-1">삭제</button>` : ''}</div>`; }).join('');
-  const inp = 'p-1.5 border border-gray-300 rounded-lg text-xs w-full';
-  const form = isStaff() ? `<div class="mt-4 pt-3 border-t border-gray-100"><p class="text-xs font-black text-gray-800 mb-2">➕ 경기 기록 추가</p>
-    <div class="grid grid-cols-2 gap-2 mb-2"><input id="vmMDate" type="date" value="${V.getTodayString()}" class="${inp}"><input id="vmMOpp" placeholder="상대팀 (비우면 자체경기)" maxlength="30" class="${inp}"></div>
-    <p class="text-[10px] text-gray-400 mb-1">세트 점수 (우리 : 상대) — 치른 세트만 입력</p>
-    ${[1, 2, 3, 4, 5].map((i) => `<div class="flex items-center gap-1.5 mb-1"><span class="text-[10px] text-gray-400 w-8">${i}세트</span><input id="vmA${i}" type="number" min="0" class="${inp}"><span>:</span><input id="vmB${i}" type="number" min="0" class="${inp}"></div>`).join('')}
-    <input id="vmMNote" placeholder="메모 (선택)" maxlength="60" class="${inp} mt-1 mb-2"><button onclick="vmMatchSave()" class="w-full ${btn}">저장</button></div>` : '';
-  modal(hd('🏐 경기 기록 · 전적') + `<p class="text-xs text-gray-600 mb-3">통산 <b class="text-emerald-600">${r.w}승</b> ${r.d ? r.d + '무 ' : ''}<b class="text-rose-600">${r.l}패</b></p><div class="space-y-1.5">${rows || '<p class="text-xs text-gray-400 py-6 text-center">아직 기록이 없어요.</p>'}</div>${form}`);
-};
-window.vmMatchSave = async () => {
-  const g = (id) => document.getElementById(id), sets = [];
-  for (let i = 1; i <= 5; i++) { const a = g('vmA' + i).value, b = g('vmB' + i).value; if (a !== '' && b !== '') sets.push({ a: +a, b: +b }); }
-  if (!sets.length) return alert('세트 점수를 입력해 주세요.');
-  try { await addDoc(collection(db, 'matches'), { date: g('vmMDate').value || V.getTodayString(), opponent: g('vmMOpp').value.trim(), note: g('vmMNote').value.trim(), sets, by: U().name, createdAt: serverTimestamp() }); toast('경기 기록을 저장했어요 🏐'); window.vmMatches(); }
-  catch (e) { console.error(e); alert('저장 중 오류가 발생했어요. (Firestore 규칙에 matches 컬렉션 허용이 필요할 수 있어요)'); }
-};
-window.vmMatchDel = async (id) => { if (!confirm('이 경기 기록을 삭제할까요?')) return; try { await deleteDoc(doc(db, 'matches', id)); } catch (e) { alert('삭제 중 오류가 발생했어요.'); } };
-
-/* ---------- 포지션 · 실력 프로필 ---------- */
-const myProf = () => profiles[U().name] || {};
-const saveProf = async (patch) => { try { await setDoc(doc(db, 'profiles', U().name), { ...patch, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { console.error(e); alert('저장 중 오류가 발생했어요. (Firestore 규칙에 profiles 컬렉션 허용이 필요할 수 있어요)'); } };
-window.vmPos = (x) => { const a = [...(myProf().positions || [])], i = a.indexOf(x); if (i >= 0) a.splice(i, 1); else a.push(x); saveProf({ positions: a }); };
-window.vmLv = (n) => saveProf({ level: n });
-
-/* ---------- 팀 나누기 (운영진/코치) ---------- */
-let ts = { date: null, n: 2, teams: null };
-function splitTeams(names, n) {
-  const arr = names.map((x) => ({ n: x, lv: (profiles[x] || {}).level || 3, pos: (profiles[x] || {}).positions || [], r: Math.random() })).sort((a, b) => b.lv - a.lv || a.r - b.r);
-  const t = Array.from({ length: n }, () => []);
-  arr.forEach((p, i) => { const k = i % n; t[Math.floor(i / n) % 2 ? n - 1 - k : k].push(p); });   /* 뱀 드래프트: 실력 균형 */
-  return t;
-}
-window.vmTeams = (reshuffle) => {
-  if (!isStaff()) return;
-  const today = V.getTodayString(), from = ymd(new Date(Date.now() - 7 * 86400000));
-  const evs = S.events.filter((e) => e.type === 'regular' && e.date >= from).sort((a, b) => a.date.localeCompare(b.date));
-  if (!evs.length) return modal(hd('⚖️ 팀 나누기') + '<p class="text-xs text-gray-500 py-8 text-center">나눌 정기운동이 없어요.</p>');
-  if (!ts.date || !evs.some((e) => e.date === ts.date)) { ts.date = (evs.find((e) => e.date >= today) || evs[0]).date; ts.teams = null; }
-  const names = Object.entries(S.regularVotesByDate[ts.date] || {}).filter(([, v]) => v === '참가').map(([k]) => k);
-  if (!ts.teams || reshuffle === true) ts.teams = splitTeams(names, ts.n);
-  const teams = ts.teams.map((t, i) => `<div class="p-2.5 rounded-xl bg-gray-50 border border-gray-100"><p class="text-xs font-black text-indigo-950 mb-1">팀 ${i + 1} · ${t.length}명 · 평균 실력 ${t.length ? (t.reduce((s, p) => s + p.lv, 0) / t.length).toFixed(1) : '-'}</p>
-    <div class="flex flex-wrap gap-1">${t.map((p) => `<span class="text-[11px] bg-white border border-gray-200 rounded-full px-2 py-0.5">${esc(p.n)}${p.pos[0] ? ' <span class="text-gray-400">' + p.pos[0] + '</span>' : ''}</span>`).join('')}</div></div>`).join('');
-  modal(hd('⚖️ 팀 나누기') + `<div class="flex gap-2 mb-3"><select onchange="vmTsDate(this.value)" class="flex-1 p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50">${evs.map((e) => `<option value="${e.date}" ${e.date === ts.date ? 'selected' : ''}>${e.date} ${esc(e.title)}</option>`).join('')}</select>
-    <select onchange="vmTsN(+this.value)" class="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50"><option value="2" ${ts.n === 2 ? 'selected' : ''}>2팀</option><option value="3" ${ts.n === 3 ? 'selected' : ''}>3팀</option></select></div>
-    <p class="text-[11px] text-gray-500 mb-2">참가 ${names.length}명 기준 · 프로필 실력(미입력은 중급)으로 균형 있게 나눠요.</p>
-    <div class="space-y-2 mb-3">${names.length ? teams : '<p class="text-xs text-gray-400 py-6 text-center">참가자가 없어요.</p>'}</div>
-    <div class="flex gap-2"><button onclick="vmTeams(true)" class="flex-1 ${btn}">🔀 다시 섞기</button><button onclick="vmTsCopy()" class="flex-1 bg-white border border-gray-300 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">📋 복사</button></div>`);
-};
-window.vmTsDate = (d) => { ts.date = d; ts.teams = null; window.vmTeams(); };
-window.vmTsN = (n) => { ts.n = n; ts.teams = null; window.vmTeams(); };
-window.vmTsCopy = () => copy(`[순천 VEGA 팀 편성 ${ts.date}]\n` + (ts.teams || []).map((t, i) => `팀 ${i + 1}: ${t.map((p) => p.n).join(', ')}`).join('\n'));
 
 /* ---------- 월간 리포트 · 연말 결산 ---------- */
 const POSITIVE = ['🔥', '😆', '💪'];
@@ -92,9 +25,8 @@ function stats(name, key) {
   rd.forEach((d) => Object.values(R[d]).forEach((e) => { all++; if (POSITIVE.includes(e)) pos++; }));
   const months = {}; mine.forEach((e) => { const k = e.date.substring(0, 7); months[k] = months[k] || { n: 0, c: 0 }; months[k].n++; if (att(e)) months[k].c++; });
   const top = Object.entries(months).sort((a, b) => b[1].c - a[1].c)[0];
-  const rc = record(matches.filter((m) => (m.date || '').startsWith(key)));
   return { n, c, rate: n ? Math.round(c / n * 100) : 0, team: tot ? Math.round(hit / tot * 100) : 0, best, mineR: rd.filter((d) => R[d][name]).length, posPct: all ? Math.round(pos / all * 100) : null,
-    perfect: Object.values(months).filter((m) => m.n >= 2 && m.c === m.n).length, topMonth: top && top[1].c ? top[0] : null, sessions: ev.length, rc };
+    perfect: Object.values(months).filter((m) => m.n >= 2 && m.c === m.n).length, topMonth: top && top[1].c ? top[0] : null, sessions: ev.length };
 }
 let rp = { mode: 'month', key: null };
 window.vmReport = (mode) => { if (!U()) return; if (mode) { rp.mode = mode; rp.key = null; } paintReport(); };
@@ -103,7 +35,6 @@ function reportLines(st, name) {
   const month = rp.mode === 'month', L = [['출석', `${st.c} / ${st.n}회`], ['출석률', `${st.rate}%  (팀 평균 ${st.team}%)`], ['최고 연속 출석', `${st.best}회`]];
   if (!month) { L.push(['개근한 달', `${st.perfect}번`]); if (st.topMonth) L.push(['가장 많이 나온 달', `${+st.topMonth.slice(5)}월`]); L.push(['올해 정기운동', `${st.sessions}회`]); }
   L.push(['소감·만족도 참여', `${st.mineR}회`]); if (st.posPct !== null) L.push(['팀 만족도(긍정)', `${st.posPct}%`]);
-  if (st.rc.w + st.rc.d + st.rc.l) L.push(['팀 경기 전적', `${st.rc.w}승 ${st.rc.d ? st.rc.d + '무 ' : ''}${st.rc.l}패`]);
   L.push(['보유 칭호', `${V.badges(name).filter((b) => b.earned).length}개`]); return L;
 }
 function paintReport() {
@@ -160,31 +91,16 @@ window.vmDark = () => { const on = !isDark(); localStorage.setItem('vxDark', on 
   document.body.appendChild(b); applyDark(isDark());
 })();
 
-/* ---------- 홈 · 내 정보 카드 주입 ---------- */
-function homeCard() {
-  const r = record(matches), last = matches[0], x = last ? res(last) : null;
-  return `<section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 mb-5"><div class="flex justify-between items-center mb-2"><h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>🏐</span> 경기 · 팀</h2>
-    <span class="text-[11px] font-bold text-gray-500">통산 <b class="text-emerald-600">${r.w}승</b> <b class="text-rose-600">${r.l}패</b></span></div>
-    ${last ? `<p class="text-[11px] text-gray-500 mb-2 truncate">최근: ${esc(last.date.substring(5))} ${esc(last.opponent || '자체 경기')} ${x.win ? '승' : x.draw ? '무' : '패'} ${x.a}:${x.b}</p>` : '<p class="text-[11px] text-gray-400 mb-2">아직 경기 기록이 없어요.</p>'}
-    <div class="flex gap-2"><button onclick="vmMatches()" class="flex-1 ${btn}">📋 경기 기록</button>${isStaff() ? `<button onclick="vmTeams()" class="flex-1 bg-white border border-gray-300 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl">⚖️ 팀 나누기</button>` : ''}</div></section>`;
-}
+/* ---------- 내 정보 카드 주입 ---------- */
 function myCard() {
-  const p = myProf(), pos = p.positions || [], lv = p.level || 0, chip = (on) => on ? 'bg-indigo-950 text-white border-indigo-950' : 'bg-gray-50 text-gray-600 border-gray-200';
-  return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4"><h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🧩</span> 내 프로필 · 리포트</h3>
-    <p class="text-[11px] text-gray-400 mb-2">포지션과 실력은 팀 나누기에 쓰여요. (운영진·코치에게만 활용돼요)</p>
-    <p class="text-[11px] font-bold text-gray-700 mb-1">가능 포지션</p><div class="flex flex-wrap gap-1.5 mb-3">${POS.map((x) => `<button onclick="vmPos('${x}')" class="text-[11px] font-bold px-2.5 py-1 rounded-full border ${chip(pos.includes(x))}">${x}</button>`).join('')}</div>
-    <p class="text-[11px] font-bold text-gray-700 mb-1">내 실력 (스스로 평가)</p><div class="grid grid-cols-5 gap-1 mb-3">${[1, 2, 3, 4, 5].map((n) => `<button onclick="vmLv(${n})" class="text-[11px] font-bold py-1.5 rounded-lg border ${chip(lv === n)}">${LV[n]}</button>`).join('')}</div>
+  return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4"><h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📊</span> 리포트 · 화면 설정</h3>
     <div class="grid grid-cols-2 gap-2"><button onclick="vmReport('month')" class="${btn}">📊 월간 리포트</button><button onclick="vmReport('year')" class="${btn}">🎊 연말 결산</button></div>
     <button onclick="vmDark()" class="w-full mt-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold py-2 rounded-xl">${isDark() ? '☀️ 라이트 모드로 전환' : '🌙 다크 모드로 전환'}</button></div>`;
 }
 function inject() {
   const app = document.getElementById('app'); if (!app) return;
   const t = V.tab();
-  if (t === 'home') {
-    let w = document.getElementById('vmHome');
-    if (!w) { w = document.createElement('div'); w.id = 'vmHome'; const a = document.getElementById('vxHome') || document.getElementById('homeNotice'); app.insertBefore(w, a ? a.nextSibling : app.firstChild); }
-    w.innerHTML = homeCard();
-  } else if (t === 'myinfo' && U()) {
+  if (t === 'myinfo' && U()) {
     let w = document.getElementById('vmMy'), root = app.firstElementChild;
     if (!w && root) { w = document.createElement('div'); w.id = 'vmMy'; root.appendChild(w); }
     if (w) w.innerHTML = myCard();
