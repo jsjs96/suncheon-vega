@@ -1495,9 +1495,20 @@
       if (!a || a === document.body || !a.closest) return false;
       if (!a.closest('#app')) return false;
       if (a.isContentEditable) return true;
-      if (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') return true;
-      return a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file)$/i.test(a.type || '');
+      /* [수정] 선택 상자(SELECT)·날짜 칸은 '입력 중'으로 보지 않음
+         → 날짜를 고른 뒤 투표해도 화면이 바로 바뀌도록 (휴대폰은 버튼을 눌러도 포커스가 선택 상자에 남음) */
+      if (a.tagName === 'TEXTAREA') return true;
+      return a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|file|date|time|datetime-local|month|week|color|image|hidden)$/i.test(a.type || '');
     }
+    /* [수정] 글을 쓰다가 버튼(투표 등)을 누르면 입력칸에서 빠져나온 것으로 처리
+       → 휴대폰에서 버튼을 눌러도 포커스가 입력칸에 남아 화면 갱신이 멈추던 문제 방지 */
+    document.addEventListener('click', (e) => {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.closest || !a.closest('#app')) return;
+      const t = e.target;
+      if (!t || !t.closest || t.closest('input, textarea, select, label, [contenteditable="true"]')) return;
+      if (t.closest('button, a, [onclick]')) a.blur();
+    }, true);
     function renderTabNow(app) {
       if (currentTab !== 'calendar') destroyCalendar();
       if (currentTab === 'home') renderHome(app);
@@ -2297,9 +2308,18 @@
       if(!currentUser) return window.openLoginModal();
       const votesObj = sampleData.regularVotesByDate[dateKey] || {};
       votesObj[currentUser.name] = status;
+      sampleData.regularVotesByDate[dateKey] = votesObj;
+      /* [수정] 누르자마자 화면에 반영 (서버 응답을 기다리지 않음) */
+      renderPending = false;
+      refreshCurrentTab();
 
-      await setDoc(doc(db, "regularVotes", dateKey), { votes: votesObj }, { merge: true });
-      if (CHEER_MESSAGES[status]) showToast(pickRandom(CHEER_MESSAGES[status]));
+      try {
+        await setDoc(doc(db, "regularVotes", dateKey), { votes: votesObj }, { merge: true });
+        if (CHEER_MESSAGES[status]) showToast(pickRandom(CHEER_MESSAGES[status]));
+      } catch (err) {
+        console.error(err);
+        alert('투표 저장에 실패했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+      }
     };
 
     // ==================== 2. 일정 탭 ====================
