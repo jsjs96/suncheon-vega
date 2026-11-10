@@ -2318,7 +2318,12 @@
         if (CHEER_MESSAGES[status]) showToast(pickRandom(CHEER_MESSAGES[status]));
       } catch (err) {
         console.error(err);
-        alert('투표 저장에 실패했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+        const code = (err && err.code) || '';
+        const why = code === 'permission-denied' ? 'Firebase 보안 규칙이 저장을 막고 있어요. (규칙 기한 만료 등) 운영진에게 알려 주세요.'
+          : code === 'resource-exhausted' ? 'Firebase 무료 사용량을 오늘 다 썼어요. 내일 오후 5시 이후 다시 시도해 주세요.'
+          : (code === 'unavailable' || !navigator.onLine) ? '인터넷 연결을 확인하고 다시 눌러 주세요.'
+          : '잠시 후 다시 눌러 주세요.';
+        alert(`투표 저장에 실패했어요.\n${why}\n(오류 코드: ${code || err.message || '알 수 없음'})`);
       }
     };
 
