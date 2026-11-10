@@ -841,5 +841,10 @@ function bindJournals() {
 bindJournals();
 onSnapshot(collection(db, 'trainingPlans'), (s) => { const d = s.docs.find(x => x.id === 'current'); sampleData.plan = d ? d.data() : null; V.refresh(); paint(); });
 new MutationObserver(inject).observe(document.getElementById('app'), { childList: true });
-setInterval(syncNav, 800);
+/* [개선] 0.8초마다 돌던 검사(setInterval) 대신, 화면이 그려질 때·앱으로 돌아올 때만 실행 */
+let navTimer = null;
+const syncNavSoon = () => { if (navTimer) return; navTimer = setTimeout(() => { navTimer = null; syncNav(); }, 50); };
+window.addEventListener('vega:render', syncNavSoon);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNavSoon(); });
+setInterval(() => { if (!document.hidden) syncNav(); }, 15000);   /* 혹시 놓친 변화를 위한 느린 안전장치 */
 syncNav(); inject();

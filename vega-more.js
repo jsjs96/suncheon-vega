@@ -75,7 +75,11 @@ function checkBadges() {
 const st = document.createElement('style');
 st.textContent = '@keyframes vmPop{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}@keyframes vmFall{to{transform:translateY(112vh) rotate(360deg)}}';
 document.head.appendChild(st);
-setInterval(checkBadges, 4000);
+/* [개선] 4초마다 칭호를 계산하던 방식 대신, 화면이 갱신될 때(데이터가 바뀔 때)만 검사 */
+let badgeTimer = null;
+const checkBadgesSoon = () => { if (badgeTimer) clearTimeout(badgeTimer); badgeTimer = setTimeout(() => { badgeTimer = null; if (!document.hidden) checkBadges(); }, 1500); };
+window.addEventListener('vega:render', checkBadgesSoon);
+setTimeout(checkBadgesSoon, 8500);   /* 앱을 연 직후 8초 대기 조건 이후 한 번 확인 */
 
 /* ---------- 다크모드 ---------- */
 const isDark = () => document.documentElement.classList.contains('dark');

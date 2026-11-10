@@ -14,10 +14,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <title>순천 VEGA 배구동호회</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FullCalendar -->
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <!-- Tailwind CSS: CDN(실행 중 생성) 대신 미리 빌드한 vega-tw.css 사용 → </head> 바로 위에서 불러옵니다 -->
+  <!-- FullCalendar: defer로 화면 그리기를 막지 않게 (앱 스크립트보다 먼저 실행됨) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
   <style>
     /* 반응형 및 기본 폰트 크기 자동 조정을 위한 clamp 설정 */
@@ -119,6 +118,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="vega-theme.css">
+  <!-- Tailwind 빌드 결과 (기존 CDN과 같은 v3.4.17, 같은 위치=head 맨 끝). 새 클래스를 쓰면 다시 빌드해야 합니다 -->
+  <link rel="stylesheet" href="vega-tw.css">
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
 
@@ -494,6 +495,13 @@
     let selectedAdminDate = "2026-09-18";
     let selectedHomeDate = null;
     let homeSuggestionDraft = ''; // [추가] 홈 건의사항 입력 임시 저장 (화면 갱신 시 입력 내용 유지)
+    /* [개선] 달력은 한 번만 만들고 재사용 (데이터가 바뀌면 일정만 교체, 보던 달 유지) */
+    let calInst = null, calEl = null, calAdminKey = null, calViewDate = null;
+    function destroyCalendar() {
+      if (!calInst) return;
+      try { calViewDate = calInst.getDate(); calInst.destroy(); } catch (e) {}
+      calInst = null; calEl = null;
+    }
 
     /* [추가] 출석 독려 기능 설정값 */
     const FULL_COURT_COUNT = 18;     // 풀코트 기준 인원
@@ -833,7 +841,7 @@
             return `
               <div class="p-3 rounded-xl border ${finished ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}">
                 <div class="flex justify-between items-center flex-wrap gap-1 mb-1">
-                  <span class="text-xs font-black text-indigo-950">🏐 ${evt.title} (${evt.time || ''})</span>
+                  <span class="text-xs font-black text-indigo-950">🏐 ${escH(evt.title)} (${evt.time || ''})</span>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${finished ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-800'}">${finished ? '✅ 종료됨' : '진행 예정/진행 중'}</span>
                 </div>
                 <p class="text-[11px] text-gray-500 mb-2">📍 ${evt.location || '장소 미정'} · 참가 ${attend}명 / 불참 ${absent}명</p>
@@ -881,16 +889,6 @@
       el.classList.remove('hidden');
       if (toastTimer) clearTimeout(toastTimer);
       toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
-    }
-
-    function setupReactionsListener() {
-      onSnapshot(collection(db, "reactions"), (snapshot) => {
-        const r = {};
-        snapshot.docs.forEach(d => { r[d.id] = d.data().byUser || {}; });
-        reactionsByDate = r;
-        reactionsReady = true;
-        refreshCurrentTab();
-      });
     }
 
     function getPastRegularEventsAsc() {
@@ -1435,8 +1433,14 @@
       }
       return null;
     }
+    /* 다른 창(모달)이 열려 있으면 만족도 팝업을 띄우지 않음 → 나중에 화면이 갱신될 때 다시 확인 */
+    function anyModalOpen() {
+      return [...document.querySelectorAll('body > div.fixed.inset-0')]
+        .some(el => !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none');
+    }
     function maybeShowSurvey() {
       if (document.getElementById('vxSurveyPop')) return;
+      if (anyModalOpen()) return;
       const evt = findSurveyTarget();
       if (!evt) return;
       localStorage.setItem(surveySeenKey(evt.date), '1');   // 한 번만 띄움
@@ -1447,7 +1451,7 @@
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5 text-center">
           <div class="text-3xl mb-1">🏐</div>
           <h3 class="text-base font-black text-gray-900">오늘 운동 만족도는 어땠나요?</h3>
-          <p class="text-[11px] text-gray-500 mt-1 mb-4">${evt.date} ${evt.title} · 선택하면 바로 제출돼요</p>
+          <p class="text-[11px] text-gray-500 mt-1 mb-4">${evt.date} ${escH(evt.title)} · 선택하면 바로 제출돼요</p>
           <div class="grid grid-cols-5 gap-1.5">
             ${REACTION_OPTIONS.map(o => `
               <button data-emoji="${o.emoji}" class="vx-survey-opt flex flex-col items-center py-2.5 rounded-xl border border-gray-200 bg-gray-50 active:scale-95 hover:bg-indigo-50 text-[10px] font-bold text-gray-700 transition">
@@ -1478,20 +1482,49 @@
     }
     /* ==================== 만족도 조사 끝 ==================== */
 
+    /* [개선] 실시간 데이터 갱신 시 화면 다시 그리기
+       - 여러 데이터가 한꺼번에 들어와도 한 번만 그림 (묶어서 처리)
+       - 화면 안의 입력칸에 글을 쓰는 중이면 다 쓰고 나갈 때까지 미룸 (포커스·입력 내용 보호)
+       - 다시 그린 뒤 스크롤 위치 유지
+       - 그린 뒤 'vega:render' 이벤트를 보내 확장 모듈(vega-extras/more)이 주기적 검사 대신 이때만 동작 */
+    let renderPending = false;
+    function isTypingInApp() {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.closest) return false;
+      if (!a.closest('#app')) return false;
+      if (a.isContentEditable) return true;
+      if (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') return true;
+      return a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file)$/i.test(a.type || '');
+    }
+    function renderTabNow(app) {
+      if (currentTab !== 'calendar') destroyCalendar();
+      if (currentTab === 'home') renderHome(app);
+      else if (currentTab === 'calendar') renderCalendarTab(app);
+      else if (currentTab === 'board') renderBoardTab(app);
+      else if (currentTab === 'myinfo') renderMyInfoTab(app);
+      else if (currentTab === 'admin') renderAdminTab(app);
+    }
     function refreshCurrentTab() {
-      calculateAttendanceStats();
       if (renderTimer) clearTimeout(renderTimer);
       renderTimer = setTimeout(() => {
+        renderTimer = null;
+        calculateAttendanceStats();
+        if (isTypingInApp()) { renderPending = true; return; }
+        renderPending = false;
         const app = document.getElementById('app');
+        const y = window.scrollY;
         renderHeader();
-        if (currentTab === 'home') renderHome(app);
-        else if (currentTab === 'calendar') renderCalendarTab(app);
-        else if (currentTab === 'board') renderBoardTab(app);
-        else if (currentTab === 'myinfo') renderMyInfoTab(app);
-        else if (currentTab === 'admin') renderAdminTab(app);
+        renderTabNow(app);
+        if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+        window.dispatchEvent(new Event('vega:render'));
         maybeShowSurvey();
-      }, 50);
+      }, 60);
     }
+    /* 입력을 마치면(포커스가 빠지면) 미뤄 둔 갱신을 반영 */
+    document.addEventListener('focusout', () => {
+      if (!renderPending) return;
+      setTimeout(() => { if (renderPending && !isTypingInApp()) refreshCurrentTab(); }, 150);
+    });
 
     /* ==================== 데이터 읽기 최소화: 1년 보관 · 더보기 · 사용자별 범위 ==================== */
     const RETENTION_DAYS = 365, BACKUP_WARN_DAYS = 7, POST_PAGE = 40;
@@ -1602,6 +1635,7 @@
         const r = {};
         snapshot.docs.forEach(d => { r[d.id] = d.data().byUser || {}; });
         reactionsByDate = r;
+        reactionsReady = true;   /* [수정] 이 값이 켜지지 않아 만족도 팝업이 뜨지 않던 문제 */
         refreshCurrentTab();
       });
     }
@@ -1673,7 +1707,7 @@
           <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>📣</span> 투표 독려 문구 복사</h3>
           <p class="text-[11px] text-gray-400 mb-3 leading-relaxed">투표를 안 했거나 '미정'인 회원 이름이 들어간 안내 문구를 복사해서 단톡방에 붙여넣으세요.</p>
           <select onchange="window.vxRemindDate(this.value)" class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold bg-gray-50 mb-3">
-            ${evs.map(e => `<option value="${e.date}" ${e.date === remindDate ? 'selected' : ''}>${e.date} ${e.title} (${e.time || ''})</option>`).join('')}
+            ${evs.map(e => `<option value="${e.date}" ${e.date === remindDate ? 'selected' : ''}>${e.date} ${escH(e.title)} (${e.time || ''})</option>`).join('')}
           </select>
           <p class="text-xs text-gray-600 mb-2">참가 <strong class="text-emerald-600">${yes}</strong> · 불참 <strong class="text-rose-600">${no}</strong> · 미정 <strong class="text-amber-600">${pending.length}</strong></p>
           ${pending.length ? `<div class="flex flex-wrap gap-1 mb-3">${pending.map(n => `<span class="text-[10px] bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded">${n}</span>`).join('')}</div>` : '<p class="text-xs text-emerald-700 font-bold mb-3">모두 투표했어요 🎉</p>'}
@@ -1782,6 +1816,7 @@
           <button onclick="window.openLoginModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition shrink-0">로그인</button>
         `;
       }
+      window.dispatchEvent(new Event('vega:render'));   /* 로그인·로그아웃 등 사용자 변경을 확장 모듈에 알림 */
     }
 
     window.openLoginModal = () => document.getElementById('loginModal').classList.remove('hidden');
@@ -1901,12 +1936,14 @@
 
       if(categoryName) currentBoardCategory = categoryName;
 
+      /* [개선] 탭을 옮기면 달력을 정리하고, 다음에 일정 탭을 열 때는 이번 달부터 보여줌 */
+      destroyCalendar();
+      calViewDate = null;
+      renderPending = false;
+
       const app = document.getElementById('app');
-      if (tabName === 'home') renderHome(app);
-      else if (tabName === 'calendar') renderCalendarTab(app);
-      else if (tabName === 'board') renderBoardTab(app);
-      else if (tabName === 'myinfo') renderMyInfoTab(app);
-      else if (tabName === 'admin') renderAdminTab(app);
+      renderTabNow(app);
+      window.dispatchEvent(new Event('vega:render'));
     };
 
     window.openYouTubeLink = (url) => {
@@ -2069,7 +2106,7 @@
                   <select onchange="window.handleHomeDateChange(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50 focus:ring-2 focus:ring-indigo-600 max-w-[150px] truncate">
                     ${regularEvents.map(evt => `
                       <option value="${evt.date}" ${evt.date === currentEvent.date ? 'selected' : ''}>
-                        ${evt.date} (${evt.title})
+                        ${evt.date} (${escH(evt.title)})
                       </option>
                     `).join('')}
                   </select>
@@ -2113,7 +2150,7 @@
                 <li onclick="window.openPostDetail('${post.id}')" class="py-2 flex justify-between items-center text-xs cursor-pointer hover:bg-gray-50 rounded-lg px-1 gap-2">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${post.type === '공지' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}">${post.type}</span>
-                    <span class="font-medium text-gray-800 truncate">${post.title}</span>
+                    <span class="font-medium text-gray-800 truncate">${escH(post.title)}</span>
                     ${post.videoUrl ? '<span class="text-[10px] shrink-0">🎥</span>' : post.image ? '<span class="text-[10px] shrink-0">🖼️</span>' : ''}
                   </div>
                   <span class="text-gray-400 text-[10px] sm:text-[11px] shrink-0">${post.date}</span>
@@ -2137,7 +2174,7 @@
                     <div class="text-center bg-white border border-gray-200 px-1.5 py-0.5 rounded-lg shadow-sm shrink-0">
                       <span class="text-[10px] sm:text-[11px] font-bold text-indigo-900 block">${evt.date ? evt.date.substring(5) : ''}</span>
                     </div>
-                    <span class="text-xs font-bold text-gray-800 truncate">${evt.title} (${evt.time || ''})</span>
+                    <span class="text-xs font-bold text-gray-800 truncate">${escH(evt.title)} (${evt.time || ''})</span>
                   </div>
                   ${getCategoryBadge(evt.type)}
                 </div>
@@ -2303,6 +2340,16 @@
     function renderCalendarTab(container) {
       const isAdmin = !!(currentUser && currentUser.role === 'admin');
 
+      /* [개선] 이미 화면에 달력이 있으면 새로 만들지 않고 일정만 바꿔 끼움 → 깜빡임·보던 달 초기화·메모리 누적 방지 */
+      if (calInst && calEl && container.contains(calEl) && calAdminKey === isAdmin) {
+        calInst.removeAllEventSources();
+        calInst.addEventSource(buildCalendarEvents());
+        scheduleCalendarFit(calEl);
+        return;
+      }
+      destroyCalendar();
+      calAdminKey = isAdmin;
+
       container.innerHTML = `
         <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
           <div class="flex justify-between items-center mb-3">
@@ -2321,35 +2368,20 @@
           <div id="calendar" class="w-full"></div>
         </div>
       `;
+      const calendarEl = document.getElementById('calendar');
       setTimeout(() => {
-        const calendarEl = document.getElementById('calendar');
-        
-        // 캘린더 이벤트 구성 (시간 표기 제외, 제목만 표시)
-        const calendarEvents = sampleData.events.map(evt => {
-          let icon = '🏐';
-          let bgColor = '#c8141b';
-          if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
-          else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
-          else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }
-
-          return {
-            id: evt.id,
-            title: `${icon} ${evt.title}`,
-            start: `${evt.date}T${evt.time || '00:00'}:00`,
-            color: bgColor,
-            extendedProps: { ...evt }
-          };
-        });
-
-        const calendar = new FullCalendar.Calendar(calendarEl, {
+        if (!calendarEl || !document.body.contains(calendarEl) || calInst) return;   /* 그 사이 다른 탭으로 이동했으면 생략 */
+        if (typeof FullCalendar === 'undefined') { calendarEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-10">달력을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; return; }
+        calInst = new FullCalendar.Calendar(calendarEl, {
           initialView: 'dayGridMonth',
+          initialDate: calViewDate || undefined,   /* 데이터 갱신으로 다시 만들 때도 보던 달 유지 */
           locale: 'ko',
           height: 'auto',
           contentHeight: 'auto',
           aspectRatio: 1.1,
           displayEventTime: false, // 달력 이벤트 박스 내의 시간 텍스트 표시 비활성화
           headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-          events: calendarEvents,
+          events: buildCalendarEvents(),
           dayCellDidMount: function(arg) {
             const hName = getKoreanHolidayName(arg.date);
             if (hName) {
@@ -2368,6 +2400,7 @@
             scheduleCalendarFit(calendarEl);
           },
           datesSet: function() {
+            if (calInst) calViewDate = calInst.getDate();
             scheduleCalendarFit(calendarEl);
           },
           eventClick: function(info) {
@@ -2377,9 +2410,28 @@
             scheduleCalendarFit(calendarEl);
           }
         });
-        calendar.render();
+        calInst.render();
+        calEl = calendarEl;
         scheduleCalendarFit(calendarEl);
       }, 50);
+    }
+
+    function buildCalendarEvents() {
+      return sampleData.events.map(evt => {
+          let icon = '🏐';
+          let bgColor = '#c8141b';
+          if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
+          else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
+          else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }
+
+          return {
+            id: evt.id,
+            title: `${icon} ${evt.title}`,
+            start: `${evt.date}T${evt.time || '00:00'}:00`,
+            color: bgColor,
+            extendedProps: { ...evt }
+          };
+        });
     }
 
     /* [수정] 일정 상세 모달: 운영진에게 수정/삭제 버튼 노출 */
@@ -2524,14 +2576,14 @@
                 <div class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition gap-2" onclick="${clickAction}">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">${p.author}</span>
+                      <span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0">${escH(p.author)}</span>
                       ${p.mine ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">내 글</span>' : ''}
                       ${p.itemCategory ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 shrink-0">${p.itemCategory}</span>` : ''}
                       ${p.status ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status === '진행중' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}">${p.status}</span>` : ''}
                       ${p.videoUrl ? '<span class="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-bold shrink-0">▶️ YouTube</span>' : ''}
                       ${p.image ? '<span class="text-[10px] bg-amber-100 text-amber-800 px-1 rounded font-bold shrink-0">📷 이미지</span>' : ''}
                     </div>
-                    <h4 class="text-xs font-bold text-gray-900 mt-1 truncate">${p.title}</h4>
+                    <h4 class="text-xs font-bold text-gray-900 mt-1 truncate">${escH(p.title)}</h4>
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <span class="text-[10px] sm:text-[11px] text-gray-400">${p.date}</span>
@@ -2717,6 +2769,32 @@
       });
     }
 
+    /* [개선] 사진은 Firebase Storage에 올리고 게시글에는 주소(URL)만 저장
+       → 게시판 목록을 받을 때 사진 데이터까지 내려받지 않아 훨씬 가볍고 빠름
+       Storage가 아직 설정되지 않았거나 실패하면 예전 방식(게시글 안에 사진 저장)으로 자동 전환 */
+    let storageDisabled = false;
+    async function storeImage(dataUrl) {
+      if (!dataUrl || !String(dataUrl).startsWith('data:') || storageDisabled) return dataUrl;
+      try {
+        const { getStorage, ref, uploadString, getDownloadURL } = await import("https://www.gstatic.com/firebasejs/10.9.0/firebase-storage.js");
+        const r = ref(getStorage(app), `posts/${getTodayString()}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`);
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), 15000));
+        await Promise.race([uploadString(r, dataUrl, 'data_url', { contentType: 'image/jpeg', cacheControl: 'public,max-age=31536000' }), timeout]);
+        return await getDownloadURL(r);
+      } catch (err) {
+        console.warn('사진 Storage 업로드 실패 → 게시글에 직접 저장합니다.', err);
+        storageDisabled = true;   /* 이번 접속 동안은 다시 시도하지 않음 (기다림 방지) */
+        return dataUrl;
+      }
+    }
+    /* 등록 버튼 중복 클릭 방지 */
+    function setPostSubmitting(on) {
+      const b = document.getElementById('submitBtnText');
+      if (!b) return;
+      if (on) { b.dataset.label = b.innerText; b.disabled = true; b.innerText = '등록 중...'; b.classList.add('opacity-60'); }
+      else { b.disabled = false; if (b.dataset.label) b.innerText = b.dataset.label; b.classList.remove('opacity-60'); }
+    }
+
     window.previewImage = async (event) => {
       const file = event.target.files[0];
       if (!file) return;
@@ -2729,8 +2807,23 @@
       }
     };
 
+    /* [개선] 등록 중 버튼 잠금 + 사진은 Storage 업로드 후 저장 */
     window.handleCreatePost = async (e) => {
       e.preventDefault();
+      const btn = document.getElementById('submitBtnText');
+      if (btn && btn.disabled) return;
+      setPostSubmitting(true);
+      try {
+        if (uploadedImageBase64) uploadedImageBase64 = await storeImage(uploadedImageBase64);
+        await createOrUpdatePost();
+      } catch (err) {
+        console.error(err);
+        alert('저장 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
+      } finally {
+        setPostSubmitting(false);
+      }
+    };
+    async function createOrUpdatePost() {
       const category = document.getElementById('postCategorySelect').value;
 
       if (category === '공지사항' && (!currentUser || currentUser.role !== 'admin')) {
@@ -2808,7 +2901,7 @@
       alert('게시글이 성공적으로 등록되었습니다.');
       window.closeWritePostModal();
       window.switchTab('board', category);
-    };
+    }
 
     window.openPostDetail = (id) => {
       let post = sampleData.boardPosts.find(p => String(p.id) === String(id));
@@ -3001,7 +3094,7 @@
               ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 게시글이 없습니다.</p>' : ''}
               ${pagedMyPosts.map(p => `
                 <div onclick="window.openPostDetail('${p.id}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
-                  <span class="font-bold text-gray-800 truncate">${p.title}</span>
+                  <span class="font-bold text-gray-800 truncate">${escH(p.title)}</span>
                   <span class="text-gray-400 text-[10px] shrink-0 ml-2">${p.date}</span>
                 </div>
               `).join('')}
@@ -3016,7 +3109,7 @@
               ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 댓글이 없습니다.</p>' : ''}
               ${pagedMyComments.map(c => `
                 <div onclick="window.openPostDetail('${c.postId}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
-                  <span class="text-gray-700 truncate">${c.text}</span>
+                  <span class="text-gray-700 truncate">${escH(c.text)}</span>
                   <span class="text-gray-400 text-[10px] shrink-0 ml-2">${c.date || ''}</span>
                 </div>
               `).join('')}
@@ -3223,7 +3316,7 @@
                   ${pagedMembers.length === 0 ? '<tr><td colspan="4" class="text-center py-6 text-gray-400">등록된 회원이 없습니다.</td></tr>' : ''}
                   ${pagedMembers.map(m => `
                     <tr class="hover:bg-gray-50 transition">
-                      <td class="p-2.5 font-bold text-gray-900">${m.name}</td>
+                      <td class="p-2.5 font-bold text-gray-900">${escH(m.name)}</td>
                       <td class="p-2.5">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-900' : 'bg-gray-100 text-gray-700'}">
                           ${roleLabels[m.role] || '일반회원'}
@@ -3256,7 +3349,7 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : evt.type === 'dinner' ? 'bg-amber-100 text-amber-800' : evt.type === 'etc' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${categoryNames[evt.type] || '정기'}</span>
-                      <span class="font-bold text-gray-900 truncate">${evt.title}</span>
+                      <span class="font-bold text-gray-900 truncate">${escH(evt.title)}</span>
                     </div>
                     <p class="text-[11px] text-gray-500 mt-0.5">${evt.date} (${evt.time || ''}) | ${evt.location || '장소미정'}</p>
                   </div>
@@ -3288,7 +3381,7 @@
                 const status = curVotes[m.name] || '미정';
                 return `
                   <div class="flex justify-between items-center p-2 bg-gray-50 rounded-xl text-xs">
-                    <span class="font-bold text-gray-800">${m.name}</span>
+                    <span class="font-bold text-gray-800">${escH(m.name)}</span>
                     <div class="flex gap-1">
                       <button onclick="window.updateAdminMemberAttendance('${m.name}', '참가')" class="px-2 py-1 rounded text-[10px] font-bold ${status === '참가' ? 'bg-emerald-600 text-white' : 'bg-white border text-gray-600'}">참가</button>
                       <button onclick="window.updateAdminMemberAttendance('${m.name}', '불참')" class="px-2 py-1 rounded text-[10px] font-bold ${status === '불참' ? 'bg-rose-600 text-white' : 'bg-white border text-gray-600'}">불참</button>
@@ -3315,7 +3408,7 @@
                     <span class="font-bold text-indigo-950">${s.date} 접수${s.edited ? ' (수정됨)' : ''}</span>
                     <button onclick="window.deleteSuggestion('${s.id}')" class="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded font-bold border border-rose-200">삭제</button>
                   </div>
-                  <p class="text-gray-700 leading-relaxed">${s.text}</p>
+                  <p class="text-gray-700 leading-relaxed">${escH(s.text)}</p>
                 </div>
               `).join('')}
             </div>
@@ -3532,8 +3625,8 @@
       esc: escH, badges: getMemberBadges, rank: getAttendanceRanking, past: getPastRegularEventsAsc,
       eligible: isEligibleEvent, reactions: () => reactionsByDate
     };
-    import('./vega-extras.js');
-    import('./vega-more.js');
+    /* [수정] 순서대로 불러와서 '나의 정보' 카드 순서가 매번 같도록 */
+    import('./vega-extras.js').catch(e => console.error(e)).finally(() => import('./vega-more.js'));
   </script>
   <script>
     /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */
