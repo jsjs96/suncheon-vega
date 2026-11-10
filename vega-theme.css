@@ -326,3 +326,27 @@ html body [onclick]:focus-visible { outline: 2px solid var(--vg-red-text); outli
 html.dark ::-webkit-scrollbar { width: 8px; height: 8px; }
 html.dark ::-webkit-scrollbar-thumb { background: #3b3b40; border-radius: 8px; }
 html.dark ::-webkit-scrollbar-track { background: transparent; }
+
+/* ==========================================================================
+   [추가] 글자 크게 보기 (나의 정보 → 리포트 · 화면 설정)
+   html 에 vx-fs 클래스와 --vg-fs(배율)가 있을 때만 글자 크기만 키웁니다.
+   칸·여백·버튼 크기는 그대로라 화면이 넘치지 않아요. 큰 숫자·이모지(2xl 이상)는 제외.
+   ========================================================================== */
+html.vx-fs .text-xs { font-size: calc(0.75rem * var(--vg-fs)); line-height: calc(1rem * var(--vg-fs)); }
+html.vx-fs .text-sm { font-size: calc(0.875rem * var(--vg-fs)); line-height: calc(1.25rem * var(--vg-fs)); }
+html.vx-fs .text-base { font-size: calc(1rem * var(--vg-fs)); line-height: calc(1.5rem * var(--vg-fs)); }
+html.vx-fs .text-lg { font-size: calc(1.125rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
+html.vx-fs .text-xl { font-size: calc(1.25rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
+html.vx-fs .text-\[9px\] { font-size: calc(9px * var(--vg-fs)); }
+html.vx-fs .text-\[10px\] { font-size: calc(10px * var(--vg-fs)); }
+html.vx-fs .text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
+@media (min-width: 640px) {
+  html.vx-fs .sm\:text-xs { font-size: calc(0.75rem * var(--vg-fs)); line-height: calc(1rem * var(--vg-fs)); }
+  html.vx-fs .sm\:text-sm { font-size: calc(0.875rem * var(--vg-fs)); line-height: calc(1.25rem * var(--vg-fs)); }
+  html.vx-fs .sm\:text-base { font-size: calc(1rem * var(--vg-fs)); line-height: calc(1.5rem * var(--vg-fs)); }
+  html.vx-fs .sm\:text-lg { font-size: calc(1.125rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
+  html.vx-fs .sm\:text-xl { font-size: calc(1.25rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[9px\] { font-size: calc(9px * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[10px\] { font-size: calc(10px * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
+}

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="manifest.json">
   <script>try{var d=localStorage.getItem('vxDark');if(d!=='0')document.documentElement.classList.add('dark');}catch(e){}</script>
+  <!-- [추가] 글자 크기 설정을 화면이 그려지기 전에 적용 (깜빡임 방지) -->
+  <script>try{var f=parseFloat(localStorage.getItem('vxFont')||'1');if(f>1){document.documentElement.classList.add('vx-fs');document.documentElement.style.setProperty('--vg-fs',String(f));}}catch(e){}</script>
   <meta name="theme-color" content="#0a0a0a">
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">

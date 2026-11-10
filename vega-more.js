@@ -99,8 +99,27 @@ window.vmDark = () => { const on = !isDark(); localStorage.setItem('vxDark', on 
 function myCard() {
   return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4"><h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📊</span> 리포트 · 화면 설정</h3>
     <div class="grid grid-cols-2 gap-2"><button onclick="vmReport('month')" class="${btn}">📊 월간 리포트</button><button onclick="vmReport('year')" class="${btn}">🎊 연말 결산</button></div>
-    <button onclick="vmDark()" class="w-full mt-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold py-2 rounded-xl">${isDark() ? '☀️ 라이트 모드로 전환' : '🌙 다크 모드로 전환'}</button></div>`;
+    <button onclick="vmDark()" class="w-full mt-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold py-2 rounded-xl">${isDark() ? '☀️ 라이트 모드로 전환' : '🌙 다크 모드로 전환'}</button>
+    <p class="text-[11px] font-bold text-gray-500 mt-3 mb-1.5">🔠 글자 크기</p>
+    <div class="grid grid-cols-3 gap-2">${FONT_LEVELS.map(([v, label]) => `<button onclick="vmFont(${v})" class="${curFont() === v ? 'bg-indigo-950 text-white border border-transparent' : 'bg-white border border-gray-300 text-gray-700'} text-xs font-bold py-2 rounded-xl">${label}</button>`).join('')}</div></div>`;
 }
+
+/* ---------- [추가] 글자 크게 보기 ----------
+   글자만 커지고 칸·여백은 그대로 (vega-theme.css 맨 아래 규칙). 기기별로 저장됩니다. */
+const FONT_LEVELS = [[1, '보통'], [1.15, '크게'], [1.3, '아주 크게']];
+const curFont = () => { const f = parseFloat(localStorage.getItem('vxFont') || '1'); return FONT_LEVELS.some(([v]) => v === f) ? f : 1; };
+function applyFont(f) {
+  const h = document.documentElement;
+  h.classList.toggle('vx-fs', f > 1);
+  if (f > 1) h.style.setProperty('--vg-fs', String(f)); else h.style.removeProperty('--vg-fs');
+}
+window.vmFont = (f) => {
+  try { localStorage.setItem('vxFont', String(f)); } catch (e) {}
+  applyFont(f);
+  inject();
+  toast(f > 1 ? '글자를 크게 했어요' : '기본 글자 크기로 돌아왔어요');
+};
+applyFont(curFont());
 function inject() {
   const app = document.getElementById('app'); if (!app) return;
   const t = V.tab();
