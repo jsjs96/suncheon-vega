@@ -791,7 +791,14 @@ function inject() {
   const t = V.tab();
   if (t === 'home') {
     let w = document.getElementById('vxHome');
-    if (!w) { w = document.createElement('div'); w.id = 'vxHome'; const nt = document.getElementById('homeNotice'); app.insertBefore(w, nt ? nt.nextSibling : app.firstChild); }
+    if (!w) {
+      w = document.createElement('div'); w.id = 'vxHome';
+      /* [PC] 오른쪽 칸에 자리가 있으면 그곳에, 아니면 기존처럼 공지사항 바로 아래에 */
+      const slot = document.getElementById('pcHomeExtras');
+      const nt = document.getElementById('homeNotice');
+      if (slot) slot.appendChild(w);
+      else app.insertBefore(w, nt && nt.parentNode === app ? nt.nextSibling : app.firstChild);
+    }
     w.innerHTML = installCardHTML() + renderLineupHomeCardHTML() + planCardHTML();
   } else if (t === 'admin' && U() && U().role === 'admin') {
     let w = document.getElementById('vxStatus');

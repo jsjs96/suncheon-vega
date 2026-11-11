@@ -350,3 +350,85 @@ html.vx-fs .text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
   html.vx-fs .sm\:text-\[10px\] { font-size: calc(10px * var(--vg-fs)); }
   html.vx-fs .sm\:text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
 }
+
+/* ==========================================================================
+   [추가] PC 화면 배치 (가로 1024px 이상)
+   - 휴대폰·세로 태블릿(1023px 이하)은 이 규칙이 적용되지 않아 지금 그대로입니다.
+   - 여기서는 '배치'만 바꾸고 색상은 기존 클래스를 그대로 써서 다크 모드도 그대로 동작합니다.
+   ========================================================================== */
+.pc-only { display: none; }
+@media (min-width: 1024px) {
+  .pc-only { display: block; }
+  .pc-hide { display: none !important; }
+
+  /* --- 헤더 안으로 들어간 메뉴 --- */
+  html body nav.fixed {
+    top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%);
+    height: 64px; padding: 0; gap: 4px; justify-content: center;
+    background: transparent !important; border: 0 !important; box-shadow: none !important;
+    z-index: 51;
+  }
+  html body nav.fixed button {
+    flex-direction: row; gap: 7px; min-width: 0; padding: 9px 14px; border-radius: 10px;
+    font-size: 14px; white-space: nowrap;
+  }
+  html body nav.fixed button:hover { background: rgba(255, 255, 255, .06); }
+  html body nav.fixed button.text-indigo-900 { background: rgba(255, 255, 255, .09); }
+  html body nav.fixed button.text-indigo-900::before { top: auto; bottom: 0; left: 14px; right: 14px; border-radius: 3px 3px 0 0; }
+  .vg-ico { width: 18px; height: 18px; }
+  html body header.bg-indigo-950 { padding-left: 28px; padding-right: 28px; }
+  html body #toast { bottom: 32px; }
+
+  /* --- 본문 폭 --- */
+  html body #app { max-width: 1280px; margin-top: 64px; padding: 28px 40px 40px; }
+  html body { padding-bottom: 0; }
+
+  /* --- 홈: 정기운동(왼쪽 큰 칸) + 오른쪽 칸 --- */
+  .pc-home-top { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; margin-bottom: 20px; }
+  .pc-home-top > .pc-main, .pc-home-top > .pc-aside { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .pc-home-top > .pc-main > *, .pc-home-top > .pc-aside > *, .pc-home-top #vxHome > * { margin: 0 !important; }
+  .pc-home-top #vxHome { display: flex; flex-direction: column; gap: 20px; }
+  .pc-home-top #pcHomeExtras:empty, .pc-home-top #pcHomeExtras:has(> #vxHome:empty) { display: none; }
+  .pc-home-top > .pc-aside section .grid.grid-cols-2 { gap: 10px; }
+  .pc-home-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; align-items: stretch; }
+  .pc-home-row > * { margin: 0 !important; min-width: 0; }
+  .pc-home-banner > * { margin-bottom: 20px !important; }
+  #app[data-tab="home"] > section { margin-top: 0 !important; margin-bottom: 20px !important; }
+
+  /* --- 게시판: 분류 | 목록 | 글 내용 --- */
+  .pc-board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+  .pc-board > [data-pc="board-card"] { display: grid; grid-template-columns: 168px minmax(0, 1fr); column-gap: 20px; align-content: start; }
+  .pc-board > [data-pc="board-card"] > * { grid-column: 2; }
+  .pc-board > [data-pc="board-card"] > [data-pc="board-tabs"] {
+    grid-column: 1; grid-row: 1 / span 30; align-self: start;
+    flex-direction: column; overflow: visible; border-bottom: 0; border-right: 1px solid #e5e7eb;
+    margin: 0; padding: 0 16px 0 0; gap: 4px;
+  }
+  html.dark .pc-board > [data-pc="board-card"] > [data-pc="board-tabs"] { border-right-color: var(--vg-line); }
+  .pc-board > [data-pc="board-card"] > [data-pc="board-tabs"] > button { text-align: left; padding: 10px 12px; font-size: 13px; }
+  #pcPostSlot { position: sticky; top: 88px; align-self: start; }
+  #pcPostSlot #postDetailModal { position: static; inset: auto; padding: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; display: block; z-index: auto; }
+  #pcPostSlot #postDetailModal.hidden { display: none; }
+  #pcPostSlot #postDetailModal > div { max-width: none; width: 100%; max-height: calc(100vh - 116px); box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+  #pcPostSlot:has(#postDetailModal:not(.hidden)) .pc-post-empty { display: none; }
+
+  /* --- 일정: 달력 | 오른쪽 투표·이번 달 일정 --- */
+  .pc-cal { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+  .pc-cal > #calSide { position: sticky; top: 88px; }
+
+  /* --- 나의 정보 · 운영진 · 코치: 2단 --- */
+  #app[data-tab="myinfo"] > .space-y-4,
+  #app[data-tab="admin"] > .space-y-4,
+  #app[data-tab="coach"] > .space-y-4 { columns: 2; column-gap: 20px; }
+  #app[data-tab="myinfo"] > .space-y-4 > *,
+  #app[data-tab="admin"] > .space-y-4 > *,
+  #app[data-tab="coach"] > .space-y-4 > * { break-inside: avoid; margin: 0 0 20px !important; }
+  #app[data-tab="myinfo"] > .space-y-4 > :first-child,
+  #app[data-tab="admin"] > .space-y-4 > :first-child,
+  #app[data-tab="coach"] > .space-y-4 > :first-child,
+  #app[data-tab="admin"] > .space-y-4 > :has(table) { column-span: all; }
+}
+@media (min-width: 1024px) {
+  [data-pc="names"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  [data-pc="names"] > * { margin: 0 !important; }
+}

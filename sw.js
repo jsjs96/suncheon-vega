@@ -1,7 +1,7 @@
 /* VEGA 서비스 워커: 오프라인 캐시(최신 화면 우선). 푸시 알림 기능은 제거되었습니다.
    [개선] 파일을 고쳐 올릴 때마다 아래 CACHE 숫자를 하나 올려 주세요 (예: vega-v6) → 설치 앱도 바로 새 버전으로 바뀝니다.
    [개선] 인터넷이 느릴 때 4초 넘게 응답이 없으면 저장된 화면을 먼저 보여 주고, 새 파일은 뒤에서 받아 둡니다. */
-const CACHE = 'vega-v8';
+const CACHE = 'vega-v9';
 const PRECACHE = ['./', 'vega-theme.css', 'vega-tw.css', 'vega-config.js', 'vega-extras.js', 'vega-more.js', 'icon-192.png', 'logo-w.png', 'logo-mark-w.png'];
 const SLOW_MS = 4000;
 
