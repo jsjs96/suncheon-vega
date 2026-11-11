@@ -2135,6 +2135,7 @@
                 <div style="width: ${absentPct}%" class="bg-rose-500 h-full flex items-center justify-center text-[9px] font-bold text-white">${absentCount}</div>
                 <div style="width: ${pendingPct}%" class="bg-amber-400 h-full flex items-center justify-center text-[9px] font-bold text-white">${pendingCount}</div>
               </div>
+              ${renderVoteNamesHTML(curDateVotes)}
             </div>
 
             ${endBtnHTML}
@@ -2298,6 +2299,35 @@
         if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
       }
     };
+
+    /* [추가] 정기운동 투표 명단 (모든 회원이 볼 수 있음)
+       펼침 상태는 화면이 다시 그려져도 유지됩니다. 집계 기준은 위 숫자와 같은 '회원 명단' */
+    let voteNamesOpen = false;
+    window.toggleVoteNames = () => { voteNamesOpen = !voteNamesOpen; renderHome(document.getElementById('app')); };
+    function renderVoteNamesHTML(votes) {
+      const groups = { '참가': [], '불참': [], '미정': [] };
+      sampleData.members.forEach(m => {
+        const s = votes[m.name];
+        (groups[s === '참가' || s === '불참' ? s : '미정']).push(m.name);
+      });
+      Object.values(groups).forEach(g => g.sort((a, b) => a.localeCompare(b, 'ko')));
+      const me = currentUser ? currentUser.name : null;
+      const chip = (n, cls) => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full border ${cls} ${n === me ? 'ring-2 ring-indigo-400' : ''}">${escH(n)}</span>`;
+      const row = (label, names, head, cls) => `
+        <div class="mb-2 last:mb-0">
+          <p class="text-[11px] font-black ${head} mb-1">${label} ${names.length}명</p>
+          ${names.length ? `<div class="flex flex-wrap gap-1">${names.map(n => chip(n, cls)).join('')}</div>` : '<p class="text-[11px] text-gray-400">없음</p>'}
+        </div>`;
+      return `
+        <button onclick="window.toggleVoteNames()" class="w-full text-xs font-bold text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl py-2 mb-3">
+          ${voteNamesOpen ? '투표 명단 접기 ▲' : '👥 투표 명단 보기 ▼'}
+        </button>
+        ${voteNamesOpen ? `<div class="bg-gray-50 border border-gray-100 rounded-xl p-3 mb-3">
+          ${row('👍 참가', groups['참가'], 'text-emerald-700', 'bg-emerald-50 text-emerald-800 border-emerald-200')}
+          ${row('🖐️ 불참', groups['불참'], 'text-rose-700', 'bg-rose-50 text-rose-800 border-rose-200')}
+          ${row('🤔 미정', groups['미정'], 'text-amber-700', 'bg-amber-50 text-amber-800 border-amber-200')}
+        </div>` : ''}`;
+    }
 
     window.handleHomeDateChange = (dateStr) => {
       selectedHomeDate = dateStr;
