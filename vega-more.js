@@ -94,11 +94,12 @@ applyDark(isDark());
 
 /* ---------- 내 정보 카드 주입 ---------- */
 function myCard() {
-  return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4"><h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📊</span> 리포트 · 화면 설정</h3>
-    <div class="grid grid-cols-2 gap-2"><button onclick="vmReport('month')" class="${btn}">📊 월간 리포트</button><button onclick="vmReport('year')" class="${btn}">🎊 연말 결산</button></div>
-    <button onclick="vmDark()" class="w-full mt-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold py-2 rounded-xl">${isDark() ? '☀️ 라이트 모드로 전환' : '🌙 다크 모드로 전환'}</button>
-    <p class="text-[11px] font-bold text-gray-500 mt-3 mb-1.5">🔠 글자 크기</p>
-    <div class="grid grid-cols-3 gap-2">${FONT_LEVELS.map(([v, label]) => `<button onclick="vmFont(${v})" class="${curFont() === v ? 'bg-indigo-950 text-white border border-transparent' : 'bg-white border border-gray-300 text-gray-700'} text-xs font-bold py-2 rounded-xl">${label}</button>`).join('')}</div></div>`;
+  return `<section class="v2-card mt-4"><div class="v2-head"><h3 class="v2-h"><span>📊</span> 리포트 · 화면 설정</h3></div>
+    <div class="grid grid-cols-2 gap-2"><button onclick="vmReport('month')" class="v2-btn">월간 리포트</button><button onclick="vmReport('year')" class="v2-btn">연말 결산</button></div>
+    <p class="text-[13px] font-bold mt-4 mb-1.5">글자 크기</p>
+    <div class="v2-seg" role="group" aria-label="글자 크기">${FONT_LEVELS.map(([v, label], i) => `<button onclick="vmFont(${v})" aria-pressed="${curFont() === v}" class="${curFont() === v ? 'is-on' : ''}" style="font-size:${13 + i * 2}px">${label}</button>`).join('')}</div>
+    <label class="flex justify-between items-center mt-3 text-[13px] font-bold" style="min-height:44px">다크 모드<input type="checkbox" ${isDark() ? 'checked' : ''} onchange="vmDark()" style="width:22px;height:22px;accent-color:#D91920"></label>
+  </section>`;
 }
 
 /* ---------- [추가] 글자 크게 보기 ----------
@@ -221,10 +222,50 @@ window.vxAllCards = (open) => {
   vxSaveOpen(); vxEnhance();
 };
 
+/* [디자인 2차] 운영진 카드를 세 묶음(정기운동 · 회원 · 일정/소통)으로 모아 목록처럼 보여 줌 */
+const VX_GROUPS = [
+  ['정기운동', ['오늘의 정기운동', '정기운동 참가 명단 수동 수정', '월별 정기 운동일 생성', '투표 독려 문구 복사']],
+  ['회원 · 기록', ['동호회 회원 명단 관리', '회원 출석률 순위', '게스트 참가 기록', '운동 만족도 기록']],
+  ['일정 · 소통 · 앱', ['일정 관리', '익명 건의사항 목록', '앱 설치 현황', '데이터 보관']]
+];
+function vxGroupAdmin(root, cards) {
+  const keyOf = (el) => el.dataset.vxKey || (el.querySelector('[data-vx-key]') || { dataset: {} }).dataset.vxKey || '';
+  const top = [];
+  const groups = VX_GROUPS.map(([n, ks]) => ({ n, ks, els: [] }));
+  cards.forEach(el => {
+    const k = keyOf(el);
+    if (!k || /게스트 승인/.test(k)) { top.push(el); return; }
+    const g = groups.find(g => g.ks.includes(k)) || groups[groups.length - 1];
+    g.els.push(el);
+  });
+  groups.forEach(g => g.els.sort((a, b) => {
+    const ia = g.ks.indexOf(keyOf(a)), ib = g.ks.indexOf(keyOf(b));
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  }));
+  const sig = top.map(keyOf).join('|') + '#' + groups.map(g => g.n + ':' + g.els.map(keyOf).join(',')).join(';');
+  if (root.dataset.vxSig === sig) return;
+  root.dataset.vxSig = sig;
+  root.querySelectorAll(':scope > .v2-glabel').forEach(x => x.remove());
+  const boxes = [...root.querySelectorAll(':scope > .v2-gbox')];
+  top.forEach(el => root.appendChild(el));
+  groups.forEach(g => {
+    if (!g.els.length) return;
+    const lab = document.createElement('p'); lab.className = 'v2-glabel'; lab.textContent = g.n;
+    const box = document.createElement('div'); box.className = 'v2-gbox';
+    root.appendChild(lab); root.appendChild(box);
+    g.els.forEach(el => box.appendChild(el));
+  });
+  boxes.forEach(b => { if (!b.children.length) b.remove(); });
+}
 function vxEnhanceAdmin(app) {
   const root = app.firstElementChild;
   if (!root || !root.classList.contains('space-y-4')) return;
-  const cards = [...root.children].slice(1).filter(c => c.id !== 'vxAdminNav');
+  const header = root.firstElementChild;
+  const cards = [];
+  [...root.children].forEach(c => {
+    if (c === header || c.id === 'vxAdminNav' || c.classList.contains('v2-glabel')) return;
+    if (c.classList.contains('v2-gbox')) cards.push(...c.children); else cards.push(c);
+  });
   const keys = [];
   cards.forEach(card => {
     /* 바깥 상자가 한 겹 더 있는 카드(앱 설치 현황 등)는 안쪽 카드로 내려감 */
@@ -250,19 +291,20 @@ function vxEnhanceAdmin(app) {
     card.classList.toggle('vx-collapsed', !open);
     h.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
+  vxGroupAdmin(root, cards);
   /* 바로가기 버튼 줄 */
   let nav = document.getElementById('vxAdminNav');
   if (!nav) {
     nav = document.createElement('div'); nav.id = 'vxAdminNav';
-    nav.className = 'bg-white/95 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-2.5';
+    nav.className = 'v2-adminnav';
     root.insertBefore(nav, root.children[1] || null);
   } else if (nav.parentElement !== root || root.children[1] !== nav) {
     root.insertBefore(nav, root.children[1] || null);
   }
   const html = `<div class="vx-chips">
-      <button onclick="vxAllCards(true)" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg bg-indigo-950 text-white">모두 펼치기</button>
-      <button onclick="vxAllCards(false)" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg bg-gray-100 text-gray-700">모두 접기</button>
-      ${keys.map(k => `<button onclick="vxJumpCard('${k.replace(/'/g, "\\'")}')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg border ${vxIsOpen(k) ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-white text-gray-600 border-gray-200'}">${k}</button>`).join('')}
+      <button onclick="vxAllCards(true)" class="v2-chip is-ink">모두 펼치기</button>
+      <button onclick="vxAllCards(false)" class="v2-chip">모두 접기</button>
+      ${keys.map(k => `<button onclick="vxJumpCard('${k.replace(/'/g, "\\'")}')" class="v2-chip ${vxIsOpen(k) ? 'is-on' : ''}">${k}</button>`).join('')}
     </div>`;
   if (nav.dataset.html !== html) { nav.dataset.html = html; nav.innerHTML = html; }
 }

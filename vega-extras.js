@@ -29,7 +29,7 @@ function ensureLineupModal() {
   m = document.createElement('div');
   m.id = 'lineupModal';
   m.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex hidden items-center justify-center p-3';
-  m.innerHTML = '<div id="lineupModalBody" class="bg-white rounded-2xl p-4 w-full max-w-md shadow-2xl max-h-[92vh] overflow-y-auto"></div>';
+  m.innerHTML = '<div id="lineupModalBody" class="v2-lineup w-full max-w-md max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="엔트리"></div>';
   document.body.appendChild(m);
   return m;
 }
@@ -49,20 +49,17 @@ function getMyLineupRole(lineup) {
 }
 
 /* ---------- 코트 / 칩 HTML ---------- */
-function lineupCourtHTML(placed, interactive, myName) {
-  const chips = placed.map(p => `
+function lineupCourtHTML(placed, interactive, myName, serve) {
+  const chips = placed.map(p => { const si = (serve || []).indexOf(p.name); return `
     <div ${interactive ? `data-name="${lnEsc(p.name)}" data-from="court"` : ''}
-         class="${interactive ? 'lineup-chip cursor-grab' : ''} absolute flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shadow ${p.name === myName ? 'bg-amber-400 text-indigo-950 ring-2 ring-white' : 'bg-indigo-950 text-white'}"
-         style="left:${p.x}%;top:${p.y}%;transform:translate(-50%,-50%);touch-action:none;white-space:nowrap;">
-      ${lnEsc(p.name)}
-    </div>`).join('');
+         class="${interactive ? 'lineup-chip cursor-grab' : ''} v2-courtchip ${p.name === myName ? 'is-me' : ''}"
+         style="left:${p.x}%;top:${p.y}%;touch-action:none;">${lnNoTag(p.name)}${lnEsc(p.name)}${si >= 0 ? `<i class="sv" aria-label="서브 ${si + 1}번">${si + 1}</i>` : ''}</div>`; }).join('');
   return `
-    <div id="lineupCourt" class="relative w-full rounded-xl overflow-hidden border-2 border-amber-300 select-none"
-         style="aspect-ratio:1/1;background:linear-gradient(#fef3c7,#fde68a);touch-action:none;">
-      <div class="absolute top-0 left-0 right-0 h-2 bg-gray-800"></div>
-      <span class="absolute top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-gray-500">NET</span>
-      <div class="absolute left-0 right-0 border-t-2 border-dashed border-amber-400" style="top:33.3%"></div>
-      ${placed.length === 0 && interactive ? '<p class="absolute inset-0 flex items-center justify-center text-[11px] text-amber-700 font-bold text-center px-6">아래 명단에서 이름을 누른 뒤<br/>원하는 위치를 누르거나, 끌어다 놓으세요</p>' : ''}
+    <div id="lineupCourt" class="v2-court select-none" style="touch-action:none;" aria-label="코트 배치">
+      <div class="net" aria-hidden="true"></div><i class="post l" aria-hidden="true"></i><i class="post r" aria-hidden="true"></i>
+      <span class="netlab" aria-hidden="true">NET</span>
+      <div class="back" aria-hidden="true"></div><div class="attack" aria-hidden="true"></div>
+      ${placed.length === 0 && interactive ? '<p class="empty">명단의 이름을 코트로 끌어다 놓거나<br>이름을 누르면 코트에 들어가요</p>' : ''}
       ${chips}
     </div>`;
 }
@@ -85,6 +82,76 @@ function getLineupCandidates(L) {
   return { votes, list: all.filter(n => !used.has(n)) };
 }
 
+/* [추가] 초성 검색: 'ㅇㄷ' → 임도윤, 유다인 */
+const LN_CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const lnCho = (str) => [...str].map(ch => { const c = ch.charCodeAt(0) - 0xAC00; return (c >= 0 && c <= 11171) ? LN_CHO[Math.floor(c / 588)] : ch; }).join('');
+const lnIsCho = (q) => /^[ㄱ-ㅎ]+$/.test(q);
+function lnMatch(name, q) {
+  if (!q) return null;
+  if (/^\d+$/.test(q)) return lnNo(name) === q ? [0, 0] : null;   /* 숫자를 치면 배번으로 찾기 */
+  let i = name.indexOf(q);
+  if (i < 0 && lnIsCho(q)) i = lnCho(name).indexOf(q);
+  return i < 0 ? null : [i, i + q.length];
+}
+/* [추가] 배번: 회원 명단의 number (운영진이 회원 수정에서 입력) */
+const lnNo = (name) => { const m = sampleData.members.find(x => x.name === name); return m && m.number !== undefined && m.number !== null && String(m.number).trim() !== '' ? String(m.number).trim() : ''; };
+const lnNoTag = (name) => { const n = lnNo(name); return n ? `<b class="no">${lnEsc(n)}</b>` : ''; };
+/* [추가] 서브 순서: 코트에 있는 선수만, 순서대로 */
+const lnServe = (L) => (L.serveOrder || []).filter(n => (L.placed || []).some(p => p.name === n));
+const LN_SLOTS = [[20, 22], [50, 22], [80, 22], [20, 52], [50, 52], [80, 52], [20, 80], [50, 80], [80, 80]];
+function lnAutoPlace(L, name) {
+  removeFromLineup(L, name);
+  const free = LN_SLOTS.find(([x, y]) => !L.placed.some(p => Math.abs(p.x - x) < 10 && Math.abs(p.y - y) < 10)) || [50, 66];
+  L.placed.push({ name, x: free[0], y: free[1] });
+}
+function lineupSearchHTML(L) {
+  const q = (L._q || '').trim();
+  if (!q) return '';
+  const { votes, list } = getLineupCandidates(L);
+  const isGuest = (n) => (L.guests || []).includes(n);
+  const hits = list.map(n => ({ n, r: lnMatch(n, q) })).filter(x => x.r).slice(0, 8);
+  const exact = sampleData.members.some(m => m.name === q) || isGuest(q) || L.placed.some(p => p.name === q) || L.bench.includes(q);
+  const label = (n) => isGuest(n) ? '게스트' : ((lnNo(n) ? lnNo(n) + '번 · ' : '') + '회원' + (votes ? ' · ' + (votes[n] || '미투표') : ''));
+  const hl = (n, [a, b]) => `${lnEsc(n.slice(0, a))}<mark>${lnEsc(n.slice(a, b))}</mark>${lnEsc(n.slice(b))}`;
+  return `<p class="text-xs v2-mut mt-2 mb-1.5">${hits.length ? `명단에서 ${hits.length}명 찾았어요 · 누르면 코트에 들어가요` : '명단에서 찾지 못했어요'}</p>
+    <div class="v2-hits">
+      ${hits.map(h => `<button type="button" onclick="window.lineupPick('${lnEsc(h.n)}')"><span>${hl(h.n, h.r)}</span><small>${label(h.n)}</small></button>`).join('')}
+      ${!exact && !lnIsCho(q) && !/^\d+$/.test(q) ? `<button type="button" class="add" onclick="window.addLineupGuest(true)"><span>"${lnEsc(q)}" 게스트로 추가</span><small>명단에 없는 사람</small></button>` : ''}
+    </div>`;
+}
+window.lineupSearch = (el) => {
+  if (!lineupDraft) return;
+  lineupDraft._q = el.value;
+  const box = document.getElementById('lineupSearchHits');
+  if (box) box.innerHTML = lineupSearchHTML(lineupDraft);
+};
+window.lineupPick = (name) => {
+  if (!lineupDraft) return;
+  lnAutoPlace(lineupDraft, name);
+  lineupDraft._q = '';
+  renderLineupEditor();
+};
+
+function lineupServeHTML(L) {
+  const order = lnServe(L);
+  const rest = L.placed.map(p => p.name).filter(n => !order.includes(n));
+  if (!L.placed.length) return '';
+  return `<div class="v2-serve">
+    <p class="v2-llab">서브 순서<span>${order.length}/${L.placed.length}명</span></p>
+    ${order.length ? `<ol>${order.map((n, i) => `<li>
+      <span class="v2-num k">${i + 1}</span><span class="nm">${lnNoTag(n)}${lnEsc(n)}</span>
+      <button type="button" onclick="window.lineupServeMove(${i}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="${lnEsc(n)} 앞으로"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button type="button" onclick="window.lineupServeMove(${i}, 1)" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${lnEsc(n)} 뒤로"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button type="button" onclick="window.lineupServeRemove(${i})" aria-label="${lnEsc(n)} 순서에서 빼기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </li>`).join('')}</ol>` : ''}
+    ${rest.length ? `<p class="text-xs v2-mut mt-2 mb-1.5">누르는 순서대로 ${order.length + 1}번부터 들어가요</p>
+      <div class="flex flex-wrap gap-1.5">${rest.map(n => `<button type="button" onclick="window.lineupServeAdd('${lnEsc(n)}')" class="v2-lchip" style="cursor:pointer">${lnNoTag(n)}${lnEsc(n)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+window.lineupServeAdd = (name) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); L.serveOrder = [...lnServe(L), name]; renderLineupEditor(); };
+window.lineupServeRemove = (i) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); const o = lnServe(L); o.splice(i, 1); L.serveOrder = o; renderLineupEditor(); };
+window.lineupServeMove = (i, d) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); const o = lnServe(L); const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; L.serveOrder = o; renderLineupEditor(); };
+
 function renderLineupEditor() {
   syncLineupInputs();
   const L = lineupDraft;
@@ -95,64 +162,76 @@ function renderLineupEditor() {
   const onlyAttend = hasVotes && L._onlyAttend !== false;
   const shown = onlyAttend ? list.filter(n => (votes[n] === '참가') || (L.guests || []).includes(n)) : list;
   const published = L.status === 'published';
+  const d = new Date(L.date + 'T00:00:00');
 
   const rosterChips = shown.length === 0
-    ? '<p class="text-[11px] text-gray-400 py-2">표시할 인원이 없습니다.</p>'
+    ? '<p class="text-xs v2-mut py-2 m-0">표시할 인원이 없습니다.</p>'
     : shown.map(n => {
         const isGuest = (L.guests || []).includes(n);
-        const st = hasVotes ? (votes[n] || '미정') : null;
-        const mark = isGuest ? '🙋' : st === '참가' ? '✅' : st === '불참' ? '⛔' : st === '미정' ? '❔' : '';
+        const st = hasVotes ? votes[n] : null;
         return `<span class="inline-flex items-center gap-0.5">
-          <span data-name="${lnEsc(n)}" data-from="roster" class="lineup-chip cursor-grab px-2.5 py-1 rounded-full text-[11px] font-bold border ${L._selected === n ? 'bg-indigo-950 text-white border-indigo-950 ring-2 ring-indigo-300' : 'bg-gray-100 text-gray-800 border-gray-300'}" style="touch-action:none;">${mark} ${lnEsc(n)}</span>
-          ${isGuest ? `<button type="button" onclick="window.removeLineupGuest('${lnEsc(n)}')" class="text-[10px] text-rose-500 font-bold px-1">✕</button>` : ''}
+          <span data-name="${lnEsc(n)}" data-from="roster" class="lineup-chip v2-lchip" style="touch-action:none;">${lnNoTag(n)}${lnEsc(n)}${st === '참가' ? '<i class="dot" aria-label="참가 투표"></i>' : ''}${isGuest ? '<b class="g">게스트</b>' : ''}</span>
+          ${isGuest ? `<button type="button" onclick="window.removeLineupGuest('${lnEsc(n)}')" class="v2-lx" aria-label="${lnEsc(n)} 게스트 빼기">✕</button>` : ''}
         </span>`;
       }).join('');
 
   const benchChips = L.bench.length === 0
-    ? '<p class="text-[11px] text-gray-400 py-1">여기로 끌어다 놓으면 교체 명단이 됩니다.</p>'
-    : L.bench.map(n => `<span data-name="${lnEsc(n)}" data-from="bench" class="lineup-chip cursor-grab px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300" style="touch-action:none;">🔄 ${lnEsc(n)}</span>`).join('');
+    ? '<p class="text-xs v2-mut m-0">여기로 끌어다 놓으면 교체 명단이 돼요</p>'
+    : L.bench.map(n => `<span data-name="${lnEsc(n)}" data-from="bench" class="lineup-chip v2-lchip is-bench" style="touch-action:none;">${lnNoTag(n)}${lnEsc(n)}</span>`).join('');
 
   body.innerHTML = `
-    <div class="flex justify-between items-center mb-2 pb-2 border-b">
-      <h3 class="text-sm font-black text-indigo-950">📋 엔트리 작성</h3>
-      <button onclick="window.closeLineupModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
-    </div>
-    <p class="text-xs font-bold text-gray-800 mb-0.5 truncate">${lnEsc(L.title)}</p>
-    <p class="text-[11px] text-gray-400 mb-2">${L.date} · 상태: ${published ? '<strong class="text-emerald-600">공개됨</strong>' : '<strong class="text-amber-600">초안(비공개)</strong>'} · 코트 ${L.placed.length}명 / 교체 ${L.bench.length}명</p>
-
-    ${lineupCourtHTML(L.placed, true, null)}
-    <p class="text-[10px] text-gray-400 mt-1 mb-3 leading-relaxed">${L._selected ? `<strong class="text-indigo-800">${lnEsc(L._selected)}</strong> 선택됨 → 코트에서 <strong>원하는 위치를 누르세요</strong> (교체 칸을 누르면 교체 명단)` : '💡 명단 이름을 누른 뒤 코트의 <strong>원하는 위치를 누르거나</strong>, 끌어다 놓으세요. 코트 위 이름은 끌어서 자유롭게 옮기고, 명단/교체 칸으로 끌어 놓으면 코트에서 빠집니다.'}</p>
-
-    <div id="lineupBench" class="mb-3 p-2.5 rounded-xl bg-emerald-50 border border-dashed border-emerald-300">
-      <p class="text-[11px] font-black text-emerald-900 mb-1.5">🔄 교체 명단</p>
-      <div class="flex flex-wrap gap-1.5">${benchChips}</div>
-    </div>
-
-    <div id="lineupRoster" class="mb-3 p-2.5 rounded-xl bg-gray-50 border border-gray-200">
-      <div class="flex justify-between items-center mb-1.5 gap-2">
-        <p class="text-[11px] font-black text-gray-800">👥 명단 (눌러서 추가 · 끌어서 배치)</p>
-        ${hasVotes ? `<label class="flex items-center gap-1 text-[10px] font-bold text-gray-600 shrink-0"><input type="checkbox" ${onlyAttend ? 'checked' : ''} onchange="window.toggleLineupAttendFilter(this.checked)"> 참가자만</label>` : ''}
+    <header class="v2-lhead">
+      <div class="flex items-center justify-between">
+        <p class="m-0 text-xs font-bold" style="color:#a1a1aa">엔트리 작성</p>
+        <button onclick="window.closeLineupModal()" class="v2-lclose" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="flex flex-wrap gap-1.5">${rosterChips}</div>
-      <div class="flex gap-1.5 mt-2.5">
-        <input id="lineupGuestInput" type="text" placeholder="게스트 이름 추가" class="flex-1 p-2 border border-gray-300 rounded-lg text-xs" />
-        <button type="button" onclick="window.addLineupGuest()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-3 rounded-lg shrink-0">+ 추가</button>
+      <h3 class="v2-num" style="margin:0;font-size:24px;color:#fff">${lnEsc(L.title)}</h3>
+      <p class="flex items-center gap-2 text-[13px] mt-1.5 mb-0" style="color:#d4d4d8"><span class="v2-tag ${published ? 'is-red' : 'is-amber'}">${published ? '공개됨' : '초안'}</span>${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]} · ${published ? '회원에게 보여요' : '아직 회원에게 안 보여요'}</p>
+      <div class="v2-stats" style="--n:2">
+        <div><span class="v2-num"><span style="color:#FFB61E">${L.placed.length}</span><small style="color:#71717a"> / ${LINEUP_COURT_SIZE}</small></span><p>코트</p></div>
+        <div><span class="v2-num">${L.bench.length}</span><p>교체</p></div>
       </div>
+    </header>
+    <div class="v2-lmain">
+      ${lineupCourtHTML(L.placed, true, null, lnServe(L))}
+
+      ${lineupServeHTML(L)}
+
+      <div id="lineupBench" class="v2-lbench">
+        <p class="v2-llab">교체<span>끌어 놓으면 교체 명단</span></p>
+        <div class="flex flex-wrap gap-1.5">${benchChips}</div>
+      </div>
+
+      <div id="lineupRoster">
+        <div class="flex justify-between items-center mb-2 gap-2">
+          <p class="v2-llab" style="margin:0">명단</p>
+          ${hasVotes ? `<div class="v2-seg" style="--n:2;padding:2px" role="group" aria-label="명단 보기"><button type="button" onclick="window.toggleLineupAttendFilter(true)" class="${onlyAttend ? 'is-on' : ''}" style="min-height:32px;padding:0 10px;font-size:12px">참가자만</button><button type="button" onclick="window.toggleLineupAttendFilter(false)" class="${!onlyAttend ? 'is-on' : ''}" style="min-height:32px;padding:0 10px;font-size:12px">전체</button></div>` : ''}
+        </div>
+        <div class="v2-lsearch">
+          <label for="lineupGuestInput" class="sr-only">이름 검색</label>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+          <input id="lineupGuestInput" type="text" value="${lnEsc(L._q || '')}" oninput="window.lineupSearch(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();const b=document.querySelector('#lineupSearchHits button');if(b)b.click();}" placeholder="이름 · 초성(ㅎㄱㄷ) · 배번" autocomplete="off" />
+        </div>
+        <div id="lineupSearchHits">${lineupSearchHTML(L)}</div>
+        <p class="text-xs v2-mut mt-3 mb-1.5">${hasVotes ? (onlyAttend ? '참가 투표한 사람과 게스트' : '전체 명단') + ' · 빨간 점은 참가 투표' : '전체 명단'} · 코트로 끌어다 놓으세요</p>
+        <div class="flex flex-wrap gap-1.5">${rosterChips}</div>
+      </div>
+
+      <div>
+        <label for="lineupMemo" class="v2-llab">코치 메모 · 전술 포인트</label>
+        <textarea id="lineupMemo" rows="3" placeholder="예: 리시브는 센터 쪽으로 집중, 서브는 5번 자리 공략" class="w-full p-3 border border-gray-300 rounded-xl text-sm leading-relaxed">${lnEsc(L.memo || '')}</textarea>
+      </div>
+      ${getLineup(L.eventId) ? `<button onclick="window.deleteLineup()" class="v2-ldel">이 엔트리 삭제</button>` : ''}
     </div>
-
-    <label class="block text-xs font-bold text-gray-700 mb-1">📝 코치 메모 (전술 포인트)</label>
-    <textarea id="lineupMemo" rows="3" placeholder="예: 리시브는 센터 쪽으로 집중, 서브는 존 5 공략" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs mb-3">${lnEsc(L.memo || '')}</textarea>
-
-    <div class="flex gap-2">
+    <div class="v2-lbar">
       ${published ? `
-        <button onclick="window.saveLineup('draft')" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">비공개로 전환</button>
-        <button onclick="window.saveLineup('published')" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">수정 반영</button>
+        <button onclick="window.saveLineup('draft')" class="v2-btn">비공개로 전환</button>
+        <button onclick="window.saveLineup('published')" class="v2-btn is-red">수정 반영</button>
       ` : `
-        <button onclick="window.saveLineup('draft')" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">임시저장</button>
-        <button onclick="window.saveLineup('published')" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">📢 공개하기</button>
+        <button onclick="window.saveLineup('draft')" class="v2-btn">임시저장</button>
+        <button onclick="window.saveLineup('published')" class="v2-btn is-red">회원에게 공개</button>
       `}
     </div>
-    ${getLineup(L.eventId) ? `<button onclick="window.deleteLineup()" class="w-full mt-2 text-[11px] text-rose-600 font-bold py-1.5">🗑️ 이 엔트리 삭제</button>` : ''}
   `;
   bindLineupDrag(body);
 
@@ -206,7 +285,7 @@ function onLineupMove(ev) {
     if (Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) < 6) return;
     d.moved = true;
     const g = document.createElement('div');
-    g.className = 'fixed z-[80] pointer-events-none px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-600 text-white shadow-lg';
+    g.className = 'fixed z-[80] pointer-events-none v2-ghost';
     g.textContent = d.name;
     document.body.appendChild(g);
     d.ghost = g;
@@ -230,7 +309,8 @@ function onLineupUp(ev) {
   /* 탭(드래그 아님) */
   if (!d.moved) {
     if (d.from === 'roster') {
-      L._selected = (L._selected === d.name) ? null : d.name;
+      lnAutoPlace(L, d.name);   /* [변경] 이름을 누르면 바로 코트 빈 자리에 들어감 → 끌어서 자유롭게 옮김 */
+      L._selected = null;
     } else if (d.from === 'bench') {
       removeFromLineup(L, d.name);
       L._selected = null;
@@ -269,7 +349,7 @@ window.toggleLineupAttendFilter = (checked) => {
   lineupDraft._onlyAttend = checked;
   renderLineupEditor();
 };
-window.addLineupGuest = () => {
+window.addLineupGuest = (fromSearch) => {
   if (!lineupDraft) return;
   const input = document.getElementById('lineupGuestInput');
   const name = (input ? input.value : '').trim();
@@ -277,6 +357,8 @@ window.addLineupGuest = () => {
   const exists = sampleData.members.some(m => m.name === name) || (lineupDraft.guests || []).includes(name);
   if (exists) return alert('이미 명단에 있는 이름입니다.');
   lineupDraft.guests = [...(lineupDraft.guests || []), name];
+  if (fromSearch) lnAutoPlace(lineupDraft, name);
+  lineupDraft._q = '';
   renderLineupEditor();
 };
 window.removeLineupGuest = (name) => {
@@ -302,6 +384,7 @@ window.openLineupEditor = (eventId) => {
     bench: ex ? [...(ex.bench || [])] : [],
     guests: ex ? [...(ex.guests || [])] : [],
     memo: ex ? (ex.memo || '') : '',
+    serveOrder: ex ? [...(ex.serveOrder || [])] : [],
     status: ex ? ex.status : 'draft'
   };
   /* [추가] 정기운동 투표에서 회원들이 추가한 게스트도 엔트리 명단에 자동으로 넣음 */
@@ -341,6 +424,7 @@ window.saveLineup = async (status) => {
     date: L.date,
     placed: L.placed,
     bench: L.bench,
+    serveOrder: lnServe(L),
     guests: L.guests || [],
     memo: (L.memo || '').trim(),
     status: status,
@@ -385,31 +469,32 @@ window.openLineupView = (eventId) => {
 
   const myName = V.user() ? V.user().name : null;
   const role = getMyLineupRole(lu);
-  const roleText = !role ? '' : role.type === 'court'
-    ? '🏐 당신은 <strong>코트 선발</strong>입니다!'
-    : role.type === 'bench' ? '🔄 당신은 <strong>교체 명단</strong>입니다. 준비해 주세요!'
-    : '이번 엔트리에는 포함되지 않았어요.';
 
   const m = ensureLineupModal();
+  const d = new Date(lu.date + 'T00:00:00');
   document.getElementById('lineupModalBody').innerHTML = `
-    <div class="flex justify-between items-center mb-2 pb-2 border-b">
-      <h3 class="text-sm font-black text-indigo-950">📋 엔트리</h3>
-      <button onclick="window.closeLineupModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
-    </div>
-    <p class="text-xs font-bold text-gray-800 mb-0.5">${lnEsc(lu.title)}</p>
-    <p class="text-[11px] text-gray-400 mb-2">${lu.date}${lu.edited ? ' · (수정됨)' : ''}${lu.status !== 'published' ? ' · <strong class="text-amber-600">초안(비공개)</strong>' : ''}</p>
-    ${roleText ? `<p class="text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 mb-3">${roleText}</p>` : ''}
-    ${lineupCourtHTML(lu.placed || [], false, myName)}
-    <div class="mt-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-      <p class="text-[11px] font-black text-emerald-900 mb-1.5">🔄 교체 명단</p>
-      <div class="flex flex-wrap gap-1.5">
-        ${(lu.bench || []).length === 0 ? '<span class="text-[11px] text-gray-400">없음</span>' :
-          lu.bench.map(n => `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${n === myName ? 'bg-amber-400 text-indigo-950' : 'bg-white text-emerald-900 border border-emerald-300'}">${lnEsc(n)}</span>`).join('')}
+    <header class="v2-lhead">
+      <div class="flex items-center justify-between">
+        <p class="m-0 text-xs font-bold" style="color:#a1a1aa">엔트리</p>
+        <button onclick="window.closeLineupModal()" class="v2-lclose" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <h3 class="v2-num" style="margin:0;font-size:24px;color:#fff">${lnEsc(lu.title)}</h3>
+      <p class="text-[13px] mt-1.5 mb-0" style="color:#d4d4d8">${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}${lu.edited ? ' · 수정됨' : ''}${lu.status !== 'published' ? ' · <span class="v2-tag is-amber">초안</span>' : ''}</p>
+      ${role ? `<p class="m-0 mt-3 text-sm font-bold" style="color:${role.type === 'court' ? '#FFB61E' : '#fff'}">${role.type === 'court' ? '나는 코트 선발이에요' : role.type === 'bench' ? '나는 교체 명단이에요. 준비해 주세요' : '이번 엔트리에는 들어가지 않았어요'}</p>` : ''}
+    </header>
+    <div class="v2-lmain">
+      ${lineupCourtHTML(lu.placed || [], false, myName, lnServe(lu))}
+      ${lnServe(lu).length ? `<div class="v2-serve"><p class="v2-llab">서브 순서</p><ol>${lnServe(lu).map((n, i) => `<li><span class="v2-num k">${i + 1}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol></div>` : ''}
+      <div class="v2-lbench" style="border-style:solid">
+        <p class="v2-llab">교체</p>
+        <div class="flex flex-wrap gap-1.5">
+          ${(lu.bench || []).length === 0 ? '<span class="text-xs v2-mut">없음</span>' : lu.bench.map(n => `<span class="v2-lchip is-bench ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span>`).join('')}
+        </div>
+      </div>
+      ${lu.memo ? `<div><p class="v2-llab">코치 메모</p><p class="v2-note m-0 whitespace-pre-line">${lnEsc(lu.memo)}</p></div>` : ''}
+      <p class="text-xs v2-mut m-0">작성: ${lnEsc(lu.createdBy || '')}</p>
     </div>
-    ${lu.memo ? `<div class="mt-3"><p class="text-[11px] font-black text-gray-800 mb-1">📝 코치 메모</p><p class="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-xl p-3 whitespace-pre-line leading-relaxed">${lnEsc(lu.memo)}</p></div>` : ''}
-    <p class="text-[10px] text-gray-400 mt-2">작성: ${lnEsc(lu.createdBy || '')}</p>
-    <button onclick="window.closeLineupModal()" class="w-full mt-3 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">닫기</button>
+    <div class="v2-lbar" style="grid-template-columns:1fr"><button onclick="window.closeLineupModal()" class="v2-btn is-ink">닫기</button></div>
   `;
   m.classList.remove('hidden');
 };
@@ -452,23 +537,20 @@ function renderLineupHomeCardHTML() {
   if (items.length === 0) return '';
 
   return `
-    <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-amber-300 mb-5">
-      <h2 class="text-sm sm:text-base font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📋</span> 엔트리 공개!</h2>
-      <div class="space-y-2">
+    <section class="v2-card mb-5" style="border-color:#FFB61E">
+      <div class="v2-head"><h2 class="v2-h"><span>📋</span> 엔트리 공개</h2></div>
+      <div class="flex flex-col gap-2">
         ${items.map(({ l, evt }) => {
           const r = getMyLineupRole(l);
-          const mine = !r ? '' : r.type === 'court'
-            ? '<span class="text-emerald-700 font-bold">🏐 내 자리: 코트 선발</span>'
-            : r.type === 'bench' ? '<span class="text-emerald-700 font-bold">🔄 교체 명단 — 준비해 주세요</span>'
-            : '<span class="text-gray-400">이번 엔트리에는 포함되지 않았어요</span>';
+          const mine = !r ? '' : r.type === 'court' ? '내 자리: 코트 선발' : r.type === 'bench' ? '교체 명단, 준비해 주세요' : '이번 엔트리에는 들어가지 않았어요';
+          const t = ({ regular: 'regular', match: 'match', friendly: 'friendly' })[evt.type] || 'etc';
+          const d = new Date(evt.date + 'T00:00:00');
           return `
-            <div onclick="window.openLineupView('${l.id}')" class="flex items-center justify-between gap-2 p-3 bg-amber-50 hover:bg-amber-100/70 border border-amber-200 rounded-xl cursor-pointer">
-              <div class="min-w-0">
-                <p class="text-xs font-black text-indigo-950 truncate">${lnEsc(evt.title)} <span class="text-[10px] text-gray-500 font-bold">${evt.date.substring(5)}${l.edited ? ' · 수정됨' : ''}</span></p>
-                <p class="text-[11px] mt-0.5">${mine || '엔트리를 확인해 보세요'}</p>
-              </div>
-              <span class="text-[11px] font-bold text-amber-800 shrink-0">보기 →</span>
-            </div>`;
+            <button onclick="window.openLineupView('${l.id}')" class="v2-evt">
+              <span class="v2-date t-${t}"><b>${d.getDate()}</b><small>${d.getMonth() + 1}월 · ${'일월화수목금토'[d.getDay()]}</small></span>
+              <span class="min-w-0 flex-1"><span class="block text-[15px] font-bold truncate">${lnEsc(evt.title)}${l.edited ? ' <span class="text-xs v2-mut font-medium">수정됨</span>' : ''}</span><span class="block text-[13px] mt-0.5 font-bold" style="color:${r && r.type === 'court' ? 'var(--vg-red-text)' : 'var(--vg-faint)'}">${mine || '엔트리를 확인해 보세요'}</span></span>
+              <span class="v2-more shrink-0">보기</span>
+            </button>`;
         }).join('')}
       </div>
     </section>`;
@@ -530,34 +612,31 @@ function journalCardHTML() {
   const avg = m.length ? (m.reduce((s, j) => s + (j.rating || 0), 0) / m.length).toFixed(1) : '-';
   const tt = topTags(m, 'improveTags', 3);
   const soon = mine.filter((j) => (j.date || '') <= agoStr(358) && (j.date || '') >= agoStr(365)).length;
-  return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mt-4 sm:mt-5">
-    <div class="flex justify-between items-center mb-3">
-      <h3 class="text-xs sm:text-sm font-black text-gray-900">📓 나의 배구 일지</h3>
-      <button onclick="window.vxJournalOpen()" class="bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold">+ 일지 쓰기</button>
+  return `<section class="v2-card mt-4 sm:mt-5">
+    <div class="v2-head">
+      <h3 class="v2-h"><span>📓</span> 나의 배구 일지</h3>
+      <button onclick="window.vxJournalOpen()" class="v2-btn is-red is-sm">일지 쓰기</button>
     </div>
-    <div class="flex items-center justify-between gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
-      <p class="text-[11px] text-gray-600 leading-relaxed">📌 일지는 작성일로부터 <strong>1년간</strong> 보관돼요. 필요한 기록은 다운로드해 두세요.</p>
-      <button onclick="window.vxJournalDownload()" class="shrink-0 bg-white border border-gray-300 text-gray-700 text-[11px] font-bold px-2.5 py-1.5 rounded-lg">⬇️ 내 일지 다운로드</button>
+    ${soon ? `<p class="v2-note" style="background:#D91920;color:#fff;font-weight:700">${soon}개의 일지가 일주일 안에 보관 기간(1년)이 끝나요. 지금 다운로드해 두세요.</p>` : ''}
+    <div class="v2-duo">
+      <div><p>이번 달 작성</p><span class="v2-num">${m.length}<small>회</small></span></div>
+      <div><p>평균 셀프 평가</p><span class="v2-num ${avg === '-' ? 'v2-mut' : ''}">${avg}${avg === '-' ? '' : '<small>점</small>'}</span></div>
     </div>
-    ${soon ? `<p class="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 font-bold rounded-xl px-3 py-2 mb-3">⏰ ${soon}개의 일지가 일주일 안에 보관 기간(1년)이 끝나요. 지금 다운로드해 두세요.</p>` : ''}
-    <div class="grid grid-cols-2 gap-2 mb-3">
-      <div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">이번 달 작성</span><span class="text-lg font-black text-indigo-950">${m.length}회</span></div>
-      <div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">평균 셀프 평가</span><span class="text-lg font-black text-indigo-950">${avg}${avg === '-' ? '' : '점'}</span></div>
-    </div>
-    ${tt.length ? `<p class="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mb-3">자주 적은 아쉬운 기술: ${tt.map(([t, c]) => `<strong>${t}</strong> ${c}회`).join(' · ')}</p>` : ''}
-    <div class="space-y-2">
-      ${mine.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">운동 후 30초만 투자해 첫 일지를 남겨 보세요.</p>' : ''}
+    ${tt.length ? `<p class="text-[13px] mt-3 mb-0"><span class="v2-mut">자주 적은 아쉬운 기술</span> ${tt.map(([t, c]) => `<strong>${t}</strong> ${c}`).join(' · ')}</p>` : ''}
+    <div class="mt-2">
+      ${mine.length === 0 ? '<p class="text-xs v2-mut py-4 text-center">운동 끝나고 30초만 투자해 첫 일지를 남겨 보세요.</p>' : ''}
       ${mine.slice(0, jLimit).map(j => `
-        <div onclick="window.vxJournalOpen('${j.id}')" class="p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
-          <div class="flex justify-between items-center text-[11px] mb-0.5">
-            <span class="font-bold text-gray-800">${MOOD_ICON[j.mood] || ''} ${j.date}</span>
-            <span class="text-gray-400">${j.sharedWithCoach ? '코치 공유' : '나만 보기'}${(j.coachComments || []).length ? ' · 💬 코치 코멘트' : ''}</span>
-          </div>
-          <p class="text-xs text-gray-600 truncate">${lnEsc(j.improve || j.good || j.next || '')}</p>
-        </div>`).join('')}
+        <button onclick="window.vxJournalOpen('${j.id}')" class="v2-row" style="display:block">
+          <span class="flex justify-between items-center text-xs mb-1"><span class="font-bold">${j.date}</span><span class="v2-mut">${j.sharedWithCoach ? '코치 공유' : '나만 보기'}${(j.coachComments || []).length ? ' · 코치 코멘트' : ''}</span></span>
+          <span class="block text-[13px] v2-mut truncate">${lnEsc(j.improve || j.good || j.next || '')}</span>
+        </button>`).join('')}
     </div>
-    ${mine.length > jLimit ? '<button onclick="window.vxJournalMore()" class="w-full mt-2 text-xs font-bold text-indigo-900 py-1.5">더보기</button>' : ''}
-  </div>`;
+    ${mine.length > jLimit ? '<button onclick="window.vxJournalMore()" class="v2-btn w-full mt-2">더보기</button>' : ''}
+    <div class="flex items-center justify-between gap-2 mt-3 pt-3" style="border-top:1px solid var(--vg-line)">
+      <p class="text-xs v2-mut m-0">일지는 1년 보관돼요</p>
+      <button onclick="window.vxJournalDownload()" class="v2-btn is-sm">내 일지 다운로드</button>
+    </div>
+  </section>`;
 }
 window.vxJournalDownload = () => {
   const rows = myJournals().slice().reverse();
@@ -686,36 +765,68 @@ function renderCoach(app) {
   const plan = planDraft ?? (sampleData.plan ? sampleData.plan.text : '');
   const card = (inner) => `<div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">${inner}</div>`;
 
+  const typeKey = (t) => ({ regular: 'regular', match: 'match', friendly: 'friendly' })[t] || 'etc';
+  const typeShort = { regular: '정기', match: '대회', friendly: '친선', etc: '기타' };
+  const maxStart = startList.length ? startList[0][1] : 0;
+  const maxTag = tt.length ? tt[0][1] : 0;
   app.innerHTML = `<div class="space-y-4 sm:space-y-5">
-    <div class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
-      <span class="text-[10px] font-bold bg-amber-400 text-indigo-950 px-2 py-0.5 rounded-full">코치 모드</span>
-      <h2 class="text-lg font-black mt-1">🧢 코치 대시보드</h2>
-      <p class="text-[11px] text-indigo-200 mt-1">${isCoach() ? `코멘트 기다리는 일지 ${unreplied.length}건` : '운영진은 엔트리와 훈련 계획을 볼 수 있어요'}</p>
-    </div>
-    ${card(`<h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3">📋 엔트리 (다가오는 일정)</h3><div class="space-y-2">
-      ${upcoming.length === 0 ? '<p class="text-xs text-gray-400 py-4 text-center">다가오는 일정이 없습니다.</p>' : ''}
-      ${upcoming.map(e => { const l = luOf(e.id); const st = !l ? ['미작성', 'bg-gray-100 text-gray-600'] : l.status === 'published' ? ['공개됨', 'bg-emerald-100 text-emerald-800'] : ['초안', 'bg-amber-100 text-amber-800'];
-        return `<div class="flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-xl"><div class="min-w-0"><p class="text-xs font-bold text-gray-900 truncate"><span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 mr-1">${names[e.type] || '기타'}</span>${lnEsc(e.title)}</p><p class="text-[11px] text-gray-500">${e.date.substring(5)} ${e.time || ''}</p></div><div class="flex items-center gap-1.5 shrink-0"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${st[1]}">${st[0]}</span><button onclick="window.openLineupEditor('${e.id}')" class="text-[11px] bg-indigo-950 text-white px-2.5 py-1 rounded-lg font-bold">${l ? '수정' : '작성'}</button></div></div>`; }).join('')}
-    </div>${startList.length ? `<p class="text-[11px] font-bold text-gray-700 mt-4 mb-1.5">공개된 엔트리 선발 횟수</p><div class="flex flex-wrap gap-1.5">${startList.map(([n, c]) => `<span class="text-[11px] bg-gray-100 border border-gray-200 text-gray-700 px-2 py-0.5 rounded-full">${lnEsc(n)} ${c}회</span>`).join('')}</div>` : ''}`)}
-    ${card(`<h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1">🏋️ 이번 주 훈련 계획</h3><p class="text-[11px] text-gray-400 mb-2">저장하면 모든 회원의 홈에 표시됩니다.</p><textarea rows="4" oninput="window.vxPlanInput(this)" placeholder="예: 이번 주는 리시브 집중. 2인 1조 리시브 → 토스 연결 20분" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs">${lnEsc(plan)}</textarea><button onclick="window.vxPlanSave()" class="w-full mt-2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">훈련 계획 저장</button>`)}
-    ${isCoach() ? card(`<h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1">📓 회원 일지 (공유된 글)</h3><p class="text-[11px] text-gray-400 mb-3">공유를 켠 일지만 보입니다. 코멘트가 없는 글이 위로 올라와요.</p>
-      <div class="grid grid-cols-2 gap-2 mb-3"><div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">이번 달 공유 일지</span><span class="text-lg font-black text-indigo-950">${sm.length}건</span></div><div class="bg-gray-50 rounded-xl p-3"><span class="text-[11px] text-gray-500 block">힘들었다는 응답</span><span class="text-lg font-black text-indigo-950">${sm.length ? Math.round(bad / sm.length * 100) : 0}%</span></div></div>
-      ${tt.length ? `<p class="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mb-3">팀 아쉬운 기술 TOP: ${tt.map(([t, c]) => `<strong>${t}</strong> ${c}`).join(' · ')}</p>` : ''}
-      <div class="space-y-2">${shared.length === 0 ? '<p class="text-xs text-gray-400 py-4 text-center">공유된 일지가 없습니다.</p>' : ''}
-      ${[...unreplied, ...shared.filter(j => (j.coachComments || []).length)].slice(0, coachJLimit).map(j => `<div onclick="window.vxCoachOpen('${j.id}')" class="p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer"><div class="flex justify-between text-[11px] mb-0.5"><span class="font-bold text-gray-800">${MOOD_ICON[j.mood] || ''} ${lnEsc(j.author)} · ${j.date}</span><span class="${(j.coachComments || []).length ? 'text-gray-400' : 'text-rose-600 font-bold'}">${(j.coachComments || []).length ? '코멘트 완료' : '코멘트 필요'}</span></div><p class="text-xs text-gray-600 truncate">${lnEsc(j.improve || j.good || j.next || '')}</p></div>`).join('')}</div>
-      ${shared.length > coachJLimit ? '<button onclick="window.vxCoachMore()" class="w-full mt-2 text-xs font-bold text-indigo-900 py-1.5">더보기</button>' : ''}`) : ''}
+    <section class="v2-plate" aria-label="코치 요약">
+      <span class="v2-tag is-amber">코치 모드</span>
+      <h2 class="v2-num" style="margin:8px 0 0;font-size:24px;color:#fff">코치 대시보드</h2>
+      ${isCoach() ? `<div class="v2-stats">
+        <div><span class="v2-num ${unreplied.length ? 'is-amber' : ''}">${unreplied.length}<small>건</small></span><p>코멘트 대기</p></div>
+        <div><span class="v2-num">${sm.length}<small>건</small></span><p>이번 달 공유 일지</p></div>
+        <div><span class="v2-num">${sm.length ? Math.round(bad / sm.length * 100) : 0}<small>%</small></span><p>힘들었다 응답</p></div>
+      </div>` : '<p class="text-xs mt-2 mb-0" style="color:#a1a1aa">운영진은 엔트리와 훈련 계획을 볼 수 있어요</p>'}
+    </section>
+    <section class="v2-card" aria-label="엔트리">
+      <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>📋</span> 엔트리</h3></div>
+      <p class="v2-sub" style="margin:0 0 8px">다가오는 일정마다 선발 명단을 짜 두세요</p>
+      ${upcoming.length === 0 ? '<p class="text-sm v2-mut py-4 text-center">다가오는 일정이 없습니다.</p>' : ''}
+      ${upcoming.map(e => { const l = luOf(e.id); const st = !l ? ['미작성', 'is-line'] : l.status === 'published' ? ['공개됨', 'is-ink'] : ['초안', 'is-amber'];
+        const d = new Date(e.date + 'T00:00:00'); const k = typeKey(e.type);
+        return `<div class="v2-entry">
+          <span class="v2-date t-${k}" style="width:48px"><b style="font-size:20px">${d.getDate()}</b><small>${typeShort[k]}</small></span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-bold truncate">${lnEsc(e.title)}</span><span class="flex items-center gap-1.5 mt-1"><span class="v2-tag ${st[1]}">${st[0]}</span><span class="text-xs v2-mut">${d.getMonth() + 1}/${d.getDate()} ${e.time || ''}</span></span></span>
+          <button onclick="window.openLineupEditor('${e.id}')" class="v2-btn ${l ? '' : 'is-red'}" style="min-height:40px">${l ? '수정' : '작성'}</button>
+        </div>`; }).join('')}
+      ${startList.length ? `<p class="text-[13px] font-black mt-3 mb-2 pt-3" style="border-top:1px solid var(--vg-line)">선발 횟수 <span class="text-xs font-medium v2-mut">공개된 엔트리 기준</span></p>
+        <div class="flex flex-col gap-1.5">${startList.slice(0, 12).map(([n, c]) => `<div class="v2-starter"><span class="truncate">${lnEsc(n)}</span><span class="v2-meter"><span style="width:${maxStart ? Math.round(c / maxStart * 100) : 0}%"></span></span><span class="v2-num">${c}</span></div>`).join('')}</div>` : ''}
+    </section>
+    <section class="v2-card" aria-label="이번 주 훈련 계획">
+      <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>🏋️</span> 이번 주 훈련 계획</h3></div>
+      <p class="v2-sub" style="margin:0 0 10px">저장하면 모든 회원의 홈에 보여요</p>
+      <label for="vxPlanInput" class="sr-only">훈련 계획</label>
+      <textarea id="vxPlanInput" rows="4" oninput="window.vxPlanInput(this)" placeholder="예: 이번 주는 리시브 집중. 2인 1조 리시브 → 토스 연결 20분" class="w-full p-3 border border-gray-300 rounded-xl text-sm leading-relaxed">${lnEsc(plan)}</textarea>
+      <button onclick="window.vxPlanSave()" class="v2-btn is-ink w-full mt-2" style="min-height:48px">훈련 계획 저장</button>
+    </section>
+    ${isCoach() ? `<section class="v2-card" aria-label="회원 일지">
+      <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>📓</span> 회원 일지</h3></div>
+      <p class="v2-sub" style="margin:0 0 12px">공유를 켠 일지만 보여요 · 코멘트 안 단 글이 위로</p>
+      ${tt.length ? `<div class="v2-plate" style="padding:14px;border-radius:12px;margin-bottom:8px">
+        <p class="text-[13px] font-bold m-0 mb-2.5">이번 달 팀이 아쉬워한 기술</p>
+        ${tt.map(([t, c], i) => `<div class="v2-skill"><span class="v2-num" style="color:${i === 0 ? '#FFB61E' : '#71717a'}">${i + 1}</span><span>${lnEsc(t)}</span><span class="v2-meter ${i === 0 ? 'is-amber' : ''}"><span style="width:${maxTag ? Math.round(c / maxTag * 100) : 0}%"></span></span><span class="v2-num">${c}</span></div>`).join('')}
+      </div>` : ''}
+      ${shared.length === 0 ? '<p class="text-sm v2-mut py-4 text-center">공유된 일지가 없습니다.</p>' : ''}
+      ${[...unreplied, ...shared.filter(j => (j.coachComments || []).length)].slice(0, coachJLimit).map(j => { const done = (j.coachComments || []).length;
+        return `<button onclick="window.vxCoachOpen('${j.id}')" class="v2-row" style="display:block">
+          <span class="flex items-center gap-1.5 text-sm font-bold">${lnEsc(j.author)}<span class="text-xs font-medium v2-mut">${(j.date || '').substring(5)}</span><span class="v2-tag ml-auto ${done ? 'is-soft' : 'is-red'}">${done ? '코멘트 완료' : '코멘트 필요'}</span></span>
+          <span class="block text-[13px] v2-mut mt-1 truncate">${lnEsc(j.improve || j.good || j.next || '')}</span>
+        </button>`; }).join('')}
+      ${shared.length > coachJLimit ? '<button onclick="window.vxCoachMore()" class="v2-btn w-full mt-2">더보기</button>' : ''}
+    </section>` : ''}
   </div>`;
 }
 
 /* ===================== 탭/화면 연결 ===================== */
 function planCardHTML() {
   const t = sampleData.plan && sampleData.plan.text;
-  return t ? `<section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-indigo-200 mb-5"><h2 class="text-sm sm:text-base font-black text-gray-900 mb-2">🏋️ 이번 주 훈련</h2><p class="text-xs text-gray-700 leading-relaxed whitespace-pre-line">${lnEsc(t)}</p></section>` : '';
+  return t ? `<section class="v2-card mb-5"><div class="v2-head" style="margin-bottom:8px"><h2 class="v2-h"><span>🏋️</span> 이번 주 훈련</h2></div><p class="text-sm leading-relaxed whitespace-pre-line m-0">${lnEsc(t)}</p></section>` : '';
 }
 function installCardHTML() {
   if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone || localStorage.getItem('vxInstallHide')) return '';
-  const wrap = (inner) => `<section class="bg-white p-4 rounded-2xl shadow-sm border border-indigo-200 mb-5"><div class="flex justify-between items-start gap-2"><div class="text-xs text-gray-700 leading-relaxed">${inner}</div><button onclick="window.vxInstallHide()" class="text-gray-400 font-bold text-lg leading-none shrink-0">&times;</button></div></section>`;
-  if (window.__deferredInstall) return wrap('<p class="font-black text-gray-900 mb-1">📲 홈 화면에 앱으로 설치</p><p class="mb-2">설치하면 아이콘으로 바로 열려요.</p><button onclick="window.vxInstall()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl">앱 설치하기</button>');
+  const wrap = (inner) => `<section class="v2-card mb-5"><div class="flex justify-between items-start gap-2"><div class="text-sm leading-relaxed">${inner}</div><button onclick="window.vxInstallHide()" class="v2-lclose" style="color:var(--vg-faint);margin:-8px -8px 0 0" aria-label="설치 안내 닫기">&times;</button></div></section>`;
+  if (window.__deferredInstall) return wrap('<p class="font-black text-gray-900 mb-1">📲 홈 화면에 앱으로 설치</p><p class="mb-2">설치하면 아이콘으로 바로 열려요.</p><button onclick="window.vxInstall()" class="v2-btn is-ink is-sm">앱 설치하기</button>');
   if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return wrap('<p class="font-black text-gray-900 mb-1">📲 홈 화면에 앱으로 설치</p><p>Safari 하단의 <strong>공유 버튼</strong> → <strong>홈 화면에 추가</strong>를 눌러 주세요.</p>');
   return '';
 }

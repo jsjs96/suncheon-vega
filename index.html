@@ -386,6 +386,10 @@
           <input type="date" id="addMemberJoinDate" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
           <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">입력하면 출석률을 가입일부터 계산해요. 비워 두면 동호회 시작부터 함께한 것으로 집계해요.</p>
         </div>
+        <div>
+          <label for="addMemberNumber" class="block text-xs font-bold text-gray-700 mb-1">배번 (선택)</label>
+          <input type="number" id="addMemberNumber" inputmode="numeric" min="0" max="999" placeholder="예: 7" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+        </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeAddMemberModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
           <button type="submit" class="w-1/2 bg-indigo-950 text-white font-bold py-2.5 rounded-xl text-xs">회원 등록</button>
@@ -417,6 +421,10 @@
           <label class="block text-xs font-bold text-gray-700 mb-1">가입일 (선택)</label>
           <input type="date" id="editMemberJoinDate" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
           <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">비우면 동호회 시작부터 함께한 것으로 집계해요.</p>
+        </div>
+        <div>
+          <label for="editMemberNumber" class="block text-xs font-bold text-gray-700 mb-1">배번 (선택)</label>
+          <input type="number" id="editMemberNumber" inputmode="numeric" min="0" max="999" placeholder="예: 7" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
         </div>
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeEditMemberModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
@@ -1034,85 +1042,64 @@
       if (!currentUser) return '';
       const st = getStreakInfo(currentUser.name);
       if (st.total === 0) return '';
-      const nextLabel = nextEvt ? `${nextEvt.date.substring(5)} 운동에` : '다음 운동에';
+      const nextLabel = nextEvt ? `${parseInt(nextEvt.date.substring(5, 7), 10)}월 ${parseInt(nextEvt.date.substring(8), 10)}일에` : '다음 운동에';
       let text;
-      if (st.current >= 1) {
-        text = `🔥 <strong>${st.current}연속</strong> 출석 중! ${nextLabel} 오시면 ${st.current + 1}연속!`;
-        if (st.best > st.current) text += ` <span class="text-gray-400">(최고 기록 ${st.best}연속)</span>`;
-      } else {
-        text = `🌱 연속 기록이 0이에요. ${nextLabel} 오시면 새 스트릭이 시작돼요!`;
-        if (st.best > 0) text += ` <span class="text-gray-400">(최고 기록 ${st.best}연속)</span>`;
-      }
-      return `<p class="text-[11px] sm:text-xs text-gray-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mt-3 leading-relaxed">${text}</p>`;
+      if (st.current >= 1) text = `${st.current}연속 출석 중 · ${nextLabel} 오면 ${st.current + 1}연속`;
+      else text = `연속 기록 0 · ${nextLabel} 오면 새로 시작돼요`;
+      const best = st.best > st.current ? ` <span>(최고 ${st.best}연속)</span>` : '';
+      return `<p class="v2-foot">${text}${best}</p>`;
     }
 
     /* 홈: 내 등수 + 앞 순위와의 격차 카드 */
     function renderMyRankCardHTML(nextEvt) {
-      const wrap = (inner) => `<section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 mb-5">${inner}</section>`;
+      const wrap = (inner) => `<section class="v2-card mb-5">${inner}</section>`;
+      const head = (t) => `<div class="v2-head"><h2 class="v2-h"><span>👑</span> ${t}</h2>${currentUser && currentUser.role === 'admin' ? `<button onclick="window.switchTab('admin')" class="v2-more">전체 순위</button>` : ''}</div>`;
 
       if (!currentUser) {
-        return wrap(`
+        return wrap(`${head('출석 순위')}
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs text-gray-600 leading-relaxed">🏐 로그인하면 <strong>나의 등수</strong>와 <strong>앞 순위와의 격차</strong>를 볼 수 있어요!</p>
-            <button onclick="window.openLoginModal()" class="bg-indigo-950 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0">로그인</button>
-          </div>
-        `);
+            <p class="text-sm v2-mut leading-relaxed">로그인하면 나의 등수와 앞 순위와의 차이를 볼 수 있어요.</p>
+            <button onclick="window.openLoginModal()" class="v2-btn is-ink is-sm">로그인</button>
+          </div>`);
       }
 
       const info = getMyRankInfo();
-
       if (info.excluded) {
         const isCoach = currentUser.role === 'coach';
-        return wrap(`
-          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">${isCoach ? '🧢 코치 모드' : '🛋️ 휴식 모드'}</h2>
-          <p class="text-xs text-gray-600 leading-relaxed">${isCoach
-            ? '코치님은 순위 집계 대상이 아니에요. 대신 코트의 든든한 기둥이세요! 💪'
-            : '지금은 쉬는 중이시네요. 돌아오시면 환영 박수 준비해 둘게요 👏'}</p>
-        `);
+        return wrap(`${head(isCoach ? '코치 모드' : '휴식 모드')}<p class="text-sm v2-mut leading-relaxed">${isCoach ? '코치님은 순위 집계 대상이 아니에요.' : '지금은 쉬는 중이에요. 돌아오시면 다시 집계돼요.'}</p>`);
       }
-
       if (info.empty) {
-        return wrap(`
-          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">🏐 나의 출석 순위</h2>
-          <p class="text-xs text-gray-600 leading-relaxed">아직 집계할 지난 정기운동이 없어요. 첫 운동의 주인공이 되어 보세요!</p>
-        `);
+        return wrap(`${head('출석 순위')}<p class="text-sm v2-mut leading-relaxed">아직 집계할 지난 정기운동이 없어요.</p>`);
       }
-
       if (info.pending) {
-        return wrap(`
-          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">🌱 순위 집계 준비 중</h2>
-          <p class="text-xs text-gray-600 leading-relaxed">가입 후 정기운동이 <strong>${info.need}회</strong> 열리면 순위가 매겨져요. 지금은 ${info.played}/${info.need}회 진행됐어요. 편하게 참여해 주세요!</p>
-          <div class="flex flex-wrap items-center gap-1.5 mt-3">
-            <span class="text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-1 rounded-lg">나의 출석 ${info.count}/${info.played}회</span>
-          </div>
-          ${getStreakLineHTML(nextEvt)}
-        `);
+        return wrap(`${head('출석 순위 준비 중')}
+          <p class="text-sm v2-mut leading-relaxed">가입 후 정기운동이 <strong>${info.need}회</strong> 열리면 순위가 매겨져요. 지금 ${info.played}/${info.need}회, 나의 출석 ${info.count}회.</p>
+          ${getStreakLineHTML(nextEvt)}`);
       }
 
+      const { rows } = getAttendanceRanking();
+      const ranked = rows.filter(r => r.qualified && r.count > 0);
+      const top = ranked.filter(r => r.rank <= 3).slice(0, 5);
+      const me = rows.find(r => r.name === currentUser.name);
+      const line = (r) => {
+        const pct = r.total ? Math.round(r.count / r.total * 100) : 0;
+        const isMe = r.name === currentUser.name;
+        return `<li class="${r.rank === 1 ? 'is-first' : ''} ${isMe ? 'is-me' : ''}">
+          <span class="v2-num r">${r.rank}</span>
+          <span class="nm">${escH(r.name)}${isMe ? ' (나)' : ''}</span>
+          <span class="v2-meter"><span style="width:${pct}%"></span></span>
+          <span class="v2-num ct">${r.count}<small>/${r.total}</small></span>
+        </li>`;
+      };
+      const meIn = top.some(r => r.name === currentUser.name);
       const msg = getRankMessage(info);
-      const chips = [];
-      if (info.gapAhead > 0) chips.push(`<span class="text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-100 px-2 py-1 rounded-lg">⬆️ 앞 순위까지 ${info.gapAhead}회</span>`);
-      if (info.gapBehind > 0) chips.push(`<span class="text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200 px-2 py-1 rounded-lg">⬇️ 뒤 순위와 ${info.gapBehind}회 차이</span>`);
-      if (info.isFirst && info.gapBehind === 0) chips.push(`<span class="text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded-lg">👑 선두</span>`);
-
-      return wrap(`
-        <div class="flex items-center gap-3 sm:gap-4">
-          <div class="text-center shrink-0 bg-indigo-950 text-white rounded-2xl px-3 py-2.5 min-w-[72px]">
-            <span class="text-[10px] text-indigo-200 block">${info.tied ? '공동' : '나의 등수'}</span>
-            <span class="text-2xl font-black text-amber-400 leading-none">${info.rank}<span class="text-sm">등</span></span>
-            <span class="text-[10px] text-indigo-200 block mt-0.5">/ ${info.total}명</span>
-          </div>
-          <div class="min-w-0 flex-1">
-            <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">${msg.title}</h2>
-            <p class="text-xs text-gray-600 leading-relaxed">${msg.text}</p>
-          </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-1.5 mt-3">
-          <span class="text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-1 rounded-lg">나의 출석 ${info.count}/${info.played}회</span>
-          ${chips.join('')}
-        </div>
-        ${getStreakLineHTML(nextEvt)}
-      `);
+      return wrap(`${head('출석 순위')}
+        <p class="v2-sub">${info.tied ? '공동 ' : ''}${info.rank}등 / ${info.total}명 · ${escH(msg.text)}</p>
+        <ol class="v2-rank">
+          ${top.map(line).join('')}
+          ${!meIn && me ? `<li class="gap"></li>${line(me)}` : ''}
+        </ol>
+        ${getStreakLineHTML(nextEvt)}`);
     }
 
     /* 홈: 다음 정기운동 '미정' 알림 배너 */
@@ -1202,30 +1189,21 @@
       const attended = Object.values(votes).filter(v => v === '참가').length;
       const byUser = reactionsByDate[last.date] || {};
       const myReact = currentUser ? byUser[currentUser.name] : null;
-      const myAttended = !!(currentUser && votes[currentUser.name] === '참가');
 
       const counts = {};
       Object.values(byUser).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
 
-      const when = diffDays === 0 ? '오늘' : diffDays === 1 ? '어제' : last.date.substring(5);
-      let fomo = '';
-      if (attended > 0) {
-        fomo = `🏐 ${attended}명이 코트를 달궜어요. `;
-        fomo += (currentUser && !myAttended) ? '다음엔 같이 뛰어요! 😢 버튼도 환영이에요' : '오늘의 소감을 남겨 주세요!';
-      }
-
+      const when = diffDays === 0 ? '오늘' : diffDays === 1 ? '어제' : last.date.substring(5).replace('-', '/');
+      const d = new Date(last.date + 'T00:00:00');
       return `
-        <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-          <h2 class="text-sm sm:text-base font-black text-gray-900 mb-1">💬 ${when} 운동 어땠나요?</h2>
-          <p class="text-[11px] text-gray-500 mb-3 leading-relaxed">${last.date} ${last.title}${fomo ? ' · ' + fomo : ''}</p>
-          <div class="grid grid-cols-5 gap-1.5">
+        <section class="v2-card">
+          <div class="v2-head" style="margin-bottom:4px"><h2 class="v2-h"><span>💬</span> ${when} 운동 어땠나요?</h2></div>
+          <p class="text-xs v2-mut mb-3">${d.getMonth() + 1}월 ${d.getDate()}일 ${escH(last.title)}${attended ? ` · ${attended}명 참가` : ''}</p>
+          <div class="v2-react" role="group" aria-label="운동 소감">
             ${REACTION_OPTIONS.map(o => `
-              <button onclick="window.toggleReaction('${last.date}', '${o.emoji}')" class="flex flex-col items-center py-2 rounded-xl border text-[10px] font-bold transition ${myReact === o.emoji ? 'bg-indigo-950 text-white border-indigo-950' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-indigo-50'}">
-                <span class="text-lg leading-none mb-0.5">${o.emoji}</span>
-                <span class="leading-tight text-center">${o.label}</span>
-                <span class="mt-0.5 ${myReact === o.emoji ? 'text-amber-300' : 'text-gray-400'}">${counts[o.emoji] || 0}</span>
-              </button>
-            `).join('')}
+              <button onclick="window.toggleReaction('${last.date}', '${o.emoji}')" aria-pressed="${myReact === o.emoji}" class="${myReact === o.emoji ? 'is-on' : ''}">
+                <span class="v2-num">${counts[o.emoji] || 0}</span><span>${o.label}</span>
+              </button>`).join('')}
           </div>
         </section>
       `;
@@ -1265,21 +1243,17 @@
 
       const mvps = scored.filter(r => r.count === max).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       const perfect = max === monthEvents.length;
-      const shown = mvps.slice(0, 8);
+      const shown = mvps.slice(0, 6);
       const rest = mvps.length - shown.length;
       const monthNum = parseInt(getTodayString().substring(5, 7), 10);
 
       return `
-        <section class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 sm:p-5 rounded-2xl shadow-sm border border-amber-200">
-          <div class="flex justify-between items-center mb-2 flex-wrap gap-1">
-            <h2 class="text-sm sm:text-base font-black text-amber-900">🏅 ${monthNum}월 MVP</h2>
-            <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">정기운동 ${monthEvents.length}회 중 ${perfect ? '개근' : max + '회 참석'}</span>
+        <section class="v2-plate v2-mvp" aria-label="${monthNum}월 MVP">
+          <div class="lab"><span class="v2-num">MVP</span><span>${monthNum}월</span></div>
+          <div>
+            <p class="who">${shown.map(r => escH(r.name)).join(' · ')}${rest > 0 ? ` <span style="font-size:14px;color:#a1a1aa">외 ${rest}명</span>` : ''}</p>
+            <p class="why">정기운동 ${monthEvents.length}회 중 ${perfect ? '모두 출석했어요' : max + '회 출석, 이달 최다예요'}</p>
           </div>
-          <div class="flex flex-wrap gap-1.5 mb-2">
-            ${shown.map(r => `<span class="text-xs font-bold bg-white text-amber-900 border border-amber-200 px-2.5 py-1 rounded-full shadow-sm">🏅 ${r.name}</span>`).join('')}
-            ${rest > 0 ? `<span class="text-xs font-bold text-amber-800 px-1 py-1">외 ${rest}명</span>` : ''}
-          </div>
-          <p class="text-[11px] text-amber-800 leading-relaxed">${perfect ? '개근 달성! 이분들 덕분에 코트가 살아 있어요 👏' : '이달 가장 열심히 코트를 지킨 분들이에요 👏'}</p>
         </section>
       `;
     }
@@ -1387,31 +1361,28 @@
         const full = allBadges.filter(b => b.cat === c);
         const got = full.filter(b => b.earned).length;
         return `
-          <div class="mb-3 last:mb-0">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[11px] font-black text-gray-700">${c}</span>
-              <span class="text-[10px] font-bold text-gray-400">${got}/${full.length}</span>
+          <div class="v2-bcat">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[13px] font-black">${String(c).replace(/^[\p{Extended_Pictographic}\uFE0F\u200D]+\s*/u, '')}</span>
+              <span class="v2-pips" role="img" aria-label="${full.length}개 중 ${got}개">${full.map((x, i) => `<i class="${i < got ? 'on' : ''}"></i>`).join('')}</span>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              ${list.map(b => `
-                <div class="p-2.5 rounded-xl border text-center ${b.earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-50'}">
-                  <div class="text-2xl mb-0.5 ${b.earned ? '' : 'grayscale'}">${b.icon}</div>
-                  <div class="text-xs font-black ${b.earned ? 'text-amber-900' : 'text-gray-500'}">${b.name}</div>
-                  <div class="text-[10px] leading-snug mt-0.5 ${b.earned ? 'text-amber-800' : 'text-gray-400'}">${b.desc}</div>
-                </div>
-              `).join('')}
+            <div class="v2-badges">
+              ${list.map(b => `<div class="v2-badge ${b.earned ? 'is-on' : ''}"><p class="t">${b.name}</p><p class="d">${b.desc}</p></div>`).join('')}
             </div>
           </div>`;
       }).join('');
       return `
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span>🎖️</span> 나의 칭호 (${earnedCount}/${allBadges.length})</h3>
-          <p class="text-[11px] text-gray-400 mb-3">출석·소통 기록에 따라 자동으로 획득돼요.</p>
-          ${earnedCount === 0 && !badgesShowAll ? '<p class="text-xs text-gray-400 text-center py-3">아직 받은 칭호가 없어요. 정기운동에 참가해서 첫 칭호를 받아 보세요!</p>' : sections}
-          <button onclick="window.toggleBadgesAll()" class="w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl">
-            ${badgesShowAll ? '받은 칭호만 보기 ▲' : `전체 칭호 보기 (${allBadges.length - earnedCount}개 더) ▼`}
+        <section class="v2-card">
+          <div class="v2-head" style="align-items:baseline">
+            <h3 class="v2-h"><span>🎖️</span> 나의 칭호</h3>
+            <p class="m-0"><span class="v2-num" style="font-size:22px;color:#D91920">${earnedCount}</span><span class="text-[13px] font-bold v2-mut"> / ${allBadges.length}</span></p>
+          </div>
+          <p class="v2-sub">출석과 소통 기록에 따라 자동으로 받아요.</p>
+          ${earnedCount === 0 && !badgesShowAll ? '<p class="text-sm v2-mut text-center py-3">아직 받은 칭호가 없어요. 정기운동에 참가해서 첫 칭호를 받아 보세요.</p>' : sections}
+          <button onclick="window.toggleBadgesAll()" class="v2-btn w-full mt-1">
+            ${badgesShowAll ? '받은 칭호만 보기' : `칭호 전체 보기 (${allBadges.length - earnedCount}개 더)`}
           </button>
-        </div>
+        </section>
       `;
     }
     /* [추가] 운영진 탭: 운동 후기(이모지 반응) 기록 - 날짜별 누적 보관, 홈 카드가 사라진 뒤에도 계속 확인 가능 */
@@ -2088,28 +2059,38 @@
       const today = getTodayString();
       const isNew = (d) => d && Math.round((new Date(today) - new Date(d)) / 86400000) <= 3;
       return `
-        <section id="homeNotice" class="bg-rose-50 border border-rose-200 p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
-          <div class="flex justify-between items-center mb-2">
-            <h2 class="text-sm sm:text-base font-black text-rose-800 flex items-center gap-1.5"><span>📢</span> 공지사항</h2>
-            <button onclick="window.switchTab('board', '공지사항')" class="text-xs text-rose-700 font-bold hover:underline">전체보기 →</button>
+        <section id="homeNotice" class="v2-card mb-5">
+          <div class="v2-head" style="margin-bottom:4px">
+            <h2 class="v2-h"><span>📢</span> 공지사항</h2>
+            <button onclick="window.switchTab('board', '공지사항')" class="v2-more">전체보기</button>
           </div>
-          <ul class="space-y-1.5">
+          <div>
             ${notices.map(p => {
-              const preview = escH((p.content || '').replace(/\s+/g, ' ').trim().slice(0, 50));
+              const preview = escH((p.content || '').replace(/\s+/g, ' ').trim().slice(0, 60));
               return `
-              <li onclick="window.openPostDetail('${p.id}')" class="bg-white border border-rose-100 rounded-xl px-3 py-2 cursor-pointer hover:bg-rose-50/60 transition">
-                <div class="flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-1.5 min-w-0">
-                    ${isNew(p.date) ? '<span class="text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded shrink-0">NEW</span>' : ''}
-                    <span class="text-xs font-bold text-gray-900 truncate">${escH(p.title)}</span>
-                  </div>
-                  <span class="text-[10px] text-gray-400 shrink-0">${(p.date || '').substring(5)}</span>
-                </div>
-                ${preview ? `<p class="text-[11px] text-gray-500 mt-0.5 truncate">${preview}</p>` : ''}
-              </li>`;
+              <button onclick="window.openPostDetail('${p.id}')" class="v2-row" style="display:block">
+                <span class="flex items-center gap-1.5">
+                  ${isNew(p.date) ? '<span class="v2-tag is-red">NEW</span>' : ''}
+                  <span class="v2-ell font-bold">${escH(p.title)}</span>
+                  <span class="text-xs v2-mut shrink-0">${(p.date || '').substring(5)}</span>
+                </span>
+                ${preview ? `<span class="block text-[13px] v2-mut mt-1 truncate">${preview}</span>` : ''}
+              </button>`;
             }).join('')}
-          </ul>
+          </div>
         </section>`;
+    }
+
+    /* [디자인 2차] 일정 한 줄: 날짜 칸(종류별 색) + 제목 + 종류 표시 */
+    const EVT_TYPE_NAME = { regular: '정기', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' };
+    function evtRowHTML(evt, onclick, right) {
+      const d = new Date(evt.date + 'T00:00:00');
+      const t = EVT_TYPE_NAME[evt.type] ? evt.type : 'etc';
+      return `<button onclick="${onclick}" class="v2-evt">
+        <span class="v2-date t-${t}"><b>${d.getDate()}</b><small>${d.getMonth() + 1}월 · ${'일월화수목금토'[d.getDay()]}</small></span>
+        <span class="min-w-0 flex-1"><span class="block text-[15px] font-bold truncate">${escH(evt.title)}</span><span class="block text-xs v2-mut mt-0.5 truncate">${EVT_TYPE_NAME[t]}${evt.time ? ' · ' + escH(evt.time) : ''}${evt.location ? ' · ' + escH(evt.location) : ''}</span></span>
+        ${right || ''}
+      </button>`;
     }
 
     function renderHome(container) {
@@ -2246,97 +2227,71 @@
           ${pcTag(mvpCardHTML, 'mvp')}
 
           <!-- Box 3: 게시판 요약 -->
-          <section data-pc="board" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>📋</span> 게시판 최신글</h2>
-              <button onclick="window.switchTab('board')" class="text-xs text-indigo-900 font-bold hover:underline">전체보기 →</button>
+          <section data-pc="board" class="v2-card">
+            <div class="v2-head" style="margin-bottom:4px">
+              <h2 class="v2-h"><span>📋</span> 게시판 최신글</h2>
+              <button onclick="window.switchTab('board')" class="v2-more">전체보기</button>
             </div>
-            <ul class="divide-y divide-gray-100">
-              ${pagedPosts.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">등록된 글이 없습니다.</p>' : ''}
+            <div>
+              ${pagedPosts.length === 0 ? '<p class="text-xs v2-mut py-6 text-center">등록된 글이 없습니다.</p>' : ''}
               ${pagedPosts.map(post => `
-                <li onclick="window.openPostDetail('${post.id}')" class="py-2 flex justify-between items-center text-xs cursor-pointer hover:bg-gray-50 rounded-lg px-1 gap-2">
-                  <div class="flex items-center gap-1.5 min-w-0">
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${post.type === '공지' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}">${post.type}</span>
-                    <span class="font-medium text-gray-800 truncate">${escH(post.title)}</span>
-                    ${post.videoUrl ? '<span class="text-[10px] shrink-0">🎥</span>' : post.image ? '<span class="text-[10px] shrink-0">🖼️</span>' : ''}
-                  </div>
-                  <span class="text-gray-400 text-[10px] sm:text-[11px] shrink-0">${post.date}</span>
-                </li>
+                <button onclick="window.openPostDetail('${post.id}')" class="v2-row">
+                  <span class="v2-tag ${post.type === '공지' ? 'is-red' : 'is-soft'}">${post.type}</span>
+                  <span class="v2-ell">${escH(post.title)}</span>
+                  <span class="text-xs v2-mut shrink-0">${(post.date || '').substring(5)}</span>
+                </button>
               `).join('')}
-            </ul>
+            </div>
             ${renderPaginationUI(sampleData.boardPosts.length, 5, pageState.homePosts, 'changeHomePostsPage')}
           </section>
 
           <!-- Box 4: 다가오는 일정 -->
-          <section data-pc="upcoming" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 다가오는 일정</h2>
-              <button onclick="window.switchTab('calendar')" class="text-xs text-indigo-900 font-bold hover:underline">캘린더 →</button>
+          <section data-pc="upcoming" class="v2-card">
+            <div class="v2-head">
+              <h2 class="v2-h"><span>📅</span> 다가오는 일정</h2>
+              <button onclick="window.switchTab('calendar')" class="v2-more">캘린더</button>
             </div>
-            <div class="space-y-2">
-              ${pagedUpcomingEvents.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">다가오는 일정이 없습니다.</p>' : ''}
-              ${pagedUpcomingEvents.map(evt => `
-                <div onclick="window.openEventDetail('${evt.id}')" class="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-indigo-50/50 cursor-pointer rounded-xl transition gap-2">
-                  <div class="flex items-center gap-2.5 min-w-0">
-                    <div class="text-center bg-white border border-gray-200 px-1.5 py-0.5 rounded-lg shadow-sm shrink-0">
-                      <span class="text-[10px] sm:text-[11px] font-bold text-indigo-900 block">${evt.date ? evt.date.substring(5) : ''}</span>
-                    </div>
-                    <span class="text-xs font-bold text-gray-800 truncate">${escH(evt.title)} (${evt.time || ''})</span>
-                  </div>
-                  ${getCategoryBadge(evt.type)}
-                </div>
-              `).join('')}
+            <div class="flex flex-col gap-2">
+              ${pagedUpcomingEvents.length === 0 ? '<p class="text-xs v2-mut py-6 text-center">다가오는 일정이 없습니다.</p>' : ''}
+              ${pagedUpcomingEvents.map(evt => evtRowHTML(evt, `window.openEventDetail('${evt.id}')`)).join('')}
             </div>
             ${renderPaginationUI(upcomingEvents.length, 5, pageState.homeUpcomingEvents, 'changeHomeUpcomingEventsPage')}
           </section>
         </div>
 
         <!-- Box 5: 영상게시판 -->
-        <section data-pc="video" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-2"><span>🎥</span> VEGA 경기 & 훈련 영상</h2>
-            <button onclick="window.switchTab('board', '영상게시판')" class="text-xs text-indigo-900 font-bold hover:underline">더보기 →</button>
+        <section data-pc="video" class="v2-card">
+          <div class="v2-head" style="margin-bottom:4px">
+            <h2 class="v2-h"><span>🎥</span> VEGA 경기 · 훈련 영상</h2>
+            <button onclick="window.switchTab('board', '영상게시판')" class="v2-more">더보기</button>
           </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            ${videoPosts.length === 0 ? '<p class="text-xs text-gray-400 py-5 text-center col-span-full">등록된 동영상이 없습니다.</p>' : ''}
+          <div>
+            ${videoPosts.length === 0 ? '<p class="text-xs v2-mut py-5 text-center">등록된 영상이 없습니다.</p>' : ''}
             ${pagedVideoPosts.map(v => `
-              <div onclick="${v.videoUrl ? `window.openYouTubeLink('${v.videoUrl}')` : `window.openPostDetail('${v.id}')`}" class="p-3 bg-red-50 hover:bg-red-100/70 border border-red-100 rounded-xl cursor-pointer transition flex flex-col justify-between">
-                <div>
-                  <div class="flex items-center justify-between text-[10px] font-bold text-red-700 mb-1">
-                    <span>🎬 YouTube</span>
-                    <span>${v.date}</span>
-                  </div>
-                  <h4 class="text-xs font-bold text-gray-900 line-clamp-2 mb-2">${v.title}</h4>
-                </div>
-                <button class="w-full bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold py-1.5 rounded-lg flex items-center justify-center gap-1 shadow-sm">
-                  <span>▶️ 바로 시청</span>
-                </button>
-              </div>
+              <button onclick="${v.videoUrl ? `window.openYouTubeLink('${v.videoUrl}')` : `window.openPostDetail('${v.id}')`}" class="v2-video">
+                <span class="play" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span>
+                <span class="min-w-0 flex-1"><span class="block text-sm font-bold truncate">${escH(v.title)}</span><span class="block text-xs v2-mut mt-0.5">YouTube · ${v.date}</span></span>
+              </button>
             `).join('')}
           </div>
           ${renderPaginationUI(videoPosts.length, 4, pageState.homeVideoPosts, 'changeHomeVideoPostsPage')}
         </section>
 
         <!-- [추가] Box 6: 익명 건의사항 (홈 최하단) -->
-        <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 mt-5">
-          <div class="flex justify-between items-center mb-3">
-            <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-2"><span>💬</span> 건의사항</h2>
-            <button onclick="window.switchTab('board', '🔒 익명 건의사항')" class="text-xs text-indigo-900 font-bold hover:underline">내 건의사항 보기 →</button>
+        <section class="v2-card mt-5">
+          <div class="v2-head">
+            <h2 class="v2-h"><span>🔒</span> 건의사항</h2>
+            <button onclick="window.switchTab('board', '🔒 익명 건의사항')" class="v2-more">내 건의사항</button>
           </div>
-          <div class="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed p-2.5 rounded-xl mb-3">
-            🔒 <strong>비밀글 · 익명</strong>으로 등록됩니다. 작성자 이름은 누구에게도 표시되지 않으며,
-            내용은 <strong>운영진</strong>과 <strong>작성자 본인</strong>만 볼 수 있습니다.
-          </div>
+          <p class="v2-note">익명 비밀글로 등록돼요. 작성자 이름은 누구에게도 보이지 않고, 내용은 운영진과 나만 볼 수 있어요.</p>
+          <label for="homeSuggestionInput" class="sr-only">건의사항</label>
           <textarea id="homeSuggestionInput" rows="3" maxlength="500"
             oninput="window.handleHomeSuggestionInput(this)"
-            placeholder="${currentUser ? '운영진에게 전하고 싶은 의견을 자유롭게 남겨 주세요.' : '로그인 후 건의사항을 등록할 수 있습니다.'}"
-            class="w-full p-3 border border-gray-300 rounded-xl text-xs leading-relaxed resize-none focus:ring-2 focus:ring-indigo-600 focus:outline-none">${homeSuggestionDraft.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            placeholder="${currentUser ? '운영진에게 전하고 싶은 의견을 남겨 주세요.' : '로그인 후 건의사항을 등록할 수 있습니다.'}"
+            class="w-full p-3 border border-gray-300 rounded-xl text-sm leading-relaxed resize-none focus:ring-2 focus:ring-indigo-600 focus:outline-none">${homeSuggestionDraft.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
           <div class="flex justify-between items-center mt-2">
-            <span id="homeSuggestionCounter" class="text-[11px] text-gray-400">${homeSuggestionDraft.length} / 500</span>
-            <button id="homeSuggestionSubmitBtn" onclick="window.submitHomeSuggestion()" class="bg-indigo-950 hover:bg-indigo-900 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition">
-              🔒 건의사항 등록
-            </button>
+            <span id="homeSuggestionCounter" class="text-xs v2-mut">${homeSuggestionDraft.length} / 500</span>
+            <button id="homeSuggestionSubmitBtn" onclick="window.submitHomeSuggestion()" class="v2-btn is-ink">건의사항 등록</button>
           </div>
         </section>
       `;
@@ -2414,43 +2369,30 @@
     function renderCalSideHTML() {
       const regs = sampleData.events.filter(e => e.type === 'regular' && !isEventPast(e)).sort((a, b) => a.date.localeCompare(b.date));
       const evt = regs.find(e => e.date === selectedHomeDate) || regs[0];
-      let voteHTML = '<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-xs text-gray-400 text-center">다가오는 정기운동이 없습니다.</div>';
+      let voteHTML = '<section class="v2-card text-sm v2-mut text-center">다가오는 정기운동이 없습니다.</section>';
       if (evt) {
         const votes = sampleData.regularVotesByDate[evt.date] || {};
         let a = 0, b = 0, c = 0;
         sampleData.members.forEach(m => { const v = votes[m.name]; if (v === '참가') a++; else if (v === '불참') b++; else c++; });
-        const my = currentUser ? (votes[currentUser.name] || '미정') : '미정';
-        const btn = (st, on) => `<button onclick="window.updateHomeAttendance('${evt.date}', '${st}')" class="py-2.5 rounded-xl font-bold text-xs ${my === st ? on : 'bg-white text-gray-700 border border-gray-200'}">${st}</button>`;
+        const g = approvedGuests(evt.date).length;
+        const my = currentUser ? votes[currentUser.name] : null;
+        const d = new Date(evt.date + 'T00:00:00');
         voteHTML = `
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div class="flex justify-between items-center gap-2 mb-2">
-              <span class="text-[11px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">정기운동 투표</span>
-              ${regs.length > 1 ? `<select onchange="window.pcCalPick(this.value)" class="p-1 border border-gray-300 rounded-lg text-xs font-bold bg-gray-50">${regs.map(e => `<option value="${e.date}" ${e.date === evt.date ? 'selected' : ''}>${e.date}</option>`).join('')}</select>` : ''}
-            </div>
-            <h3 class="text-base font-black text-gray-900">${evt.date} ${escH(evt.title || '정기운동')}</h3>
-            <p class="text-xs text-gray-500 mb-3">📍 ${escH(evt.location || '순천 조례초')}${evt.time ? ' · ' + escH(evt.time) : ''}</p>
-            <div class="grid grid-cols-3 gap-2 text-center mb-3">
-              <div class="bg-emerald-50 rounded-xl py-2"><p class="text-[11px] font-bold text-emerald-700">참가</p><p class="text-lg font-black text-emerald-700">${a}${approvedGuests(evt.date).length ? `<span class="text-xs font-bold text-indigo-700"> +${approvedGuests(evt.date).length}</span>` : ''}</p></div>
-              <div class="bg-rose-50 rounded-xl py-2"><p class="text-[11px] font-bold text-rose-700">불참</p><p class="text-lg font-black text-rose-700">${b}</p></div>
-              <div class="bg-amber-50 rounded-xl py-2"><p class="text-[11px] font-bold text-amber-700">미정</p><p class="text-lg font-black text-amber-700">${c}</p></div>
-            </div>
-            <div class="grid grid-cols-3 gap-1.5">${btn('참가', 'bg-emerald-600 text-white')}${btn('불참', 'bg-rose-600 text-white')}${btn('미정', 'bg-amber-500 text-white')}</div>
-          </div>`;
+          <section class="vx-board" aria-label="정기운동 투표">
+            ${regs.length > 1 ? `<div class="vx-chips-row" role="group" aria-label="정기운동 날짜 선택">${regs.slice(0, 6).map(e => { const dd = new Date(e.date + 'T00:00:00'); const on = e.date === evt.date; return `<button onclick="window.pcCalPick('${e.date}')" aria-pressed="${on}" class="vx-chip ${on ? 'is-on' : ''}">${dd.getMonth() + 1}/${dd.getDate()} ${'일월화수목금토'[dd.getDay()]}</button>`; }).join('')}</div>` : ''}
+            <h3 class="vx-board-title">${escH(evt.title || '정기운동')}</h3>
+            <p class="vx-board-sub">${d.getMonth() + 1}월 ${d.getDate()}일${evt.time ? ' ' + escH(evt.time) : ''} · ${escH(evt.location || '순천 조례초')}</p>
+            ${renderScoreboardHTML(a, g, b, c, my || '미정')}
+            ${currentUser ? `<div class="vx-vote-row">${['참가', '불참', '미정'].map(st => `<button onclick="window.updateHomeAttendance('${evt.date}', '${st}')" aria-pressed="${my === st}" class="vx-vote-btn ${my === st ? 'is-on is-' + ({ '참가': 'yes', '불참': 'no', '미정': 'maybe' })[st] : ''}">${st}</button>`).join('')}</div>` : ''}
+          </section>`;
       }
-      const typeName = { regular: '정기', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' };
-      const ups = sampleData.events.filter(e => !isEventPast(e)).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 8);
+      const ups = sampleData.events.filter(e => !isEventPast(e)).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 6);
       const listHTML = `
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-5">
-          <h3 class="text-sm font-black text-gray-900 mb-3">다가오는 일정</h3>
-          ${ups.length === 0 ? '<p class="text-xs text-gray-400">예정된 일정이 없습니다.</p>' : ''}
-          <div class="space-y-1.5">
-            ${ups.map(e => `<div onclick="window.openEventDetail('${e.id}')" class="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 cursor-pointer text-xs">
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 shrink-0">${typeName[e.type] || '기타'}</span>
-              <span class="font-bold text-gray-900 shrink-0">${e.date.slice(5)}</span>
-              <span class="text-gray-600 truncate">${escH(e.title || '')}</span>
-            </div>`).join('')}
-          </div>
-        </div>`;
+        <section class="v2-card mt-5">
+          <div class="v2-head"><h3 class="v2-h"><span>📅</span> 다가오는 일정</h3></div>
+          ${ups.length === 0 ? '<p class="text-sm v2-mut m-0">예정된 일정이 없습니다.</p>' : ''}
+          <div class="flex flex-col gap-2">${ups.map(e => evtRowHTML(e, `window.openEventDetail('${e.id}')`)).join('')}</div>
+        </section>`;
       return voteHTML + listHTML;
     }
     /* 창 크기가 PC↔모바일 기준을 넘나들면 화면을 다시 그림 */
@@ -2818,8 +2760,81 @@
     }
 
     /* 수정사항 1: 캘린더에 시간 제외 제목만 노출 (displayEventTime: false 지정 및 title 시간 표기 제거) */
+    /* [디자인 2차] 일정 탭: 검정 머리(월 이름 · 이동 버튼) + 종류별 색 + 날짜를 누르면 그날 일정 + 이번 달 주요 일정 */
+    let calSelDate = null;
+    const CAL_COLORS = { regular: ['#D91920', '#ffffff'], match: ['#FFB61E', '#0A0A0A'], friendly: ['#0A0A0A', '#ffffff'], dinner: ['#71717a', '#ffffff'], etc: ['#d4d4d8', '#0A0A0A'] };
+    function calMonthKey() { const d = calInst ? calInst.getDate() : (calViewDate || new Date()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+    function renderCalTitle() {
+      const d = calInst ? calInst.getDate() : (calViewDate || new Date());
+      const y = document.getElementById('calTitleY'), m = document.getElementById('calTitleM');
+      if (y) y.textContent = d.getFullYear();
+      if (m) m.textContent = (d.getMonth() + 1) + '월';
+    }
+    function renderCalDayHTML() {
+      if (!calSelDate) return '';
+      const d = new Date(calSelDate + 'T00:00:00');
+      const evs = sampleData.events.filter(e => e.date === calSelDate).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+      const hol = typeof getKoreanHolidayName === 'function' ? getKoreanHolidayName(d) : '';
+      return `<section class="v2-card" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일 일정">
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="v2-num" style="font-size:30px">${d.getDate()}</span><span class="text-sm font-bold">${'일월화수목금토'[d.getDay()]}요일</span>${hol ? `<span class="v2-tag is-red">${escH(hol)}</span>` : ''}
+          <span class="text-xs v2-mut ml-auto">일정 ${evs.length}개</span>
+        </div>
+        ${evs.length === 0 ? '<p class="text-sm v2-mut m-0">이 날은 일정이 없어요.</p>' : ''}
+        <div class="flex flex-col gap-2">
+        ${evs.map(e => {
+          const t = CAL_COLORS[e.type] ? e.type : 'etc';
+          const name = ({ regular: '정기운동', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' })[t];
+          const isReg = t === 'regular';
+          const votes = sampleData.regularVotesByDate[e.date] || {};
+          const my = currentUser ? votes[currentUser.name] : null;
+          const canVote = isReg && !isEventPast(e) && currentUser && (currentUser.role === 'admin' || currentUser.role === 'member');
+          return `<div class="v2-plate" style="padding:14px;border-radius:12px">
+            <div class="flex items-center gap-2"><span class="v2-tag" style="background:${CAL_COLORS[t][0]};color:${CAL_COLORS[t][1]};${t === 'friendly' ? 'box-shadow:inset 0 0 0 1px #52525b' : ''}">${name}</span>${e.time ? `<span class="v2-num" style="font-size:20px;color:#FFB61E">${escH(e.time)}</span>` : ''}
+              <button onclick="window.openEventDetail('${e.id}')" class="v2-btn is-sm ml-auto">자세히</button></div>
+            <p class="m-0 mt-2 text-base font-bold">${escH(e.title)}</p>
+            <p class="m-0 mt-1 text-[13px]" style="color:#a1a1aa">${escH(e.location || '장소 미정')}</p>
+            ${canVote ? `<div class="grid grid-cols-3 gap-1.5 mt-3">${['참가', '불참', '미정'].map(st => `<button onclick="window.updateHomeAttendance('${e.date}', '${st}')" aria-pressed="${my === st}" class="vx-vote-btn ${my === st ? 'is-on is-' + ({ '참가': 'yes', '불참': 'no', '미정': 'maybe' })[st] : ''}">${st}</button>`).join('')}</div>` : ''}
+          </div>`;
+        }).join('')}
+        </div>
+      </section>`;
+    }
+    function renderCalMonthHTML() {
+      const isAdmin = !!(currentUser && currentUser.role === 'admin');
+      const mk = calMonthKey();
+      const evs = sampleData.events.filter(e => (e.date || '').startsWith(mk) && e.type !== 'regular').sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+      return `<section class="v2-card" aria-label="이번 달 주요 일정">
+        <div class="v2-head" style="margin-bottom:4px">
+          <h2 class="v2-h"><span>📋</span> ${parseInt(mk.substring(5), 10)}월 주요 일정</h2>
+          ${isAdmin ? '<button onclick="window.openAddEventModal()" class="v2-btn is-ink is-sm">일정 추가</button>' : ''}
+        </div>
+        <p class="text-xs v2-mut mt-0 mb-3">정기운동은 달력에서 확인하세요${isAdmin ? ' · 일정을 누르면 수정·삭제할 수 있어요' : ''}</p>
+        ${evs.length === 0 ? '<p class="text-sm v2-mut m-0 py-2">이 달에는 대회 · 친선전 · 회식 일정이 없어요.</p>' : ''}
+        <div class="flex flex-col gap-2">${evs.map(e => evtRowHTML(e, `window.openEventDetail('${e.id}')`)).join('')}</div>
+      </section>`;
+    }
+    function refreshCalPanels() {
+      const day = document.getElementById('calDay'), mon = document.getElementById('calMonth');
+      if (day) day.innerHTML = renderCalDayHTML();
+      if (mon) mon.innerHTML = renderCalMonthHTML();
+      if (calEl) calEl.querySelectorAll('.fc-daygrid-day').forEach(td => td.classList.toggle('is-sel', td.getAttribute('data-date') === calSelDate));
+      renderCalTitle();
+    }
+    window.calNav = (dir) => {
+      if (!calInst) return;
+      if (dir === 0) calInst.today(); else if (dir < 0) calInst.prev(); else calInst.next();
+    };
+    window.calPickDate = (ds) => {
+      calSelDate = ds;
+      refreshCalPanels();
+      const day = document.getElementById('calDay');
+      if (day && day.firstElementChild && window.innerWidth < 1024) day.firstElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
     function renderCalendarTab(container) {
       const isAdmin = !!(currentUser && currentUser.role === 'admin');
+      if (!calSelDate) calSelDate = getTodayString();
 
       /* [개선] 이미 화면에 달력이 있으면 새로 만들지 않고 일정만 바꿔 끼움 → 깜빡임·보던 달 초기화·메모리 누적 방지 */
       if (calInst && calEl && container.contains(calEl) && calAdminKey === isAdmin) {
@@ -2828,33 +2843,33 @@
         scheduleCalendarFit(calEl);
         const side = document.getElementById('calSide');
         if (side) side.innerHTML = renderCalSideHTML();
+        refreshCalPanels();
         return;
       }
       destroyCalendar();
       calAdminKey = isAdmin;
 
-      /* [PC] 달력 + 오른쪽 칸(정기운동 투표·다가오는 일정). 모바일에서는 오른쪽 칸이 숨겨져 지금과 같음 */
+      const legend = [['regular', '정기'], ['match', '대회'], ['friendly', '친선전'], ['dinner', '회식'], ['etc', '기타']];
       container.innerHTML = `
         <div class="pc-cal">
-        <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex justify-between items-center mb-3">
-            <h2 class="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2"><span>📅</span> VEGA 일정표</h2>
-            ${isAdmin ? `
-              <button onclick="window.openAddEventModal()" class="bg-indigo-950 text-white text-[11px] sm:text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-900 shadow-sm transition">
-                + 일정 추가
-              </button>
-            ` : ''}
-          </div>
-          ${isAdmin ? `
-            <p class="text-[11px] text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 mb-3 leading-relaxed">
-              ✏️ 달력의 일정을 클릭하면 상세 화면에서 <strong>바로 수정 · 삭제</strong>할 수 있습니다.
-            </p>
-          ` : ''}
-          <div id="calendar" class="w-full"></div>
+        <div class="flex flex-col gap-4">
+          <section class="v2-calcard" aria-label="달력">
+            <div class="v2-calhead">
+              <div class="flex-1"><p id="calTitleY" class="m-0 text-xs font-bold" style="color:#a1a1aa"></p><p id="calTitleM" class="v2-num m-0" style="font-size:34px;margin-top:2px"></p></div>
+              <button onclick="window.calNav(0)" class="v2-btn is-sm">오늘</button>
+              <button onclick="window.calNav(-1)" class="v2-btn v2-icobtn" aria-label="이전 달"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+              <button onclick="window.calNav(1)" class="v2-btn v2-icobtn" aria-label="다음 달"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="v2-legend">${legend.map(([k, n]) => `<span><i style="background:${CAL_COLORS[k][0]}"></i>${n}</span>`).join('')}</div>
+            <div id="calendar" class="w-full"></div>
+          </section>
+          <div id="calDay">${renderCalDayHTML()}</div>
+          <div id="calMonth">${renderCalMonthHTML()}</div>
         </div>
         <aside id="calSide" class="pc-only">${renderCalSideHTML()}</aside>
         </div>
       `;
+      renderCalTitle();
       const calendarEl = document.getElementById('calendar');
       setTimeout(() => {
         if (!calendarEl || !document.body.contains(calendarEl) || calInst) return;   /* 그 사이 다른 탭으로 이동했으면 생략 */
@@ -2866,9 +2881,15 @@
           height: 'auto',
           contentHeight: 'auto',
           aspectRatio: 1.1,
-          displayEventTime: false, // 달력 이벤트 박스 내의 시간 텍스트 표시 비활성화
-          headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+          displayEventTime: false,
+          headerToolbar: false,   /* [디자인 2차] 월 이름·이동 버튼은 위 검정 머리에서 */
+          dayMaxEvents: 2,
           events: buildCalendarEvents(),
+          dayCellClassNames: function(arg) {
+            const y = arg.date.getFullYear(), m = String(arg.date.getMonth() + 1).padStart(2, '0'), d = String(arg.date.getDate()).padStart(2, '0');
+            return (`${y}-${m}-${d}` === calSelDate) ? ['is-sel'] : [];
+          },
+          dateClick: function(info) { window.calPickDate(info.dateStr); },
           dayCellDidMount: function(arg) {
             const hName = getKoreanHolidayName(arg.date);
             if (hName) {
@@ -2883,14 +2904,18 @@
             }
           },
           eventDidMount: function() {
-            // 셀 레이아웃이 완전히 잡힌 뒤 전체 글자 크기를 한 번에 맞춤
             scheduleCalendarFit(calendarEl);
           },
           datesSet: function() {
             if (calInst) calViewDate = calInst.getDate();
+            renderCalTitle();
+            const mon = document.getElementById('calMonth');
+            if (mon) mon.innerHTML = renderCalMonthHTML();
             scheduleCalendarFit(calendarEl);
           },
           eventClick: function(info) {
+            const ds = info.event.extendedProps && info.event.extendedProps.date;
+            if (ds) { calSelDate = ds; refreshCalPanels(); }
             window.openEventDetail(info.event.id);
           },
           windowResize: function() {
@@ -2899,27 +2924,23 @@
         });
         calInst.render();
         calEl = calendarEl;
+        renderCalTitle();
         scheduleCalendarFit(calendarEl);
       }, 50);
     }
 
     function buildCalendarEvents() {
       return sampleData.events.map(evt => {
-          let icon = '🏐';
-          let bgColor = '#c8141b';
-          if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
-          else if (evt.type === 'friendly') { icon = '🤝'; bgColor = '#059669'; }
-          else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
-          else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }
-
-          return {
-            id: evt.id,
-            title: `${icon} ${evt.title}`,
-            start: `${evt.date}T${evt.time || '00:00'}:00`,
-            color: bgColor,
-            extendedProps: { ...evt }
-          };
-        });
+        const c = CAL_COLORS[evt.type] || CAL_COLORS.etc;
+        return {
+          id: evt.id,
+          title: evt.title,
+          start: `${evt.date}T${evt.time || '00:00'}:00`,
+          color: c[0],
+          textColor: c[1],
+          extendedProps: { ...evt }
+        };
+      });
     }
 
     /* [수정] 일정 상세 모달: 운영진에게 수정/삭제 버튼 노출 */
@@ -3036,60 +3057,54 @@
         : '등록된 내용이 없습니다.';
 
       container.innerHTML = `
-        <div data-pc="board-card" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
-          <div data-pc="board-tabs" class="flex border-b border-gray-200 mb-4 overflow-x-auto gap-1.5 pb-2 scrollbar-none">
+        <div data-pc="board-card" class="v2-boardwrap">
+          <div data-pc="board-tabs" role="tablist" aria-label="게시판 종류" class="v2-tabs">
             ${categories.map(cat => `
-              <button onclick="window.changeCategory('${cat}')" class="px-3 py-1.5 text-xs font-bold whitespace-nowrap rounded-xl shrink-0 ${currentBoardCategory === cat ? 'bg-indigo-950 text-white' : 'text-gray-500 hover:bg-gray-100'}">
-                ${cat}
-              </button>
+              <button role="tab" aria-selected="${currentBoardCategory === cat}" onclick="window.changeCategory('${cat}')" class="${currentBoardCategory === cat ? 'is-on' : ''}">${({ '영상게시판': '영상', '🔒 익명 건의사항': '익명 건의' })[cat] || cat}</button>
             `).join('')}
           </div>
 
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-sm sm:text-base font-black text-gray-900">${currentBoardCategory}</h3>
-            <button onclick="window.openWritePostModal()" class="bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold shrink-0">+ 글쓰기</button>
+          <div class="flex justify-between items-end gap-3" style="padding:16px 4px 12px">
+            <div class="min-w-0">
+              <h3 class="v2-num" style="margin:0;font-size:26px;color:var(--vg-text)">${currentBoardCategory.replace('🔒 ', '')}</h3>
+              ${(!isSuggestionTab && currentBoardCategory !== '영상게시판') ? '<p class="text-xs v2-mut mt-1 mb-0">최근 1년 글만 보여요 · 영상은 계속 보관</p>' : ''}
+            </div>
+            <button onclick="window.openWritePostModal()" class="v2-btn is-ink shrink-0">글쓰기</button>
           </div>
 
-          ${noticeBanner}
+          ${noticeBanner ? `<div class="v2-board-note">${noticeBanner}</div>` : ''}
 
-          <div class="space-y-2.5">
-            ${pagedPosts.length === 0 ? `<p class="text-xs text-gray-400 py-5 text-center">${emptyMessage}</p>` : ''}
+          <section class="v2-card" style="padding:0 16px" aria-label="글 목록">
+            ${pagedPosts.length === 0 ? `<p class="text-sm v2-mut py-8 text-center m-0">${emptyMessage}</p>` : ''}
             ${pagedPosts.map(p => {
               const clickAction = (p.category === '영상게시판' && p.videoUrl) ? `window.openYouTubeLink('${p.videoUrl}')` : `window.openPostDetail('${p.id}')`;
-              
-              /* [수정] 익명 건의사항은 author가 '익명'이므로 mine 플래그로 본인 여부 판정 */
               const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author || p.mine === true);
-              /* [추가] 수정은 작성자 본인만 가능 (운영진도 남의 글은 수정 불가) */
               const canEdit = currentUser && (p.mine === true || (p.category !== '🔒 익명 건의사항' && p.author === currentUser.name));
-
+              const isNew = p.date && Math.round((new Date(getTodayString()) - new Date(p.date)) / 86400000) <= 3;
+              const excerpt = escH((p.content || '').replace(/\s+/g, ' ').trim().slice(0, 80));
+              const isDetail = clickAction.startsWith('window.openPostDetail');
               return `
-                <div ${clickAction.startsWith('window.openPostDetail') ? `data-pc-post="${p.id}"` : ''} class="p-3 bg-gray-50 rounded-xl flex justify-between items-center cursor-pointer hover:bg-indigo-50/60 transition gap-2" onclick="${clickAction}">
-                  <!-- [변경] 제목을 먼저 크게, 작성자·날짜는 아래 작게. 수정·삭제는 글을 열었을 때 (바로 유튜브로 가는 영상 글만 목록에 버튼 유지) -->
-                  <div class="min-w-0 flex-1">
-                    <h4 class="text-sm font-bold text-gray-900 truncate">${escH(p.title)}</h4>
-                    <div class="flex items-center gap-1.5 flex-wrap mt-1">
-                      <span class="text-[11px] font-bold text-gray-600">${escH(p.author)}</span>
-                      <span class="text-[11px] text-gray-400">${p.date}</span>
-                      ${p.mine ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">내 글</span>' : ''}
-                      ${p.itemCategory ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 shrink-0">${p.itemCategory}</span>` : ''}
-                      ${p.status ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status === '진행중' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'}">${p.status}</span>` : ''}
-                      ${p.videoUrl ? '<span class="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-bold shrink-0">▶️ YouTube</span>' : ''}
-                      ${p.image ? '<span class="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold shrink-0">📷 사진</span>' : ''}
-                    </div>
-                  </div>
-                  ${clickAction.startsWith('window.openPostDetail')
-                    ? '<svg class="shrink-0 text-gray-300" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'
-                    : `<div class="flex items-center gap-1.5 shrink-0">
-                    ${canEdit ? `<button onclick="event.stopPropagation(); window.openEditPost('${p.id}')" class="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg font-bold border border-indigo-200">수정</button>` : ''}
-                    ${canDelete ? `<button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}', '${p.category}')" class="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg font-bold border border-rose-200">삭제</button>` : ''}
-                  </div>`}
+                <div ${isDetail ? `data-pc-post="${p.id}"` : ''} class="v2-post" role="button" tabindex="0" onclick="${clickAction}" onkeydown="if(event.key==='Enter')this.click()">
+                  <p class="t">${isNew ? '<span class="v2-tag is-red">NEW</span>' : ''}<span class="v2-ell">${escH(p.title)}</span></p>
+                  ${excerpt ? `<p class="x">${excerpt}</p>` : ''}
+                  <p class="m">
+                    <span class="a">${escH(p.author)}</span><span>${(p.date || '').substring(5)}</span>
+                    ${p.mine ? '<span class="v2-tag is-ink">내 글</span>' : ''}
+                    ${p.itemCategory ? `<span class="v2-tag is-ghost">${p.itemCategory}</span>` : ''}
+                    ${p.status ? `<span class="v2-tag ${p.status === '진행중' ? 'is-amber' : 'is-soft'}">${p.status}</span>` : ''}
+                    ${p.videoUrl ? '<span class="v2-tag is-red">YouTube</span>' : ''}
+                    ${p.image ? '<span class="v2-tag is-soft">사진</span>' : ''}
+                    ${!isDetail ? `<span class="ml-auto flex gap-1.5">
+                      ${canEdit ? `<button onclick="event.stopPropagation(); window.openEditPost('${p.id}')" class="v2-btn is-sm">수정</button>` : ''}
+                      ${canDelete ? `<button onclick="event.stopPropagation(); window.deletePostByAdmin('${p.id}', '${p.category}')" class="v2-btn is-sm" style="color:var(--vg-red-text)">삭제</button>` : ''}
+                    </span>` : ''}
+                  </p>
                 </div>
               `;
             }).join('')}
-          </div>
+          </section>
           ${renderPaginationUI(posts.length, 5, pageState.boardPosts, 'changeBoardPage')}
-          ${(!isSuggestionTab && currentBoardCategory !== '영상게시판' && postsHasMore) ? `<button onclick="window.loadMorePosts()" class="w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl">이전 글 더보기 ▾</button>` : ''}
-          ${(!isSuggestionTab && currentBoardCategory !== '영상게시판') ? '<p class="text-[11px] text-gray-400 text-center mt-2">게시글은 최근 1년치만 표시돼요. (영상게시판은 계속 보관)</p>' : ''}
+          ${(!isSuggestionTab && currentBoardCategory !== '영상게시판' && postsHasMore) ? `<button onclick="window.loadMorePosts()" class="v2-btn w-full mt-3">이전 글 더보기</button>` : ''}
         </div>
       `;
       pcDockBoard(container);
@@ -3546,69 +3561,56 @@
 
       container.innerHTML = `
         <div class="space-y-4 sm:space-y-5">
-          <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-            <div>
-              <span class="text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">${roleLabels[currentUser.role] || '일반회원'}</span>
-              <h2 class="text-lg sm:text-xl font-black text-gray-900 mt-1">${currentUser.name} 님</h2>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-1.5 shrink-0">
-              <button onclick="window.openPasswordModal(false)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl border border-gray-200 transition">
-                🔑 비밀번호 변경
-              </button>
-              <button onclick="window.handleLogout()" class="bg-white hover:bg-gray-50 text-gray-500 text-xs font-bold px-3 py-2 rounded-xl border border-gray-200 transition">로그아웃</button>
-            </div>
-          </div>
-
-          <div class="bg-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
-            <h3 class="text-xs sm:text-sm font-black text-indigo-200 mb-3 flex items-center gap-1.5"><span>📊</span> 개인 출석 및 활동 요약</h3>
-            ${(() => { const _me = sampleData.members.find(x => x.name === currentUser.name); return _me && _me.joinDate ? `<p class="text-[11px] text-indigo-200 -mt-2 mb-3">출석은 가입일(${_me.joinDate})부터 집계돼요.</p>` : ''; })()}
-            <div class="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
-                <span class="text-[11px] text-indigo-200 block mb-1">나의 출석률</span>
-                <span class="text-xl font-black text-amber-400">${stats.myAttendance}</span>
+          ${(() => {
+            const _me = sampleData.members.find(x => x.name === currentUser.name);
+            const jd = _me && _me.joinDate ? _me.joinDate.split('-') : null;
+            const rate = String(stats.myAttendance).replace('%', '');
+            const cnt = String(stats.myCount).split('/')[0].replace(/[^0-9]/g, '') || '0';
+            return `<section class="v2-plate" style="padding:0;overflow:hidden" aria-label="내 프로필">
+              <div class="flex justify-between items-start gap-3" style="padding:18px 16px 14px">
+                <div class="min-w-0">
+                  <span class="v2-tag ${currentUser.role === 'coach' ? 'is-amber' : 'is-red'}">${roleLabels[currentUser.role] || '일반회원'}</span>
+                  <p class="v2-num" style="margin:8px 0 0;font-size:32px;color:#fff">${_me && _me.number !== undefined && _me.number !== '' ? `<span style="color:#FFB61E;margin-right:8px">${escH(String(_me.number))}</span>` : ''}${escH(currentUser.name)}</p>
+                  ${jd ? `<p class="text-xs" style="margin:6px 0 0;color:#a1a1aa">${jd[0]}년 ${parseInt(jd[1], 10)}월 ${parseInt(jd[2], 10)}일 가입 · 그날부터 출석을 세요</p>` : ''}
+                </div>
+                <div class="flex flex-col gap-1.5 shrink-0">
+                  <button onclick="window.openPasswordModal(false)" class="v2-btn is-sm">비밀번호 변경</button>
+                  <button onclick="window.handleLogout()" class="v2-btn is-sm">로그아웃</button>
+                </div>
               </div>
-              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
-                <span class="text-[11px] text-indigo-200 block mb-1">출석 횟수</span>
-                <span class="text-xl font-black text-emerald-400">${stats.myCount}</span>
+              <div class="v2-stats" style="margin-top:0">
+                <div style="padding-bottom:14px"><span class="v2-num is-red">${rate}<small>%</small></span><p>출석률</p></div>
+                <div style="padding-bottom:14px"><span class="v2-num">${cnt}<small>회</small></span><p>출석</p></div>
+                <div style="padding-bottom:14px"><span class="v2-num is-amber">${myStreak.current}<small>회</small></span><p>연속 출석</p></div>
               </div>
-              <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
-                <span class="text-[11px] text-indigo-200 block mb-1">연속 출석</span>
-                <span class="text-xl font-black text-rose-400">🔥 ${myStreak.current}회</span>
-              </div>
-            </div>
-          </div>
+            </section>`;
+          })()}
 
           ${renderBadgesCardHTML(currentUser.name)}
 
           <!-- 내가 작성한 글 -->
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>📝</span> 내가 작성한 글 (${myPosts.length})</h3>
-            <div class="space-y-2">
+          <section class="v2-card">
+            <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>📝</span> 내가 쓴 글</h3><span class="v2-num" style="font-size:18px">${myPosts.length}</span></div>
+            <div>
               ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 게시글이 없습니다.</p>' : ''}
               ${pagedMyPosts.map(p => `
-                <div onclick="window.openPostDetail('${p.id}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
-                  <span class="font-bold text-gray-800 truncate">${escH(p.title)}</span>
-                  <span class="text-gray-400 text-[10px] shrink-0 ml-2">${p.date}</span>
-                </div>
+                <button onclick="window.openPostDetail('${p.id}')" class="v2-row"><span class="v2-ell font-bold">${escH(p.title)}</span><span class="text-xs v2-mut shrink-0">${(p.date || '').substring(5)}</span></button>
               `).join('')}
             </div>
             ${renderPaginationUI(myPosts.length, 5, pageState.myPosts, 'changeMyPostsPage')}
-          </div>
+          </section>
 
           <!-- 내가 작성한 댓글 -->
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <h3 class="text-xs sm:text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span>💬</span> 내가 작성한 댓글 (${myComments.length})</h3>
-            <div class="space-y-2">
+          <section class="v2-card">
+            <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>💬</span> 내가 쓴 댓글</h3><span class="v2-num" style="font-size:18px">${myComments.length}</span></div>
+            <div>
               ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 댓글이 없습니다.</p>' : ''}
               ${pagedMyComments.map(c => `
-                <div onclick="window.openPostDetail('${c.postId}')" class="flex justify-between items-center text-xs p-2.5 bg-gray-50 hover:bg-indigo-50/50 rounded-xl cursor-pointer">
-                  <span class="text-gray-700 truncate">${escH(c.text)}</span>
-                  <span class="text-gray-400 text-[10px] shrink-0 ml-2">${c.date || ''}</span>
-                </div>
+                <button onclick="window.openPostDetail('${c.postId}')" class="v2-row"><span class="v2-ell">${escH(c.text)}</span><span class="text-xs v2-mut shrink-0">${(c.date || '').substring(5)}</span></button>
               `).join('')}
             </div>
             ${renderPaginationUI(myComments.length, 5, pageState.myComments, 'changeMyCommentsPage')}
-          </div>
+          </section>
         </div>
       `;
     }
@@ -3667,15 +3669,24 @@
 
       container.innerHTML = `
         <div class="space-y-4 sm:space-y-5">
-          <div class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm flex justify-between items-center">
-            <div>
-              <span class="text-[10px] font-bold bg-amber-400 text-indigo-950 px-2 py-0.5 rounded-full">운영진 모드</span>
-              <h2 class="text-lg sm:text-xl font-black mt-1">동호회 종합 관리</h2>
-            </div>
-            <button onclick="window.openWritePostModal('공지사항')" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 text-xs font-bold px-3 py-2 rounded-xl transition shadow-md">
-              📢 공지 작성
-            </button>
-          </div>
+          ${(() => {
+            const nextReg = sampleData.events.filter(e => e.type === 'regular' && !isEventPast(e)).sort((a, b) => a.date.localeCompare(b.date))[0];
+            const nv = nextReg ? sampleData.regularVotesByDate[nextReg.date] || {} : {};
+            const voters = sampleData.members.filter(m => m.role === 'admin' || m.role === 'member');
+            const noVote = nextReg ? voters.filter(m => !nv[m.name]).length : 0;
+            const pend = totalPendingGuests();
+            return `<section class="v2-plate" aria-label="운영진 요약">
+              <div class="flex justify-between items-center gap-3">
+                <div><span class="v2-tag is-amber">운영진 모드</span><h2 class="v2-num" style="margin:8px 0 0;font-size:24px;color:#fff">동호회 종합 관리</h2></div>
+                <button onclick="window.openWritePostModal('공지사항')" class="v2-btn is-red shrink-0">공지 작성</button>
+              </div>
+              <div class="v2-stats">
+                <button onclick="vxJumpCard && vxJumpCard('게스트 승인 요청')"><span class="v2-num ${pend ? 'is-amber' : ''}">${pend}</span><p>게스트 대기</p></button>
+                <button onclick="vxJumpCard && vxJumpCard('투표 독려 문구 복사')"><span class="v2-num">${nextReg ? noVote : '-'}</span><p>${nextReg ? `${parseInt(nextReg.date.substring(5, 7), 10)}/${parseInt(nextReg.date.substring(8), 10)} 미투표` : '미투표'}</p></button>
+                <button onclick="vxJumpCard && vxJumpCard('동호회 회원 명단 관리')"><span class="v2-num">${sampleData.members.length}</span><p>회원</p></button>
+              </div>
+            </section>`;
+          })()}
 
           ${renderGuestApprovalCardHTML(false)}
 
@@ -3802,7 +3813,8 @@
               <table class="w-full text-left border-collapse min-w-[560px]">
                 <thead>
                   <tr class="border-b border-gray-200 text-[11px] font-bold text-gray-400 uppercase bg-gray-50">
-                    <th class="p-2.5 rounded-l-xl">이름</th>
+                    <th class="p-2.5 rounded-l-xl">배번</th>
+                    <th class="p-2.5">이름</th>
                     <th class="p-2.5">직책</th>
                     <th class="p-2.5">가입일</th>
                     <th class="p-2.5">비밀번호</th>
@@ -3810,9 +3822,10 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-xs">
-                  ${pagedMembers.length === 0 ? '<tr><td colspan="4" class="text-center py-6 text-gray-400">등록된 회원이 없습니다.</td></tr>' : ''}
+                  ${pagedMembers.length === 0 ? '<tr><td colspan="6" class="text-center py-6 text-gray-400">등록된 회원이 없습니다.</td></tr>' : ''}
                   ${pagedMembers.map(m => `
                     <tr class="hover:bg-gray-50 transition">
+                      <td class="p-2.5"><span class="v2-num" style="font-size:16px">${(m.number !== undefined && m.number !== '') ? escH(String(m.number)) : '<span class="text-gray-300">-</span>'}</span></td>
                       <td class="p-2.5 font-bold text-gray-900">${escH(m.name)}</td>
                       <td class="p-2.5">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${m.role === 'admin' ? 'bg-indigo-100 text-indigo-900' : 'bg-gray-100 text-gray-700'}">
@@ -3982,7 +3995,7 @@
       const role = document.getElementById('addMemberRole').value;
       const pass = document.getElementById('addMemberPassword').value.trim();
 
-      await setDoc(doc(db, "members", name), { name, role, password: pass, joinDate: document.getElementById('addMemberJoinDate').value || '' });
+      await setDoc(doc(db, "members", name), { name, role, password: pass, joinDate: document.getElementById('addMemberJoinDate').value || '', number: (document.getElementById('addMemberNumber').value || '').trim() });
       alert('새 회원이 등록되었습니다.');
       window.closeAddMemberModal();
     };
@@ -3993,6 +4006,7 @@
       document.getElementById('editMemberRole').value = role;
       const _jm = sampleData.members.find(m => String(m.id) === String(id));
       document.getElementById('editMemberJoinDate').value = (_jm && _jm.joinDate) || '';
+      document.getElementById('editMemberNumber').value = (_jm && _jm.number != null) ? _jm.number : '';
       document.getElementById('editMemberModal').classList.remove('hidden');
     };
     window.closeEditMemberModal = () => document.getElementById('editMemberModal').classList.add('hidden');
@@ -4003,7 +4017,7 @@
       const name = document.getElementById('editMemberName').value.trim();
       const role = document.getElementById('editMemberRole').value;
 
-      await setDoc(doc(db, "members", id), { name, role, joinDate: document.getElementById('editMemberJoinDate').value || '' }, { merge: true });
+      await setDoc(doc(db, "members", id), { name, role, joinDate: document.getElementById('editMemberJoinDate').value || '', number: (document.getElementById('editMemberNumber').value || '').trim() }, { merge: true });
       alert('회원 정보가 수정되었습니다.');
       window.closeEditMemberModal();
     };
