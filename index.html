@@ -119,9 +119,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Black+Han+Sans&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="vega-theme.css?v=25">
+  <link rel="stylesheet" href="vega-theme.css?v=26">
   <!-- Tailwind 빌드 결과 (기존 CDN과 같은 v3.4.17, 같은 위치=head 맨 끝). 새 클래스를 쓰면 다시 빌드해야 합니다 -->
-  <link rel="stylesheet" href="vega-tw.css?v=25">
+  <link rel="stylesheet" href="vega-tw.css?v=26">
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
 
@@ -2732,6 +2732,8 @@
       const targets = Array.from(calendarEl.querySelectorAll('.fc-event-title, .holiday-name-label'));
       if (targets.length === 0) return;
       if (calendarEl.clientWidth === 0) return; // 탭이 보이지 않을 때는 측정 불가
+      /* [디자인 2차] 새 달력은 글자 크기를 줄이거나 두 줄로 꺾지 않고, 한 줄 + 말줄임(…)으로 통일 */
+      if (calendarEl.closest('.v2-calcard')) { calendarEl.classList.remove('fc-wrap-mode'); targets.forEach(el => el.style.removeProperty('font-size')); return; }
 
       const maxFont = 11;
       const minFont = 6;
@@ -2884,6 +2886,8 @@
           displayEventTime: false,
           headerToolbar: false,   /* [디자인 2차] 월 이름·이동 버튼은 위 검정 머리에서 */
           dayMaxEvents: 2,
+          eventDisplay: 'block',   /* [수정] 시간 있는 일정도 점 대신 종류별 색 상자로 */
+          dayCellContent: function(arg) { return { html: String(arg.date.getDate()) }; },   /* '16일' 대신 숫자만 → 동그라미 안에서 안 잘림 */
           events: buildCalendarEvents(),
           dayCellClassNames: function(arg) {
             const y = arg.date.getFullYear(), m = String(arg.date.getMonth() + 1).padStart(2, '0'), d = String(arg.date.getDate()).padStart(2, '0');
@@ -3849,7 +3853,7 @@
           <!-- 1. Section 3: 동호회 일정 관리 (수정 기능 및 확장된 카테고리) -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리 (정기, 대회, 친선전, 회식, 기타)</h3>
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리</h3>
               <button onclick="window.openAddEventModal()" class="bg-indigo-900 text-white text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-800">+ 일정 추가</button>
             </div>
             <div class="space-y-2">
@@ -4137,7 +4141,7 @@
       eligible: isEligibleEvent, reactions: () => reactionsByDate
     };
     /* [수정] 순서대로 불러와서 '나의 정보' 카드 순서가 매번 같도록 */
-    import('./vega-extras.js?v=25').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=25'));
+    import('./vega-extras.js?v=26').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=26'));
   </script>
   <script>
     /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */

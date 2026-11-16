@@ -716,7 +716,6 @@ html body .v2-gbox > .vx-collapsed { padding-top: 0 !important; padding-bottom: 
 html body .v2-gbox > .vx-collapsed > .vx-head, html body .v2-gbox > .vx-collapsed .vx-head { min-height: 52px; display: flex; align-items: center; gap: 8px; }
 html body .v2-gbox .vx-fold-title { flex: 1 1 auto; font-size: 15px !important; font-family: var(--vg-font) !important; font-weight: 800 !important; line-height: 1.3 !important; margin: 0 !important; }
 html body .v2-gbox > * [data-vx-key] { border: 0 !important; box-shadow: none !important; background: transparent !important; border-radius: 0 !important; margin: 0 !important; }
-html body .v2-gbox > * > [data-vx-key] { padding-left: 0 !important; padding-right: 0 !important; }
 /* 코치 */
 .v2-entry { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--vg-line); }
 .v2-starter { display: grid; grid-template-columns: 64px 1fr 24px; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; }
@@ -800,3 +799,25 @@ html.dark .v2-lchip .no, html.dark .v2-serve .no { background: #FFB61E; color: #
 html body .v2-serve li button { width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--vg-text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 html body .v2-serve li button:hover { background: var(--vg-surface-2); }
 html body .v2-serve li button:disabled { opacity: .25; cursor: default; }
+
+/* [수정] 운영진 목록: 글자 세로로 꺾임·잘림 정리 */
+#app[data-tab="admin"] { overflow-anchor: none; }
+html body .v2-gbox .vx-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+html body .v2-gbox .vx-fold-title { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 160px; min-width: 0; }
+html body .v2-gbox .vx-fold-chev { flex: none; margin-left: 2px; }
+html body .v2-gbox .vx-head:not(.vx-fold-title) > *:not(.vx-fold-title) { flex: none; white-space: nowrap; }
+html body .v2-gbox .vx-head label, html body .v2-gbox .vx-head select { white-space: nowrap; }
+html body .v2-gbox .vx-head button { white-space: nowrap; }
+html body .v2-gbox > .vx-collapsed .vx-head { flex-wrap: nowrap; }
+html body .v2-gbox > .vx-collapsed .vx-head button, html body .v2-gbox > .vx-collapsed .vx-head select, html body .v2-gbox > .vx-collapsed .vx-head label,
+html body .v2-gbox > .vx-collapsed .vx-head > div:not(.vx-fold-title):has(select) { display: none !important; }
+html body .v2-gbox > .vx-collapsed .vx-head:not(.vx-fold-title) > span:not(:first-child), html body .v2-gbox > .vx-collapsed .vx-head:not(.vx-fold-title) > p { margin-left: auto; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+html body .vx-collapsed .vx-fold-title { white-space: normal; }
+#vxAdminNav .vx-chips { -webkit-mask-image: linear-gradient(to right, #000 88%, transparent); mask-image: linear-gradient(to right, #000 88%, transparent); padding-right: 24px; }
+html body .v2-adminnav { margin-left: -2px; margin-right: -2px; padding: 8px 2px; }
+/* [수정] 달력: 일정 상자가 칸 안에서 한 줄로, 넘치면 … */
+html body .v2-calcard .fc-daygrid-block-event .fc-event-main { padding: 1px 3px; }
+html body .v2-calcard .fc-daygrid-block-event .fc-event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+html body .v2-calcard .fc-daygrid-event-harness { margin-top: 2px; }
+html body .v2-calcard .holiday-name-label { font-size: 9px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; padding: 0 2px; }
+html body .v2-calcard .fc-daygrid-more-link { font-size: 10px; font-weight: 700; }

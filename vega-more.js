@@ -206,8 +206,15 @@ function vxSaveOpen() { try { localStorage.setItem('vxAdminOpen', JSON.stringify
 const vxCardKey = (h) => h.textContent.replace(/\(.*?\)/g, '').replace(/[0-9/·:]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
 
 window.vxToggleCard = (key, force) => {
+  /* [수정] 누른 메뉴 제목은 화면에서 제자리에 두고, 내용만 아래로 펼치거나 접음 */
+  const card = [...document.querySelectorAll('[data-vx-key]')].find(c => c.dataset.vxKey === key);
+  const before = card ? card.getBoundingClientRect().top : null;
   vxAdminOpen[key] = typeof force === 'boolean' ? force : !vxIsOpen(key);
   vxSaveOpen(); vxEnhance();
+  if (card && before !== null) {
+    const after = card.getBoundingClientRect().top;
+    if (Math.abs(after - before) > 1) window.scrollBy(0, after - before);
+  }
 };
 window.vxJumpCard = (key) => {
   vxAdminOpen[key] = true; vxSaveOpen(); vxEnhance();
@@ -307,6 +314,8 @@ function vxEnhanceAdmin(app) {
       ${keys.map(k => `<button onclick="vxJumpCard('${k.replace(/'/g, "\\'")}')" class="v2-chip ${vxIsOpen(k) ? 'is-on' : ''}">${k}</button>`).join('')}
     </div>`;
   if (nav.dataset.html !== html) { nav.dataset.html = html; nav.innerHTML = html; }
+  const hdr = document.querySelector('header');
+  if (hdr) nav.style.top = Math.round(hdr.getBoundingClientRect().height) + 'px';   /* 헤더 바로 아래에 붙여 틈으로 글자가 비치지 않게 */
 }
 
 let vxBusy = false, vxQueued = false;
