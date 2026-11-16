@@ -337,18 +337,18 @@ html.vx-fs .text-sm { font-size: calc(0.875rem * var(--vg-fs)); line-height: cal
 html.vx-fs .text-base { font-size: calc(1rem * var(--vg-fs)); line-height: calc(1.5rem * var(--vg-fs)); }
 html.vx-fs .text-lg { font-size: calc(1.125rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
 html.vx-fs .text-xl { font-size: calc(1.25rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
-html.vx-fs .text-\[9px\] { font-size: calc(9px * var(--vg-fs)); }
-html.vx-fs .text-\[10px\] { font-size: calc(10px * var(--vg-fs)); }
-html.vx-fs .text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
+html.vx-fs .text-\[9px\] { font-size: calc(10px * var(--vg-fs)); }
+html.vx-fs .text-\[10px\] { font-size: calc(11px * var(--vg-fs)); }
+html.vx-fs .text-\[11px\] { font-size: calc(12px * var(--vg-fs)); }
 @media (min-width: 640px) {
   html.vx-fs .sm\:text-xs { font-size: calc(0.75rem * var(--vg-fs)); line-height: calc(1rem * var(--vg-fs)); }
   html.vx-fs .sm\:text-sm { font-size: calc(0.875rem * var(--vg-fs)); line-height: calc(1.25rem * var(--vg-fs)); }
   html.vx-fs .sm\:text-base { font-size: calc(1rem * var(--vg-fs)); line-height: calc(1.5rem * var(--vg-fs)); }
   html.vx-fs .sm\:text-lg { font-size: calc(1.125rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
   html.vx-fs .sm\:text-xl { font-size: calc(1.25rem * var(--vg-fs)); line-height: calc(1.75rem * var(--vg-fs)); }
-  html.vx-fs .sm\:text-\[9px\] { font-size: calc(9px * var(--vg-fs)); }
-  html.vx-fs .sm\:text-\[10px\] { font-size: calc(10px * var(--vg-fs)); }
-  html.vx-fs .sm\:text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[9px\] { font-size: calc(10px * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[10px\] { font-size: calc(11px * var(--vg-fs)); }
+  html.vx-fs .sm\:text-\[11px\] { font-size: calc(12px * var(--vg-fs)); }
 }
 
 /* ==========================================================================
@@ -432,3 +432,48 @@ html.vx-fs .text-\[11px\] { font-size: calc(11px * var(--vg-fs)); }
   [data-pc="names"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   [data-pc="names"] > * { margin: 0 !important; }
 }
+
+/* ==========================================================================
+   [추가] 최소 글씨 크기 한 단계 올림 (9→10, 10→11, 11→12px). 휴대폰에서 읽기 편하게
+   ========================================================================== */
+html body .text-\[9px\] { font-size: 10px; }
+html body .text-\[10px\] { font-size: 11px; }
+html body .text-\[11px\] { font-size: 12px; }
+@media (min-width: 640px) {
+  html body .sm\:text-xs { font-size: .75rem; line-height: 1rem; }
+  html body .sm\:text-\[11px\] { font-size: 12px; }
+  html body .sm\:text-sm { font-size: .875rem; line-height: 1.25rem; }
+}
+
+/* [추가] 헤더 다크 모드 아이콘: 지금 모드에 맞는 아이콘만 표시 */
+.vx-hdr-dark .vx-ico-sun { display: none; }
+html.dark .vx-hdr-dark .vx-ico-moon { display: none; }
+html.dark .vx-hdr-dark .vx-ico-sun { display: inline; }
+
+/* [추가] 카드 제목 아이콘 (이모지 → 선 아이콘으로 통일) */
+.vx-hico { width: 1.15em; height: 1.15em; flex: none; display: inline-block; vertical-align: -0.2em; color: #b91c1c; }
+html.dark .vx-hico { color: #f87171; }
+
+/* [추가] 운영진 탭: 카드 접기·바로가기 */
+.vx-collapsed > :not(.vx-head) { display: none !important; }
+.vx-collapsed > .vx-head { margin-bottom: 0 !important; }
+.vx-fold-title { cursor: pointer; user-select: none; }
+.vx-fold-chev { display: inline-block; margin-left: 6px; width: 16px; height: 16px; vertical-align: -3px; transition: transform .15s; color: #9ca3af; }
+.vx-collapsed .vx-fold-chev { transform: rotate(-90deg); }
+#vxAdminNav { position: sticky; top: 64px; z-index: 30; }
+@media (min-width: 768px) and (max-width: 1023px) { #vxAdminNav { top: 96px; } }
+#vxAdminNav .vx-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+#vxAdminNav .vx-chips::-webkit-scrollbar { display: none; }
+@media (min-width: 1024px) { #vxAdminNav { column-span: all; } }
+
+/* [추가] 아직 투표하지 않은 회원: 홈 투표 카드 노란 테두리 강조 (라이트·다크 공통) */
+html body .vx-needvote { border-color: #fbbf24 !important; box-shadow: 0 0 0 2px #fcd34d !important; }
+html.dark body .vx-needvote { border-color: #f59e0b !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, .6) !important; }
+
+/* [추가] 좁은 휴대폰(가로 374px 이하): 헤더의 로그아웃은 숨김 → '나의 정보'의 로그아웃 버튼 사용 */
+@media (max-width: 374px) { .vx-hdr-logout { display: none; } }
+
+/* [추가] 탭 전환 시 살짝 나타나는 효과 (움직임 줄이기 설정 시 생략) */
+@keyframes vxFade { from { opacity: 0; } to { opacity: 1; } }
+#app.vx-fade { animation: vxFade .18s ease-out; }
+@media (prefers-reduced-motion: reduce) { #app.vx-fade { animation: none; } }

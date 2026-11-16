@@ -40,7 +40,7 @@ function reportLines(st, name) {
 function paintReport() {
   const ks = [...new Set(V.past().map((e) => e.date.substring(0, rp.mode === 'month' ? 7 : 4)))].sort().reverse();
   const tabs = `<div class="grid grid-cols-2 gap-1.5 mb-3">${[['month', '월간 리포트'], ['year', '연말 결산']].map(([m, l]) => `<button onclick="vmReport('${m}')" class="py-2 rounded-xl text-xs font-bold ${rp.mode === m ? 'bg-indigo-950 text-white' : 'bg-gray-100 text-gray-600'}">${l}</button>`).join('')}</div>`;
-  if (!ks.length) return modal(hd('📊 리포트') + tabs + '<p class="text-xs text-gray-500 py-8 text-center">아직 집계된 정기운동이 없어요.</p>');
+  if (!ks.length) return modal(hd('📊 리포트') + tabs + '<p class="text-xs text-gray-500 py-5 text-center">아직 집계된 정기운동이 없어요.</p>');
   if (!ks.includes(rp.key)) rp.key = ks[0];
   const name = U().name, st = stats(name, rp.key), month = rp.mode === 'month', L = reportLines(st, name);
   const title = month ? `${rp.key.slice(0, 4)}년 ${+rp.key.slice(5)}월 리포트` : `${rp.key}년 VEGA 결산`;
@@ -89,11 +89,8 @@ function applyDark(on) {
   const b = document.getElementById('vmDarkBtn'); if (b) b.textContent = on ? '☀️' : '🌙';
 }
 window.vmDark = () => { const on = !isDark(); localStorage.setItem('vxDark', on ? '1' : '0'); applyDark(on); inject(); };
-(function darkBtn() {
-  const b = document.createElement('button'); b.id = 'vmDarkBtn'; b.onclick = window.vmDark; b.setAttribute('aria-label', '다크모드 전환');
-  b.style.cssText = 'position:fixed;right:10px;bottom:84px;z-index:60;width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid #d1d5db;box-shadow:0 2px 6px rgba(0,0,0,.2);font-size:18px;opacity:.85';
-  document.body.appendChild(b); applyDark(isDark());
-})();
+/* [변경] 화면을 가리던 오른쪽 아래 떠 있는 버튼 대신, 헤더의 달·해 아이콘으로 전환 (index.html renderHeader) */
+applyDark(isDark());
 
 /* ---------- 내 정보 카드 주입 ---------- */
 function myCard() {
@@ -131,3 +128,160 @@ function inject() {
 }
 new MutationObserver(inject).observe(document.getElementById('app'), { childList: true });
 inject();
+
+/* ======================================================================
+   [추가] 화면 다듬기 (모든 탭 공통)
+   1) 카드 제목의 이모지를 선 아이콘으로 통일
+   2) 운영진 탭: 카드 접기/펼치기 + 위쪽 바로가기 버튼 (펼친 상태는 기기에 기억)
+   화면이 그려질 때마다 자동으로 다시 적용됩니다.
+   ====================================================================== */
+const VX_ICONS = {
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8M8 16h5"/>',
+  clipcheck: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M8 17v-6M13 17V7M18 17v-3"/>',
+  ball: '<circle cx="12" cy="12" r="10"/><path d="M11.1 7.1a16.6 16.6 0 0 1 10.9 4M12 12a12.6 12.6 0 0 1-8.7 5M16.8 13.6a16.6 16.6 0 0 1-9 7.5M20.7 17a12.8 12.8 0 0 0-8.7-5 13.3 13.3 0 0 1 0-10M6.3 3.8a16.6 16.6 0 0 0 1.9 11.5"/>',
+  dumbbell: '<path d="M6 6v12M18 6v12M3 9v6M21 9v6M6 12h12"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4"/>',
+  megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h3l6 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16.5 9a3 3 0 0 1 0 6M19.5 6a7 7 0 0 1 0 12"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+  medal: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/>',
+  flag: '<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>',
+  video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/>',
+  sprout: '<path d="M12 22V12M12 12C12 7 8 5 4 5c0 4 3 7 8 7zM12 12c0-4 3-7 8-7 0 4-3 7-8 7z"/>',
+  crown: '<path d="M3 7l4 4 5-6 5 6 4-4-2 12H5z"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  flame: '<path d="M12 22c4 0 7-3 7-7 0-5-5-7-5-12-3 2-5 5-5 8-1-1-2-2-2-4-2 2-2 5-2 8 0 4 3 7 7 7z"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9M12 8C10 4 6 4 7 7c.5 1.5 5 1 5 1s4.5.5 5-1c1-3-3-3-5 1"/>'
+};
+const VX_EMOJI = {
+  '📅': 'calendar', '🗓️': 'calendar', '🗓': 'calendar', '📋': 'clipboard', '💬': 'message', '📓': 'book', '📖': 'book',
+  '📊': 'chart', '📈': 'chart', '🏐': 'ball', '🏋️': 'dumbbell', '🏋': 'dumbbell', '🧢': 'clipcheck', '🔒': 'lock',
+  '📲': 'phone', '📱': 'phone', '📦': 'archive', '📣': 'megaphone', '📢': 'megaphone', '📝': 'pencil', '✍️': 'pencil', '✍': 'pencil',
+  '👥': 'users', '👤': 'user', '🏆': 'trophy', '🏅': 'medal', '🎖️': 'medal', '🎖': 'medal', '🏁': 'flag', '🎥': 'video', '🎬': 'video',
+  '🌱': 'sprout', '👑': 'crown', '🎯': 'target', '🔥': 'flame', '🎁': 'gift', '🎊': 'gift', '🎉': 'gift'
+};
+const vxSvg = (k) => `<svg class="vx-hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VX_ICONS[k]}</svg>`;
+const VX_LEAD = /^\s*(\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*)\s*/u;
+
+function vxIconize(root) {
+  root.querySelectorAll('h2, h3').forEach(h => {
+    if (h.dataset.vxIco) return;
+    h.dataset.vxIco = '1';
+    /* 경우 1: <h3><span>📅</span> 제목</h3> */
+    const first = h.firstElementChild;
+    if (first && first.tagName === 'SPAN' && !first.children.length) {
+      const m = first.textContent.trim().match(VX_LEAD);
+      const k = m && VX_EMOJI[m[1]];
+      if (k && first.textContent.trim() === m[1]) { first.innerHTML = vxSvg(k); return; }
+    }
+    /* 경우 2: <h3>📅 제목</h3> */
+    const tn = [...h.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (!tn || h.firstChild !== tn && !(h.firstChild.nodeType === 3 && !h.firstChild.textContent.trim() && h.childNodes[1] === tn)) return;
+    const m = tn.textContent.match(VX_LEAD);
+    const k = m && VX_EMOJI[m[1]];
+    if (!k) return;
+    tn.textContent = tn.textContent.replace(VX_LEAD, '');
+    const span = document.createElement('span');
+    span.innerHTML = vxSvg(k);
+    span.style.cssText = 'display:inline-flex;margin-right:6px;vertical-align:middle';
+    h.insertBefore(span, tn);
+  });
+}
+
+/* ---------- 운영진 탭 접기 ---------- */
+let vxAdminOpen = {};
+try { vxAdminOpen = JSON.parse(localStorage.getItem('vxAdminOpen') || '{}'); } catch (e) {}
+const vxDefaultOpen = (key) => /오늘의 정기운동|정기운동 종료/.test(key);
+const vxIsOpen = (key) => (key in vxAdminOpen ? vxAdminOpen[key] : vxDefaultOpen(key));
+function vxSaveOpen() { try { localStorage.setItem('vxAdminOpen', JSON.stringify(vxAdminOpen)); } catch (e) {} }
+const vxCardKey = (h) => h.textContent.replace(/\(.*?\)/g, '').replace(/[0-9/·:]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+
+window.vxToggleCard = (key, force) => {
+  vxAdminOpen[key] = typeof force === 'boolean' ? force : !vxIsOpen(key);
+  vxSaveOpen(); vxEnhance();
+};
+window.vxJumpCard = (key) => {
+  vxAdminOpen[key] = true; vxSaveOpen(); vxEnhance();
+  const card = [...document.querySelectorAll('[data-vx-key]')].find(c => c.dataset.vxKey === key);
+  if (card) {
+    const y = card.getBoundingClientRect().top + window.scrollY - (window.innerWidth >= 1024 ? 130 : 120);
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }
+};
+window.vxAllCards = (open) => {
+  document.querySelectorAll('[data-vx-key]').forEach(c => { vxAdminOpen[c.dataset.vxKey] = open; });
+  vxSaveOpen(); vxEnhance();
+};
+
+function vxEnhanceAdmin(app) {
+  const root = app.firstElementChild;
+  if (!root || !root.classList.contains('space-y-4')) return;
+  const cards = [...root.children].slice(1).filter(c => c.id !== 'vxAdminNav');
+  const keys = [];
+  cards.forEach(card => {
+    /* 바깥 상자가 한 겹 더 있는 카드(앱 설치 현황 등)는 안쪽 카드로 내려감 */
+    while (card.children.length === 1 && card.firstElementChild.querySelector('h2, h3')) card = card.firstElementChild;
+    const h = card.querySelector('h2, h3');
+    if (!h) return;
+    let head = h;
+    while (head.parentElement && head.parentElement !== card) head = head.parentElement;
+    if (head === card) return;
+    const key = card.dataset.vxKey || vxCardKey(h);
+    if (!key) return;
+    card.dataset.vxKey = key;
+    keys.push(key);
+    head.classList.add('vx-head');
+    if (!h.querySelector('.vx-fold-chev')) {
+      h.classList.add('vx-fold-title');
+      h.setAttribute('role', 'button'); h.setAttribute('tabindex', '0');
+      h.insertAdjacentHTML('beforeend', '<svg class="vx-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>');
+      h.addEventListener('click', () => window.vxToggleCard(card.dataset.vxKey));
+      h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.vxToggleCard(card.dataset.vxKey); } });
+    }
+    const open = vxIsOpen(key);
+    card.classList.toggle('vx-collapsed', !open);
+    h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  /* 바로가기 버튼 줄 */
+  let nav = document.getElementById('vxAdminNav');
+  if (!nav) {
+    nav = document.createElement('div'); nav.id = 'vxAdminNav';
+    nav.className = 'bg-white/95 backdrop-blur rounded-2xl shadow-sm border border-gray-100 p-2.5';
+    root.insertBefore(nav, root.children[1] || null);
+  } else if (nav.parentElement !== root || root.children[1] !== nav) {
+    root.insertBefore(nav, root.children[1] || null);
+  }
+  const html = `<div class="vx-chips">
+      <button onclick="vxAllCards(true)" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg bg-indigo-950 text-white">모두 펼치기</button>
+      <button onclick="vxAllCards(false)" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg bg-gray-100 text-gray-700">모두 접기</button>
+      ${keys.map(k => `<button onclick="vxJumpCard('${k.replace(/'/g, "\\'")}')" class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg border ${vxIsOpen(k) ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-white text-gray-600 border-gray-200'}">${k}</button>`).join('')}
+    </div>`;
+  if (nav.dataset.html !== html) { nav.dataset.html = html; nav.innerHTML = html; }
+}
+
+let vxBusy = false, vxQueued = false;
+function vxEnhance() {
+  if (vxBusy) return;
+  vxBusy = true;
+  try {
+    const app = document.getElementById('app');
+    if (!app) return;
+    vxIconize(app);
+    if (app.dataset.tab === 'admin') vxEnhanceAdmin(app);
+  } catch (e) { console.warn('[vx] UI 다듬기 오류', e); }
+  finally { vxBusy = false; }
+}
+new MutationObserver(() => {
+  if (vxQueued) return;
+  vxQueued = true;
+  queueMicrotask(() => { vxQueued = false; vxEnhance(); });
+}).observe(document.getElementById('app'), { childList: true, subtree: true });
+vxEnhance();
