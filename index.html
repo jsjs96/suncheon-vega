@@ -431,6 +431,7 @@
           <select id="newEventCategory" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs bg-white font-bold">
             <option value="regular">🏐 정기운동 (정기)</option>
             <option value="match">🏆 대회</option>
+            <option value="friendly">🤝 친선전</option>
             <option value="dinner">🍻 회식</option>
             <option value="etc">📌 기타</option>
           </select>
@@ -2123,6 +2124,7 @@
 
       const getCategoryBadge = (cat) => {
         if (cat === 'match') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">대회</span>';
+        if (cat === 'friendly') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">친선전</span>';
         if (cat === 'dinner') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">회식</span>';
         if (cat === 'etc') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800 shrink-0">기타</span>';
         return '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">정기</span>';
@@ -2388,7 +2390,7 @@
             <div class="grid grid-cols-3 gap-1.5">${btn('참가', 'bg-emerald-600 text-white')}${btn('불참', 'bg-rose-600 text-white')}${btn('미정', 'bg-amber-500 text-white')}</div>
           </div>`;
       }
-      const typeName = { regular: '정기', match: '대회', dinner: '회식', etc: '기타' };
+      const typeName = { regular: '정기', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' };
       const ups = sampleData.events.filter(e => !isEventPast(e)).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 8);
       const listHTML = `
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-5">
@@ -2635,6 +2637,7 @@
           let icon = '🏐';
           let bgColor = '#c8141b';
           if (evt.type === 'match') { icon = '🏆'; bgColor = '#d97706'; }
+          else if (evt.type === 'friendly') { icon = '🤝'; bgColor = '#059669'; }
           else if (evt.type === 'dinner') { icon = '🍻'; bgColor = '#d97706'; }
           else if (evt.type === 'etc') { icon = '📌'; bgColor = '#7c3aed'; }
 
@@ -2655,7 +2658,7 @@
 
       currentViewingEventId = evt.id;
 
-      const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
+      const categoryNames = { regular: '정기운동', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' };
       document.getElementById('eventCategoryBadge').innerText = categoryNames[evt.type] || '일정';
       document.getElementById('eventDetailTitle').innerText = evt.title;
       document.getElementById('eventDetailTime').innerText = `${evt.date} ${evt.time || ''}`;
@@ -3389,7 +3392,7 @@
       const reactionLogHTML = renderAdminReactionLogHTML();
       const todayEndCardHTML = renderTodayWorkoutAdminCardHTML();
 
-      const categoryNames = { regular: '정기운동', match: '대회', dinner: '회식', etc: '기타' };
+      const categoryNames = { regular: '정기운동', match: '대회', friendly: '친선전', dinner: '회식', etc: '기타' };
 
       container.innerHTML = `
         <div class="space-y-4 sm:space-y-5">
@@ -3558,7 +3561,7 @@
           <!-- 1. Section 3: 동호회 일정 관리 (수정 기능 및 확장된 카테고리) -->
           <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리 (정기, 대회, 회식, 기타)</h3>
+              <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>📅</span> 일정 관리 (정기, 대회, 친선전, 회식, 기타)</h3>
               <button onclick="window.openAddEventModal()" class="bg-indigo-900 text-white text-xs px-2.5 py-1.5 rounded-xl font-bold hover:bg-indigo-800">+ 일정 추가</button>
             </div>
             <div class="space-y-2">
@@ -3567,7 +3570,7 @@
                 <div class="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl text-xs gap-2">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : evt.type === 'dinner' ? 'bg-amber-100 text-amber-800' : evt.type === 'etc' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${categoryNames[evt.type] || '정기'}</span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${evt.type === 'match' ? 'bg-amber-100 text-amber-800' : evt.type === 'friendly' ? 'bg-emerald-100 text-emerald-800' : evt.type === 'dinner' ? 'bg-amber-100 text-amber-800' : evt.type === 'etc' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${categoryNames[evt.type] || '정기'}</span>
                       <span class="font-bold text-gray-900 truncate">${escH(evt.title)}</span>
                     </div>
                     <p class="text-[11px] text-gray-500 mt-0.5">${evt.date} (${evt.time || ''}) | ${evt.location || '장소미정'}</p>
