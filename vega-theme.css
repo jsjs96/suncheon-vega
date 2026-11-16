@@ -477,3 +477,87 @@ html.dark body .vx-needvote { border-color: #f59e0b !important; box-shadow: 0 0 
 @keyframes vxFade { from { opacity: 0; } to { opacity: 1; } }
 #app.vx-fade { animation: vxFade .18s ease-out; }
 @media (prefers-reduced-motion: reduce) { #app.vx-fade { animation: none; } }
+
+/* [추가] 운영진 메뉴: 게스트 승인 대기 숫자 */
+#nav-admin { position: relative; }
+.vx-nav-badge {
+  position: absolute; top: -4px; left: 50%; margin-left: 6px;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+  box-shadow: 0 0 0 2px #0a0a0a; pointer-events: none;
+}
+@media (min-width: 1024px) { .vx-nav-badge { top: -2px; left: auto; right: -8px; margin-left: 0; } }
+
+/* ==========================================================================
+   [디자인 개편] 체육관 전광판 + 등번호 숫자
+   - 힘을 주는 곳은 한 곳: 홈의 정기운동 투표 카드 (라이트·다크 모두 어두운 전광판)
+   - 숫자는 Black Han Sans(굵은 한글 글꼴)로 등번호처럼, 나머지 카드는 그림자 없이 평평하게
+   ========================================================================== */
+:root { --vg-display: 'Black Han Sans', 'Pretendard Variable', Pretendard, sans-serif; --vg-amber: #FFB61E; }
+.vx-num { font-family: var(--vg-display); font-weight: 400; letter-spacing: .01em; }
+html body .vx-num-red { color: var(--vg-red-text) !important; }
+/* 기존 '등번호 숫자' 규칙도 한글이 되는 글꼴로 */
+html body div.bg-indigo-950 .text-xl.font-black,
+html body [class*="from-indigo-950"] .text-xl.font-black,
+html body div.bg-indigo-950 .text-2xl.font-black,
+html body .text-2xl.font-black.text-amber-400 { font-family: var(--vg-display); }
+
+/* 평평한 카드: 그림자 대신 얇은 테두리 */
+html body #app .shadow-sm, html body #app .shadow-md { box-shadow: none !important; }
+html body #app .rounded-2xl.border-gray-100 { border-color: var(--vg-line) !important; }
+/* 공지: 분홍 배경 대신 왼쪽 빨간 선 하나 */
+html body #homeNotice { background: var(--vg-surface) !important; border: 1px solid var(--vg-line) !important; border-left: 4px solid var(--vg-red) !important; }
+
+/* ---------- 전광판 (홈 정기운동 투표) ---------- */
+html body .vx-board {
+  position: relative; border-radius: 1rem; padding: 16px 14px 14px; color: #f4f4f5;
+  background-color: #111113 !important; background-image: none; border: 1px solid #111113;
+}
+html.dark body .vx-board { border-color: #3f3f46; }
+html body .vx-board.vx-needvote { border-color: var(--vg-amber) !important; box-shadow: 0 0 0 2px rgba(255, 182, 30, .55) !important; }
+.vx-chips-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; }
+.vx-chips-row::-webkit-scrollbar { display: none; }
+html body .vx-chip { flex: none; font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 999px; border: 1px solid #3f3f46; background: transparent; color: #d4d4d8; }
+html body .vx-chip.is-on { background: var(--vg-amber); border-color: var(--vg-amber); color: #111113; }
+html body .vx-board-title { font-family: var(--vg-display); font-weight: 400; font-size: 26px; line-height: 1.15; margin: 0; color: #fff !important; letter-spacing: .01em; }
+.vx-board-sub { margin: 4px 0 14px; font-size: 13px; color: #a1a1aa; }
+.vx-bar { display: flex; gap: 3px; height: 28px; }
+.vx-seg { flex: 1 1 0; min-width: 3px; border-radius: 3px; }
+.vx-seg-m { background: #D91920; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25); }
+.vx-seg-g { background: #f4f4f5; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .15); }
+.vx-seg-n { background: #52525b; }
+.vx-seg-e { background: #26262b; box-shadow: inset 0 0 0 1px #3f3f46; }
+.vx-bar-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #8b8b94; }
+.vx-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; border-top: 1px solid #2a2a2e; border-bottom: 1px solid #2a2a2e; }
+.vx-stat { display: flex; flex-direction: column; align-items: center; padding: 10px 0; border-right: 1px solid #2a2a2e; }
+.vx-stat:last-child { border-right: 0; }
+.vx-stat-n { font-family: var(--vg-display); font-size: 30px; line-height: 1; color: #8b8b94; }
+.vx-stat-n.is-hot { color: var(--vg-amber); }
+.vx-stat-l { margin-top: 4px; font-size: 11px; color: #a1a1aa; }
+.vx-board-msg { margin: 10px 0 14px; font-size: 13px; color: #e4e4e7; }
+.vx-board-msg strong { color: var(--vg-amber); }
+.vx-board-nudge { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: #111113; background: var(--vg-amber); border-radius: 10px; padding: 8px 10px; }
+.vx-vote-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+html body .vx-vote-btn { min-height: 48px; border-radius: 12px; border: 1px solid #3f3f46; background: transparent; color: #e4e4e7; font-size: 15px; font-weight: 700; }
+html body .vx-vote-btn.is-yes { background: #D91920; border-color: #D91920; color: #fff; font-weight: 900; }
+html body .vx-vote-btn.is-no { background: #e4e4e7; border-color: #e4e4e7; color: #111113; }
+html body .vx-vote-btn.is-maybe { background: var(--vg-amber); border-color: var(--vg-amber); color: #111113; }
+html body .vx-board button:focus-visible { outline: 2px solid var(--vg-amber); outline-offset: 2px; }
+/* 전광판 안의 게스트 칸·투표 명단은 어두운 바탕에 맞게 */
+html body .vx-board .text-gray-400, html body .vx-board .text-gray-500 { color: #a1a1aa !important; }
+html body .vx-board .text-gray-600, html body .vx-board .text-gray-700,
+html body .vx-board .text-gray-800, html body .vx-board .text-gray-900 { color: #e4e4e7 !important; }
+html body .vx-board .bg-gray-50, html body .vx-board .bg-white { background: rgba(255, 255, 255, .05) !important; }
+html body .vx-board .border-gray-100, html body .vx-board .border-gray-200, html body .vx-board .border-gray-300 { border-color: #3f3f46 !important; }
+html body .vx-board input { background: #1c1c20 !important; color: #f4f4f5 !important; border-color: #3f3f46 !important; }
+html body .vx-board input::placeholder { color: #71717a; }
+html body .vx-board .bg-indigo-50 { background: rgba(255, 255, 255, .08) !important; border-color: #3f3f46 !important; }
+html body .vx-board .text-indigo-800, html body .vx-board .text-indigo-900 { color: #f4f4f5 !important; }
+html body .vx-board .bg-emerald-50 { background: rgba(16, 185, 129, .14) !important; border-color: rgba(16, 185, 129, .4) !important; }
+html body .vx-board .text-emerald-700, html body .vx-board .text-emerald-800 { color: #6ee7b7 !important; }
+html body .vx-board .bg-rose-50 { background: rgba(244, 63, 94, .14) !important; border-color: rgba(244, 63, 94, .4) !important; }
+html body .vx-board .text-rose-700, html body .vx-board .text-rose-800 { color: #fda4af !important; }
+html body .vx-board .bg-amber-50 { background: rgba(255, 182, 30, .12) !important; border-color: rgba(255, 182, 30, .4) !important; }
+html body .vx-board .text-amber-700, html body .vx-board .text-amber-800 { color: #fcd34d !important; }
+html body .vx-board button.bg-indigo-950 { background: var(--vg-amber) !important; color: #111113 !important; }
+html body .vx-board [data-pc="names"] { margin-top: 10px; }

@@ -117,7 +117,7 @@
   <!-- VEGA 테마: 서체 + 색상 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Black+Han+Sans&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="vega-theme.css">
   <!-- Tailwind 빌드 결과 (기존 CDN과 같은 v3.4.17, 같은 위치=head 맨 끝). 새 클래스를 쓰면 다시 빌드해야 합니다 -->
@@ -1137,6 +1137,26 @@
     }
 
     /* 정기운동 카드: 풀코트 인원 게이지 */
+    /* [디자인] 전광판: 18칸 막대(회원 빨강·게스트 흰색·빈자리) + 숫자 4칸 + 안내 한 줄 */
+    function renderScoreboardHTML(memberAttend, guestCount, absentCount, pendingCount, myStatus) {
+      const total = memberAttend + guestCount;
+      const remain = Math.max(0, FULL_COURT_COUNT - total);
+      let msg;
+      if (remain === 0) msg = `풀코트 완성! ${total}명이 모였어요`;
+      else if (total === 0) msg = '아직 0명이에요. 첫 번째로 참가해 주세요';
+      else msg = `풀코트(${FULL_COURT_COUNT}명)까지 <strong>${remain}명</strong> 남았어요`;
+      if (remain > 0 && currentUser && myStatus !== '참가' && total > 0) msg += ' · 함께해요';
+      /* [변경] 막대는 전체 인원 기준: 회원 전체 + 승인된 게스트. 참가 → 게스트 → 불참 → 미정 순서로 칸을 채움 */
+      const everyone = memberAttend + guestCount + absentCount + pendingCount;
+      const seg = (kind, n) => Array.from({ length: n }, () => `<span class="vx-seg vx-seg-${kind}"></span>`).join('');
+      const cell = (n, label, hot) => `<div class="vx-stat"><span class="vx-stat-n ${hot ? 'is-hot' : ''}">${n}</span><span class="vx-stat-l">${label}</span></div>`;
+      return `
+        <div class="vx-bar" role="img" aria-label="전체 ${everyone}명 중 참가 ${memberAttend}명, 게스트 ${guestCount}명, 불참 ${absentCount}명, 미정 ${pendingCount}명">${seg('m', memberAttend)}${seg('g', guestCount)}${seg('n', absentCount)}${seg('e', pendingCount)}</div>
+        <div class="vx-bar-scale"><span>참가 ${total}명</span><span>전체 ${everyone}명</span></div>
+        <div class="vx-stats">${cell(memberAttend, '참가', true)}${cell(guestCount, '게스트', true)}${cell(absentCount, '불참')}${cell(pendingCount, '미정')}</div>
+        <p class="vx-board-msg">${msg}</p>`;
+    }
+
     /* [변경] 투표 카드 숫자 중복 정리: 글자 줄·3색 막대를 없애고, 풀코트 막대 하나 + 참가/불참/미정 색 표시로 합침 */
     function renderFullCourtGaugeHTML(memberAttend, myStatus, absentCount = 0, pendingCount = 0, guestCount = 0) {
       const attendCount = memberAttend + guestCount;   /* [추가] 풀코트 계산에는 게스트 포함 */
@@ -1891,6 +1911,7 @@
       /* [추가] 운영진 탭은 운영진으로 로그인했을 때만 아래 메뉴에 표시 */
       const navAdmin = document.getElementById('nav-admin');
       if (navAdmin) navAdmin.style.display = (currentUser && currentUser.role === 'admin') ? '' : 'none';
+      updateAdminNavBadge();
       window.dispatchEvent(new Event('vega:render'));   /* 로그인·로그아웃 등 사용자 변경을 확장 모듈에 알림 */
     }
     /* [추가] 비밀번호 보기/숨기기 */
@@ -2164,65 +2185,53 @@
       container.innerHTML = `
         ${renderGuestApprovalCardHTML(true)}
 
-        <section data-pc="att" class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
-          <div class="flex justify-between items-center mb-3">
-            <h2 class="text-sm sm:text-base font-black flex items-center gap-1.5 truncate"><span>📊</span> VEGA 출석 현황</h2>
-
-          </div>
-          <div class="grid grid-cols-2 gap-2 sm:gap-4 bg-white/10 backdrop-blur-md p-3 sm:p-4 rounded-xl">
-            <div class="border-r border-indigo-700/50 pr-2">
-              <span class="text-[11px] sm:text-xs text-indigo-200 block mb-1">나의 출석률</span>
-              ${currentUser ? `<div class="flex items-baseline gap-1 sm:gap-2 flex-wrap">
-                <span class="text-xl sm:text-2xl font-black text-amber-400">${stats.myAttendance}</span>
-                <span class="text-[10px] sm:text-xs text-indigo-200">(${stats.myCount})</span>
-              </div>` : `<button onclick="window.openLoginModal()" class="text-xs font-bold text-amber-300 underline underline-offset-2 text-left leading-snug">로그인하면<br>내 출석률이 보여요</button>`}
+        <section data-pc="att" class="vx-att bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 mb-5">
+          <h2 class="text-sm sm:text-base font-black text-gray-900 flex items-center gap-1.5 mb-3"><span>📊</span> VEGA 출석 현황</h2>
+          <div class="grid grid-cols-2">
+            <div class="pr-3 border-r border-gray-200">
+              <p class="text-xs text-gray-500">나의 출석률</p>
+              ${currentUser
+                ? `<p class="vx-num vx-num-red text-[40px] leading-none mt-1">${String(stats.myAttendance).replace('%', '')}<span class="text-xl">%</span></p>
+                   <p class="text-xs text-gray-500 mt-1">${stats.myCount}</p>`
+                : `<button onclick="window.openLoginModal()" class="text-sm font-bold text-gray-900 underline underline-offset-2 text-left leading-snug mt-1">로그인하면<br>내 출석률이 보여요</button>`}
             </div>
-            <div class="pl-2">
-              <span class="text-[11px] sm:text-xs text-indigo-200 block mb-1">팀 평균 출석률</span>
-              <div class="flex items-baseline gap-1 sm:gap-2 flex-wrap">
-                <span class="text-xl sm:text-2xl font-black text-emerald-400">${stats.teamAttendance}</span>
-                <span class="text-[10px] sm:text-xs text-indigo-200">(정회원)</span>
-              </div>
+            <div class="pl-3">
+              <p class="text-xs text-gray-500">팀 평균 (정회원)</p>
+              <p class="vx-num text-gray-900 text-[40px] leading-none mt-1">${String(stats.teamAttendance).replace('%', '')}<span class="text-xl">%</span></p>
             </div>
           </div>
         </section>
 
         <!-- [변경] 홈 순서(휴대폰): 출석 현황 → 정기운동 투표 → 출석 순위 → 공지사항 → 나머지 -->
-          <!-- Box 1: 정기운동 -->
-          <section data-pc="vote" class="mb-5 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border flex flex-col justify-between ${needVote ? 'vx-needvote' : 'border-gray-100'}">
-            <div>
-              <!-- [변경] 날짜 선택: 작은 목록 상자 대신 누르기 쉬운 날짜 버튼 (옆으로 밀어서 더 보기) -->
-              <div class="flex items-center gap-2 mb-2">
-                <span class="text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full shrink-0">정기운동</span>
-                <div class="flex gap-1.5 overflow-x-auto scrollbar-none min-w-0 py-0.5" role="group" aria-label="정기운동 날짜 선택">
-                  ${regularEvents.map(evt => {
-                    const dd = new Date(evt.date + 'T00:00:00');
-                    const lbl = `${dd.getMonth() + 1}/${dd.getDate()}(${'일월화수목금토'[dd.getDay()]})`;
-                    const on = evt.date === currentEvent.date;
-                    return `<button onclick="window.handleHomeDateChange('${evt.date}')" aria-pressed="${on}" class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border ${on ? 'bg-indigo-950 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">${lbl}</button>`;
-                  }).join('')}
-                </div>
-              </div>
-              <h2 class="text-base sm:text-lg font-black text-gray-900 mb-1 truncate">🏐 ${currentEvent.date} ${currentEvent.title}</h2>
-              <p class="text-xs text-gray-500 mb-3">📍 ${escH(currentEvent.location || '순천 조례초')}${currentEvent.time ? ' · ' + escH(currentEvent.time) : ''}</p>
+          <!-- Box 1: 정기운동 — [디자인] 체육관 전광판 스타일 (라이트·다크 공통으로 어두운 카드) -->
+          <section data-pc="vote" aria-label="정기운동 투표" class="vx-board mb-5 ${needVote ? 'vx-needvote' : ''}">
+            ${regularEvents.length > 1 ? `<div class="vx-chips-row" role="group" aria-label="정기운동 날짜 선택">
+              ${regularEvents.map(evt => {
+                const dd = new Date(evt.date + 'T00:00:00');
+                const on = evt.date === currentEvent.date;
+                return `<button onclick="window.handleHomeDateChange('${evt.date}')" aria-pressed="${on}" class="vx-chip ${on ? 'is-on' : ''}">${dd.getMonth() + 1}/${dd.getDate()} ${'일월화수목금토'[dd.getDay()]}</button>`;
+              }).join('')}
+            </div>` : ''}
+            ${(() => {
+              const dd = new Date(currentEvent.date + 'T00:00:00');
+              return `<h2 class="vx-board-title">${escH(currentEvent.title || '정기운동')}</h2>
+                <p class="vx-board-sub">${dd.getMonth() + 1}월 ${dd.getDate()}일(${'일월화수목금토'[dd.getDay()]})${currentEvent.time ? ' ' + escH(currentEvent.time) : ''} · ${escH(currentEvent.location || '순천 조례초')}</p>`;
+            })()}
 
-              ${renderFullCourtGaugeHTML(attendCount, myStatus, absentCount, pendingCount, approvedGuests(dateKey).length)}
-              ${renderVoteNamesHTML(curDateVotes, dateKey)}
-            </div>
+            ${renderScoreboardHTML(attendCount, approvedGuests(dateKey).length, absentCount, pendingCount, myStatus)}
 
             ${endBtnHTML}
-            <div class="bg-gray-50 p-3 rounded-xl">
-              ${needVote ? `<p class="text-xs font-black text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">👀 아직 투표 안 하셨어요! 지금 ${attendCount}명이 참가를 눌렀어요.</p>` : ''}
-              ${currentUser ? `
-              <p class="text-xs font-bold text-gray-600 mb-2">내 참여 상태 선택 (${currentEvent.date})</p>
-              <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
-                <button onclick="window.updateHomeAttendance('${currentEvent.date}', '참가')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '참가' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">참가 👍</button>
-                <button onclick="window.updateHomeAttendance('${currentEvent.date}', '불참')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '불참' ? 'bg-rose-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">불참 🖐️</button>
-                <button onclick="window.updateHomeAttendance('${currentEvent.date}', '미정')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '미정' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 border border-gray-200'}">미정 🤔</button>
+            ${needVote ? `<p class="vx-board-nudge">아직 투표 안 하셨어요. 지금 ${attendCount}명이 참가를 눌렀어요.</p>` : ''}
+            ${currentUser ? `
+              <div class="vx-vote-row" role="group" aria-label="내 참여 상태 (${currentEvent.date})">
+                ${['참가', '불참', '미정'].map(st => {
+                  const on = (needVote ? '' : myStatus) === st;
+                  return `<button onclick="window.updateHomeAttendance('${currentEvent.date}', '${st}')" aria-pressed="${on}" class="vx-vote-btn ${on ? 'is-on is-' + ({ '참가': 'yes', '불참': 'no', '미정': 'maybe' })[st] : ''}">${st}</button>`;
+                }).join('')}
               </div>
-              ` : `<button onclick="window.openLoginModal()" class="w-full py-3 rounded-xl font-bold text-sm bg-indigo-950 text-white">로그인하고 투표하기</button>`}
-              ${regularEvents.length > 0 ? renderGuestBoxHTML(currentEvent.date) : ''}
-            </div>
+            ` : `<button onclick="window.openLoginModal()" class="vx-vote-btn is-on is-yes w-full">로그인하고 투표하기</button>`}
+            ${regularEvents.length > 0 ? renderGuestBoxHTML(currentEvent.date) : ''}
+            ${renderVoteNamesHTML(curDateVotes, dateKey)}
           </section>
 
         ${pcTag(rankCardHTML, 'rank')}
@@ -2545,15 +2554,18 @@
       const input = document.getElementById('guestInput_' + dateKey);
       const name = (input ? input.value : '').trim().slice(0, 20);
       if (!name) { if (input) input.focus(); return; }
+      const memoEl = document.getElementById('guestMemo_' + dateKey);
+      const memo = (memoEl ? memoEl.value : '').trim().slice(0, 50);   /* [추가] 신청 메모 (운영진에게만 보임) */
       const list = [...(sampleData.regularGuestsByDate[dateKey] || [])];
       if (list.some(g => g.name === name && g.status !== 'rejected')) return alert('이미 신청된 게스트예요.');
       if (sampleData.members.some(m => m.name === name)) return alert('회원 명단에 있는 이름이에요. 회원은 직접 투표해 주세요.');
       const admin = isAdminUser();
       list.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, by: currentUser.name, at: new Date().toISOString(),
-        status: admin ? 'approved' : 'pending', ...(admin ? { approvedBy: currentUser.name } : {})
+        status: admin ? 'approved' : 'pending', ...(admin ? { approvedBy: currentUser.name } : {}), ...(memo ? { memo } : {})
       });
       if (input) { input.value = ''; input.blur(); }
+      if (memoEl) memoEl.value = '';
       try {
         await saveGuests(dateKey, list);
         showToast(admin ? `🙋 게스트 ${name}님을 등록했어요` : `🙋 ${name}님 게스트 신청 완료! 운영진 확인 후 명단에 표시돼요`);
@@ -2615,8 +2627,6 @@
         <span class="inline-flex items-center gap-1 text-xs font-bold pl-2.5 pr-1 py-1 rounded-full border ${ok ? 'bg-indigo-50 text-indigo-800 border-indigo-100' : 'bg-white text-gray-500 border-dashed border-gray-300'}">
           ${escH(g.name)}<span class="font-normal text-[11px] text-gray-500">· ${escH(g.by || '')}</span>
           ${ok ? '' : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">승인 대기</span>'}
-          ${!ok && isAdminUser() ? `<button onclick="window.approveRegularGuest('${dateKey}', '${g.id}')" class="text-[11px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white">승인</button>
-            <button onclick="window.rejectRegularGuest('${dateKey}', '${g.id}')" class="text-[11px] font-bold px-2 py-1 rounded-full bg-white text-rose-600 border border-rose-200">거절</button>` : ''}
           ${ok && canRemove ? `<button onclick="window.removeRegularGuest('${dateKey}', '${g.id}')" aria-label="게스트 빼기: ${escH(g.name)}" class="w-6 h-6 rounded-full text-gray-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center">✕</button>` : '<span class="w-1"></span>'}
         </span>`;
     }
@@ -2625,17 +2635,78 @@
       const wait = isAdminUser() ? pendingGuests(dateKey) : [];   /* 승인 대기는 운영진에게만 */
       return `
         <div class="mt-3 pt-3 border-t border-gray-200">
-          <p class="text-xs font-bold text-gray-600 mb-2">🙋 게스트 ${ok.length ? `<span class="text-indigo-800">${ok.length}명</span>` : ''}${wait.length ? ` <span class="text-amber-700">(승인 대기 ${wait.length})</span>` : ''} <span class="font-normal text-gray-400">· ${isAdminUser() ? '운영진이 추가하면 바로 등록돼요' : '신청하면 운영진 확인 후 명단에 표시돼요'}</span></p>
+          <p class="text-xs font-bold text-gray-600 mb-2">🙋 게스트 ${ok.length ? `<span class="text-indigo-800">${ok.length}명</span>` : ''}${wait.length ? ` <span class="text-amber-700">(승인 대기 ${wait.length})</span>` : ''} <span class="font-normal text-gray-400">· ${isAdminUser() ? (pendingGuests(dateKey).length ? '승인은 홈 맨 위 승인 카드에서' : '운영진이 추가하면 바로 등록돼요') : '신청하면 운영진 확인 후 명단에 표시돼요'}</span></p>
           ${ok.length || wait.length ? `<div class="flex flex-wrap gap-1.5 mb-2">${[...ok, ...wait].map(g => guestChipHTML(dateKey, g)).join('')}</div>` : ''}
-          ${currentUser ? `<div class="flex gap-1.5">
-            <label class="sr-only" for="guestInput_${dateKey}">게스트 이름</label>
-            <input id="guestInput_${dateKey}" type="text" maxlength="20" placeholder="게스트 이름 (예: 홍길동)" enterkeyhint="done"
+          ${currentUser ? `<div class="space-y-1.5">
+            <div class="flex gap-1.5">
+              <label class="sr-only" for="guestInput_${dateKey}">게스트 이름</label>
+              <input id="guestInput_${dateKey}" type="text" maxlength="20" placeholder="게스트 이름 (예: 홍길동)" enterkeyhint="next"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('guestMemo_${dateKey}').focus()}"
+                class="flex-1 min-w-0 p-2.5 border border-gray-300 rounded-xl text-sm bg-white">
+              <button onclick="window.addRegularGuest('${dateKey}')" class="shrink-0 px-4 rounded-xl text-sm font-bold bg-indigo-950 text-white">${isAdminUser() ? '추가' : '신청'}</button>
+            </div>
+            <label class="sr-only" for="guestMemo_${dateKey}">신청 메모</label>
+            <input id="guestMemo_${dateKey}" type="text" maxlength="50" placeholder="메모 (선택) 예: 직장 동료, 배구 경력 2년 · 운영진만 봐요" enterkeyhint="done"
               onkeydown="if(event.key==='Enter'){event.preventDefault();window.addRegularGuest('${dateKey}')}"
-              class="flex-1 min-w-0 p-2.5 border border-gray-300 rounded-xl text-sm bg-white">
-            <button onclick="window.addRegularGuest('${dateKey}')" class="shrink-0 px-4 rounded-xl text-sm font-bold bg-indigo-950 text-white">${isAdminUser() ? '추가' : '신청'}</button>
+              class="w-full p-2.5 border border-gray-200 rounded-xl text-xs bg-white">
           </div>` : ''}
         </div>`;
     }
+    /* [추가] 게스트 참가 기록 (운영진 전용): 오늘까지의 정기운동에 승인된 게스트 기준 */
+    function guestHistory() {
+      const today = getTodayString(), map = {};
+      Object.keys(sampleData.regularGuestsByDate || {}).forEach(d => {
+        approvedGuests(d).forEach(g => {
+          const h = map[g.name] || (map[g.name] = { name: g.name, visits: 0, upcoming: 0, last: '', by: new Set(), memo: '' });
+          if (d <= today) { h.visits++; if (d > h.last) h.last = d; } else h.upcoming++;
+          if (g.by) h.by.add(g.by);
+          if (g.memo) h.memo = g.memo;
+        });
+      });
+      return Object.values(map).sort((a, b) => (b.visits - a.visits) || b.last.localeCompare(a.last) || a.name.localeCompare(b.name, 'ko'));
+    }
+    function guestVisitCount(name) { const h = guestHistory().find(x => x.name === name); return h ? h.visits : 0; }
+    const GUEST_JOIN_HINT = 3;   /* 이 횟수 이상 오면 '정회원 가입 권유' 표시 */
+    function renderGuestHistoryCardHTML() {
+      if (!isAdminUser()) return '';
+      const rows = guestHistory();
+      return `
+        <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>👥</span> 게스트 참가 기록</h3>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">게스트 ${rows.length}명</span>
+          </div>
+          <p class="text-[11px] text-gray-400 mb-3">승인된 게스트 기준, 최근 1년. ${GUEST_JOIN_HINT}회 이상 온 게스트에게는 정회원 가입을 권해 보세요.</p>
+          ${rows.length === 0 ? '<p class="text-xs text-gray-400 py-3 text-center">아직 게스트 기록이 없어요.</p>' : `<div class="space-y-1.5">${rows.map(h => `
+            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl text-xs ${h.visits >= GUEST_JOIN_HINT ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50'}">
+              <span class="min-w-0">
+                <strong class="text-gray-900">${escH(h.name)}</strong>
+                ${h.visits >= GUEST_JOIN_HINT ? '<span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-600 text-white">정회원 가입 권유</span>' : ''}
+                <span class="block text-gray-500 mt-0.5">${[...h.by].map(escH).join(', ')} 동반${h.last ? ` · 최근 ${h.last.slice(5)}` : ''}${h.memo ? ` · ${escH(h.memo)}` : ''}</span>
+              </span>
+              <span class="shrink-0 text-right">
+                <span class="block text-sm font-black text-indigo-900">${h.visits}회</span>
+                ${h.upcoming ? `<span class="block text-[10px] text-gray-500">예정 ${h.upcoming}</span>` : ''}
+              </span>
+            </div>`).join('')}</div>`}
+        </div>`;
+    }
+    /* [추가] 운영진 메뉴에 승인 대기 숫자 */
+    function totalPendingGuests() {
+      const today = getTodayString();
+      return Object.keys(sampleData.regularGuestsByDate || {}).filter(d => d >= today).reduce((n, d) => n + pendingGuests(d).length, 0);
+    }
+    function updateAdminNavBadge() {
+      const btn = document.getElementById('nav-admin');
+      if (!btn) return;
+      const n = isAdminUser() ? totalPendingGuests() : 0;
+      let b = btn.querySelector('.vx-nav-badge');
+      if (!n) { if (b) b.remove(); btn.removeAttribute('aria-description'); return; }
+      if (!b) { b = document.createElement('span'); b.className = 'vx-nav-badge'; btn.appendChild(b); }
+      b.textContent = n > 9 ? '9+' : String(n);
+      btn.setAttribute('aria-description', `게스트 승인 대기 ${n}명`);
+    }
+
     /* 게스트 승인 요청 카드 (운영진 전용) — 홈 맨 위(대기 있을 때)와 운영진 탭에 표시 */
     function renderGuestApprovalCardHTML(forHome) {
       if (!isAdminUser()) return '';
@@ -2658,7 +2729,9 @@
               <div class="space-y-1.5">
                 ${pendingGuests(d).map(g => `
                   <div class="flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-xl text-xs">
-                    <span class="min-w-0"><strong class="text-gray-900">${escH(g.name)}</strong> <span class="text-gray-500">· ${escH(g.by || '')} 신청</span></span>
+                    <span class="min-w-0"><strong class="text-gray-900">${escH(g.name)}</strong> <span class="text-gray-500">· ${escH(g.by || '')} 신청</span>
+                      ${g.memo ? `<span class="block text-gray-600 mt-0.5">📝 ${escH(g.memo)}</span>` : ''}
+                      ${guestVisitCount(g.name) ? `<span class="block text-indigo-700 mt-0.5">이전 참가 ${guestVisitCount(g.name)}회</span>` : ''}</span>
                     <span class="flex gap-1.5 shrink-0">
                       <button onclick="window.approveRegularGuest('${d}', '${g.id}')" class="px-3 py-2 rounded-lg font-bold bg-emerald-600 text-white">승인</button>
                       <button onclick="window.rejectRegularGuest('${d}', '${g.id}')" class="px-3 py-2 rounded-lg font-bold bg-white text-rose-600 border border-rose-200">거절</button>
@@ -2673,6 +2746,7 @@
                 ${rejected.map(g => `
                   <div class="flex items-start justify-between gap-2 p-2.5 bg-rose-50/60 rounded-xl text-xs">
                     <span class="min-w-0"><strong class="text-gray-900">${escH(g.name)}</strong> <span class="text-gray-500">· ${g.date.slice(5)} · ${escH(g.by || '')} 신청 · ${escH(g.rejectedBy || '')} 거절</span>
+                      ${g.memo ? `<span class="block text-gray-600 mt-0.5">📝 ${escH(g.memo)}</span>` : ''}
                       <span class="block text-rose-700 mt-0.5">사유: ${escH(g.rejectReason || '')}</span></span>
                     <span class="flex gap-1 shrink-0">
                       <button onclick="window.approveRegularGuest('${g.date}', '${g.id}')" class="px-2.5 py-1.5 rounded-lg font-bold bg-white text-emerald-700 border border-emerald-200">승인으로 변경</button>
@@ -3604,6 +3678,8 @@
           </div>
 
           ${renderGuestApprovalCardHTML(false)}
+
+          ${renderGuestHistoryCardHTML()}
 
           ${renderRetentionCardHTML()}
 
