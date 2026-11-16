@@ -165,7 +165,7 @@ const VX_EMOJI = {
   '📅': 'calendar', '🗓️': 'calendar', '🗓': 'calendar', '📋': 'clipboard', '💬': 'message', '📓': 'book', '📖': 'book',
   '📊': 'chart', '📈': 'chart', '🏐': 'ball', '🏋️': 'dumbbell', '🏋': 'dumbbell', '🧢': 'clipcheck', '🔒': 'lock',
   '📲': 'phone', '📱': 'phone', '📦': 'archive', '📣': 'megaphone', '📢': 'megaphone', '📝': 'pencil', '✍️': 'pencil', '✍': 'pencil',
-  '👥': 'users', '👤': 'user', '🏆': 'trophy', '🏅': 'medal', '🎖️': 'medal', '🎖': 'medal', '🏁': 'flag', '🎥': 'video', '🎬': 'video',
+  '👥': 'users', '👤': 'user', '🙋': 'user', '🙋‍♂️': 'user', '🙋‍♀️': 'user', '🏆': 'trophy', '🏅': 'medal', '🎖️': 'medal', '🎖': 'medal', '🏁': 'flag', '🎥': 'video', '🎬': 'video',
   '🌱': 'sprout', '👑': 'crown', '🎯': 'target', '🔥': 'flame', '🎁': 'gift', '🎊': 'gift', '🎉': 'gift'
 };
 const vxSvg = (k) => `<svg class="vx-hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VX_ICONS[k]}</svg>`;
@@ -199,7 +199,7 @@ function vxIconize(root) {
 /* ---------- 운영진 탭 접기 ---------- */
 let vxAdminOpen = {};
 try { vxAdminOpen = JSON.parse(localStorage.getItem('vxAdminOpen') || '{}'); } catch (e) {}
-const vxDefaultOpen = (key) => /오늘의 정기운동|정기운동 종료/.test(key);
+const vxDefaultOpen = (key) => /오늘의 정기운동|정기운동 종료|게스트 승인/.test(key);
 const vxIsOpen = (key) => (key in vxAdminOpen ? vxAdminOpen[key] : vxDefaultOpen(key));
 function vxSaveOpen() { try { localStorage.setItem('vxAdminOpen', JSON.stringify(vxAdminOpen)); } catch (e) {} }
 const vxCardKey = (h) => h.textContent.replace(/\(.*?\)/g, '').replace(/[0-9/·:]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);

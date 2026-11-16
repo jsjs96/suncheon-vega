@@ -304,6 +304,12 @@ window.openLineupEditor = (eventId) => {
     memo: ex ? (ex.memo || '') : '',
     status: ex ? ex.status : 'draft'
   };
+  /* [추가] 정기운동 투표에서 회원들이 추가한 게스트도 엔트리 명단에 자동으로 넣음 */
+  if (evt.type === 'regular') {
+    ((sampleData.regularGuestsByDate || {})[evt.date] || []).filter(g => g && (!g.status || g.status === 'approved')).forEach(g => {   /* 승인된 게스트만 */
+      if (g && g.name && !lineupDraft.guests.includes(g.name) && !sampleData.members.some(m => m.name === g.name)) lineupDraft.guests.push(g.name);
+    });
+  }
   const m = ensureLineupModal();
   m.classList.remove('hidden');
   renderLineupEditor();

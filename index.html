@@ -176,8 +176,11 @@
           <input type="text" id="loginName" required placeholder="예: 홍길동 (운영진 접속: 회장)" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-xs sm:text-sm" />
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1">비밀번호 (초기: 0000)</label>
-          <input type="password" id="loginPass" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-xs sm:text-sm" />
+          <label for="loginPass" class="block text-xs font-bold text-gray-700 mb-1">비밀번호 (초기: 0000)</label>
+          <div class="relative">
+            <input type="password" id="loginPass" inputmode="numeric" autocomplete="current-password" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-xs sm:text-sm pr-12" />
+            <button type="button" onclick="window.vxTogglePw(this)" aria-label="비밀번호 보기" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700"><svg class="vx-eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="vx-eye-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.5-.5 4.9-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+          </div>
         </div>
         <div class="flex items-center">
           <input type="checkbox" id="rememberMe" class="w-4 h-4 text-indigo-900 border-gray-300 rounded focus:ring-indigo-600" checked>
@@ -195,8 +198,11 @@
       <p id="passwordModalDesc" class="text-xs text-rose-600 font-bold mb-4 text-center">초기 비밀번호(0000)를 사용 중입니다. 새 비밀번호로 변경해 주세요.</p>
       <form onsubmit="handleChangePassword(event)" class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1">새 비밀번호 (4자리)</label>
-          <input type="password" id="newPass" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm" />
+          <label for="newPass" class="block text-xs font-bold text-gray-700 mb-1">새 비밀번호 (4자리)</label>
+          <div class="relative">
+            <input type="password" id="newPass" inputmode="numeric" autocomplete="new-password" maxlength="4" required placeholder="숫자 4자리" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm pr-12" />
+            <button type="button" onclick="window.vxTogglePw(this)" aria-label="비밀번호 보기" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700"><svg class="vx-eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="vx-eye-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.5-.5 4.9-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+          </div>
         </div>
         <div class="flex gap-2">
           <button type="button" id="passModalCancelBtn" onclick="closePasswordModal()" class="w-1/2 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">취소</button>
@@ -369,8 +375,11 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-700 mb-1">초기 비밀번호 (4자리)</label>
-          <input type="password" id="addMemberPassword" maxlength="4" required value="0000" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none" />
+          <label for="addMemberPassword" class="block text-xs font-bold text-gray-700 mb-1">초기 비밀번호 (4자리)</label>
+          <div class="relative">
+            <input type="password" id="addMemberPassword" inputmode="numeric" autocomplete="off" maxlength="4" required value="0000" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none pr-12" />
+            <button type="button" onclick="window.vxTogglePw(this)" aria-label="비밀번호 보기" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700"><svg class="vx-eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="vx-eye-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.5-.5 4.9-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+          </div>
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-700 mb-1">가입일 (선택)</label>
@@ -570,6 +579,7 @@
     const sampleData = {
       members: [],
       regularVotesByDate: {},
+      regularGuestsByDate: {},   /* [추가] 정기운동 게스트: { 날짜: [{ id, name, by, at }] } */
       stats: { myAttendance: "0%", myCount: "0회 / 0회", teamAttendance: "0%", monthlyAttend: 0 },
       boardPosts: [],
       comments: [],
@@ -1128,7 +1138,8 @@
 
     /* 정기운동 카드: 풀코트 인원 게이지 */
     /* [변경] 투표 카드 숫자 중복 정리: 글자 줄·3색 막대를 없애고, 풀코트 막대 하나 + 참가/불참/미정 색 표시로 합침 */
-    function renderFullCourtGaugeHTML(attendCount, myStatus, absentCount = 0, pendingCount = 0) {
+    function renderFullCourtGaugeHTML(memberAttend, myStatus, absentCount = 0, pendingCount = 0, guestCount = 0) {
+      const attendCount = memberAttend + guestCount;   /* [추가] 풀코트 계산에는 게스트 포함 */
       const pct = Math.min(100, (attendCount / FULL_COURT_COUNT) * 100);
       const remain = Math.max(0, FULL_COURT_COUNT - attendCount);
       let msg;
@@ -1149,7 +1160,8 @@
             <div style="width: ${pct}%" class="${barColor} h-full rounded-full transition-all"></div>
           </div>
           <div class="flex items-center gap-3 mt-2 text-xs font-bold">
-            <span class="flex items-center gap-1 text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>참가 ${attendCount}</span>
+            <span class="flex items-center gap-1 text-emerald-700"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>참가 ${memberAttend}</span>
+            ${guestCount ? `<span class="flex items-center gap-1 text-indigo-800"><span class="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span>게스트 ${guestCount}</span>` : ''}
             <span class="flex items-center gap-1 text-rose-700"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>불참 ${absentCount}</span>
             <span class="flex items-center gap-1 text-amber-700"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>미정 ${pendingCount}</span>
           </div>
@@ -1671,9 +1683,14 @@
       });
 
       onSnapshot(query(collection(db, "regularVotes"), where(documentId(), ">=", cutoffDate())), (snapshot) => {
-        const votes = {};
-        snapshot.docs.forEach(doc => { votes[doc.id] = doc.data().votes || {}; });
+        const votes = {}, guests = {};
+        snapshot.docs.forEach(doc => {
+          const d = doc.data();
+          votes[doc.id] = d.votes || {};
+          guests[doc.id] = Array.isArray(d.guests) ? d.guests : [];
+        });
         sampleData.regularVotesByDate = votes;
+        sampleData.regularGuestsByDate = guests;
         votesReady = true;
         refreshCurrentTab();
       });
@@ -1871,8 +1888,22 @@
           </button>
         `;
       }
+      /* [추가] 운영진 탭은 운영진으로 로그인했을 때만 아래 메뉴에 표시 */
+      const navAdmin = document.getElementById('nav-admin');
+      if (navAdmin) navAdmin.style.display = (currentUser && currentUser.role === 'admin') ? '' : 'none';
       window.dispatchEvent(new Event('vega:render'));   /* 로그인·로그아웃 등 사용자 변경을 확장 모듈에 알림 */
     }
+    /* [추가] 비밀번호 보기/숨기기 */
+    window.vxTogglePw = (btn) => {
+      const input = btn.parentElement.querySelector('input');
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.querySelector('.vx-eye-on').classList.toggle('hidden', show);
+      btn.querySelector('.vx-eye-off').classList.toggle('hidden', !show);
+      btn.setAttribute('aria-label', show ? '비밀번호 숨기기' : '비밀번호 보기');
+      input.focus();
+    };
 
     window.openLoginModal = () => document.getElementById('loginModal').classList.remove('hidden');
     window.closeLoginModal = () => document.getElementById('loginModal').classList.add('hidden');
@@ -2131,6 +2162,8 @@
       };
 
       container.innerHTML = `
+        ${renderGuestApprovalCardHTML(true)}
+
         <section data-pc="att" class="bg-gradient-to-r from-indigo-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm mb-5">
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-sm sm:text-base font-black flex items-center gap-1.5 truncate"><span>📊</span> VEGA 출석 현황</h2>
@@ -2139,10 +2172,10 @@
           <div class="grid grid-cols-2 gap-2 sm:gap-4 bg-white/10 backdrop-blur-md p-3 sm:p-4 rounded-xl">
             <div class="border-r border-indigo-700/50 pr-2">
               <span class="text-[11px] sm:text-xs text-indigo-200 block mb-1">나의 출석률</span>
-              <div class="flex items-baseline gap-1 sm:gap-2 flex-wrap">
-                <span class="text-xl sm:text-2xl font-black text-amber-400">${currentUser ? stats.myAttendance : '- %'}</span>
-                <span class="text-[10px] sm:text-xs text-indigo-200">(${currentUser ? stats.myCount : '0/0회'})</span>
-              </div>
+              ${currentUser ? `<div class="flex items-baseline gap-1 sm:gap-2 flex-wrap">
+                <span class="text-xl sm:text-2xl font-black text-amber-400">${stats.myAttendance}</span>
+                <span class="text-[10px] sm:text-xs text-indigo-200">(${stats.myCount})</span>
+              </div>` : `<button onclick="window.openLoginModal()" class="text-xs font-bold text-amber-300 underline underline-offset-2 text-left leading-snug">로그인하면<br>내 출석률이 보여요</button>`}
             </div>
             <div class="pl-2">
               <span class="text-[11px] sm:text-xs text-indigo-200 block mb-1">팀 평균 출석률</span>
@@ -2173,19 +2206,22 @@
               <h2 class="text-base sm:text-lg font-black text-gray-900 mb-1 truncate">🏐 ${currentEvent.date} ${currentEvent.title}</h2>
               <p class="text-xs text-gray-500 mb-3">📍 ${escH(currentEvent.location || '순천 조례초')}${currentEvent.time ? ' · ' + escH(currentEvent.time) : ''}</p>
 
-              ${renderFullCourtGaugeHTML(attendCount, myStatus, absentCount, pendingCount)}
-              ${renderVoteNamesHTML(curDateVotes)}
+              ${renderFullCourtGaugeHTML(attendCount, myStatus, absentCount, pendingCount, approvedGuests(dateKey).length)}
+              ${renderVoteNamesHTML(curDateVotes, dateKey)}
             </div>
 
             ${endBtnHTML}
             <div class="bg-gray-50 p-3 rounded-xl">
               ${needVote ? `<p class="text-xs font-black text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-2">👀 아직 투표 안 하셨어요! 지금 ${attendCount}명이 참가를 눌렀어요.</p>` : ''}
+              ${currentUser ? `
               <p class="text-xs font-bold text-gray-600 mb-2">내 참여 상태 선택 (${currentEvent.date})</p>
               <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button onclick="window.updateHomeAttendance('${currentEvent.date}', '참가')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '참가' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">참가 👍</button>
                 <button onclick="window.updateHomeAttendance('${currentEvent.date}', '불참')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '불참' ? 'bg-rose-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}">불참 🖐️</button>
                 <button onclick="window.updateHomeAttendance('${currentEvent.date}', '미정')" class="py-2.5 rounded-xl font-bold text-sm ${(needVote ? '' : myStatus) === '미정' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 border border-gray-200'}">미정 🤔</button>
               </div>
+              ` : `<button onclick="window.openLoginModal()" class="w-full py-3 rounded-xl font-bold text-sm bg-indigo-950 text-white">로그인하고 투표하기</button>`}
+              ${regularEvents.length > 0 ? renderGuestBoxHTML(currentEvent.date) : ''}
             </div>
           </section>
 
@@ -2335,6 +2371,8 @@
       app.insertBefore(top, row);
       const banner = q('banner');
       if (banner) app.insertBefore(banner, top);
+      const approve = q('approve');   /* 운영진 게스트 승인 카드는 맨 위 */
+      if (approve) app.insertBefore(approve, app.firstChild);
       const grid = q('grid');
       if (grid && !grid.children.length) grid.remove();
     }
@@ -2383,7 +2421,7 @@
             <h3 class="text-base font-black text-gray-900">${evt.date} ${escH(evt.title || '정기운동')}</h3>
             <p class="text-xs text-gray-500 mb-3">📍 ${escH(evt.location || '순천 조례초')}${evt.time ? ' · ' + escH(evt.time) : ''}</p>
             <div class="grid grid-cols-3 gap-2 text-center mb-3">
-              <div class="bg-emerald-50 rounded-xl py-2"><p class="text-[11px] font-bold text-emerald-700">참가</p><p class="text-lg font-black text-emerald-700">${a}</p></div>
+              <div class="bg-emerald-50 rounded-xl py-2"><p class="text-[11px] font-bold text-emerald-700">참가</p><p class="text-lg font-black text-emerald-700">${a}${approvedGuests(evt.date).length ? `<span class="text-xs font-bold text-indigo-700"> +${approvedGuests(evt.date).length}</span>` : ''}</p></div>
               <div class="bg-rose-50 rounded-xl py-2"><p class="text-[11px] font-bold text-rose-700">불참</p><p class="text-lg font-black text-rose-700">${b}</p></div>
               <div class="bg-amber-50 rounded-xl py-2"><p class="text-[11px] font-bold text-amber-700">미정</p><p class="text-lg font-black text-amber-700">${c}</p></div>
             </div>
@@ -2456,7 +2494,7 @@
        펼침 상태는 화면이 다시 그려져도 유지됩니다. 집계 기준은 위 숫자와 같은 '회원 명단' */
     let voteNamesOpen = false;
     window.toggleVoteNames = () => { voteNamesOpen = !voteNamesOpen; renderHome(document.getElementById('app')); };
-    function renderVoteNamesHTML(votes) {
+    function renderVoteNamesHTML(votes, dateKey) {
       const groups = { '참가': [], '불참': [], '미정': [] };
       sampleData.members.forEach(m => {
         const s = votes[m.name];
@@ -2479,6 +2517,7 @@
           ${row('👍 참가', groups['참가'], 'text-emerald-700', 'bg-emerald-50 text-emerald-800 border-emerald-200')}
           ${row('🖐️ 불참', groups['불참'], 'text-rose-700', 'bg-rose-50 text-rose-800 border-rose-200')}
           ${row('🤔 미정', groups['미정'], 'text-amber-700', 'bg-amber-50 text-amber-800 border-amber-200')}
+          ${(() => { const gl = approvedGuests(dateKey).map(g => g.name); return gl.length ? row('🙋 게스트', gl, 'text-indigo-800', 'bg-indigo-50 text-indigo-800 border-indigo-200') : ''; })()}
         </div>` : ''}`;
     }
 
@@ -2486,6 +2525,164 @@
       selectedHomeDate = dateStr;
       renderHome(document.getElementById('app'));
     };
+
+    /* ==================== [추가] 정기운동 게스트 ====================
+       - 회원 누구나 신청 → 운영진이 승인/거절(사유 필수) → 승인된 게스트만 등록 (운영진이 추가하면 바로 등록)
+       - 승인 대기·거절·사유는 운영진에게만 보임. 일반 회원에게는 승인된 게스트만 보임
+       - 승인된 게스트만 인원 수·투표 명단·엔트리에 포함 */
+    const isAdminUser = () => !!(currentUser && currentUser.role === 'admin');
+    const guestApproved = (g) => !g.status || g.status === 'approved';   /* 예전에 상태 없이 저장된 게스트는 승인된 것으로 봄 */
+    function approvedGuests(dateKey) { return (sampleData.regularGuestsByDate[dateKey] || []).filter(guestApproved); }
+    function pendingGuests(dateKey) { return (sampleData.regularGuestsByDate[dateKey] || []).filter(g => g.status === 'pending'); }
+    function rejectedGuests(dateKey) { return (sampleData.regularGuestsByDate[dateKey] || []).filter(g => g.status === 'rejected'); }
+    async function saveGuests(dateKey, list) {
+      sampleData.regularGuestsByDate[dateKey] = list;
+      renderPending = false; refreshCurrentTab();
+      await setDoc(doc(db, "regularVotes", dateKey), { guests: list }, { merge: true });
+    }
+    window.addRegularGuest = async (dateKey) => {
+      if (!currentUser) return window.openLoginModal();
+      const input = document.getElementById('guestInput_' + dateKey);
+      const name = (input ? input.value : '').trim().slice(0, 20);
+      if (!name) { if (input) input.focus(); return; }
+      const list = [...(sampleData.regularGuestsByDate[dateKey] || [])];
+      if (list.some(g => g.name === name && g.status !== 'rejected')) return alert('이미 신청된 게스트예요.');
+      if (sampleData.members.some(m => m.name === name)) return alert('회원 명단에 있는 이름이에요. 회원은 직접 투표해 주세요.');
+      const admin = isAdminUser();
+      list.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, by: currentUser.name, at: new Date().toISOString(),
+        status: admin ? 'approved' : 'pending', ...(admin ? { approvedBy: currentUser.name } : {})
+      });
+      if (input) { input.value = ''; input.blur(); }
+      try {
+        await saveGuests(dateKey, list);
+        showToast(admin ? `🙋 게스트 ${name}님을 등록했어요` : `🙋 ${name}님 게스트 신청 완료! 운영진 확인 후 명단에 표시돼요`);
+      } catch (err) { console.error(err); alert('저장에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.'); }
+    };
+    window.approveRegularGuest = async (dateKey, id) => {
+      if (!isAdminUser()) return;
+      const list = (sampleData.regularGuestsByDate[dateKey] || []).map(g => g.id === id ? { ...g, status: 'approved', approvedBy: currentUser.name, approvedAt: new Date().toISOString() } : g);
+      const g = list.find(x => x.id === id);
+      try { await saveGuests(dateKey, list); if (g) showToast(`✅ 게스트 ${g.name}님을 승인했어요`); }
+      catch (err) { console.error(err); alert('저장에 실패했어요. 다시 시도해 주세요.'); }
+    };
+    /* 거절: 사유 입력 창 */
+    window.rejectRegularGuest = (dateKey, id) => {
+      if (!isAdminUser()) return;
+      const g = (sampleData.regularGuestsByDate[dateKey] || []).find(x => x.id === id);
+      if (!g) return;
+      let m = document.getElementById('vxRejectModal');
+      if (!m) { m = document.createElement('div'); m.id = 'vxRejectModal'; document.body.appendChild(m); }
+      m.className = 'fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4';
+      m.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" role="dialog" aria-modal="true" aria-labelledby="vxRejectTitle">
+          <h3 id="vxRejectTitle" class="text-base font-black text-gray-900 mb-1">게스트 신청 거절</h3>
+          <p class="text-xs text-gray-500 mb-3">${escH(dateKey)} · <strong class="text-gray-800">${escH(g.name)}</strong> (${escH(g.by || '')} 신청)</p>
+          <label for="vxRejectReason" class="block text-xs font-bold text-gray-700 mb-1">거절 사유 <span class="text-rose-600">(필수)</span></label>
+          <textarea id="vxRejectReason" rows="3" maxlength="200" placeholder="예: 이번 주는 인원이 꽉 찼어요" class="w-full p-2.5 border border-gray-300 rounded-xl text-sm"></textarea>
+          <p class="text-[11px] text-gray-400 mt-1 mb-3">사유는 운영진에게만 보여요.</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="document.getElementById('vxRejectModal').remove()" class="py-2.5 rounded-xl text-sm font-bold bg-gray-100 text-gray-700">취소</button>
+            <button onclick="window.confirmRejectGuest('${dateKey}', '${id}')" class="py-2.5 rounded-xl text-sm font-bold bg-rose-600 text-white">거절하기</button>
+          </div>
+        </div>`;
+      setTimeout(() => { const t = document.getElementById('vxRejectReason'); if (t) t.focus(); }, 50);
+    };
+    window.confirmRejectGuest = async (dateKey, id) => {
+      const t = document.getElementById('vxRejectReason');
+      const reason = (t ? t.value : '').trim();
+      if (!reason) { alert('거절 사유를 입력해 주세요.'); if (t) t.focus(); return; }
+      const list = (sampleData.regularGuestsByDate[dateKey] || []).map(g => g.id === id ? { ...g, status: 'rejected', rejectReason: reason, rejectedBy: currentUser.name, rejectedAt: new Date().toISOString() } : g);
+      const g = list.find(x => x.id === id);
+      const m = document.getElementById('vxRejectModal'); if (m) m.remove();
+      try { await saveGuests(dateKey, list); if (g) showToast(`게스트 ${g.name}님 신청을 거절했어요`); }
+      catch (err) { console.error(err); alert('저장에 실패했어요. 다시 시도해 주세요.'); }
+    };
+    window.removeRegularGuest = async (dateKey, id) => {
+      if (!currentUser) return window.openLoginModal();
+      const list = sampleData.regularGuestsByDate[dateKey] || [];
+      const g = list.find(x => x.id === id);
+      if (!g) return;
+      if (!isAdminUser() && g.by !== currentUser.name) return;
+      if (!confirm(g.status === 'rejected' ? `거절 기록(${g.name})을 지울까요?` : `게스트 ${g.name}님을 명단에서 뺄까요?`)) return;
+      try { await saveGuests(dateKey, list.filter(x => x.id !== id)); }
+      catch (err) { console.error(err); alert('저장에 실패했어요. 다시 시도해 주세요.'); }
+    };
+    function guestChipHTML(dateKey, g) {
+      const ok = guestApproved(g);
+      const canRemove = currentUser && (isAdminUser() || g.by === currentUser.name);
+      return `
+        <span class="inline-flex items-center gap-1 text-xs font-bold pl-2.5 pr-1 py-1 rounded-full border ${ok ? 'bg-indigo-50 text-indigo-800 border-indigo-100' : 'bg-white text-gray-500 border-dashed border-gray-300'}">
+          ${escH(g.name)}<span class="font-normal text-[11px] text-gray-500">· ${escH(g.by || '')}</span>
+          ${ok ? '' : '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">승인 대기</span>'}
+          ${!ok && isAdminUser() ? `<button onclick="window.approveRegularGuest('${dateKey}', '${g.id}')" class="text-[11px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white">승인</button>
+            <button onclick="window.rejectRegularGuest('${dateKey}', '${g.id}')" class="text-[11px] font-bold px-2 py-1 rounded-full bg-white text-rose-600 border border-rose-200">거절</button>` : ''}
+          ${ok && canRemove ? `<button onclick="window.removeRegularGuest('${dateKey}', '${g.id}')" aria-label="게스트 빼기: ${escH(g.name)}" class="w-6 h-6 rounded-full text-gray-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center">✕</button>` : '<span class="w-1"></span>'}
+        </span>`;
+    }
+    function renderGuestBoxHTML(dateKey) {
+      const ok = approvedGuests(dateKey);
+      const wait = isAdminUser() ? pendingGuests(dateKey) : [];   /* 승인 대기는 운영진에게만 */
+      return `
+        <div class="mt-3 pt-3 border-t border-gray-200">
+          <p class="text-xs font-bold text-gray-600 mb-2">🙋 게스트 ${ok.length ? `<span class="text-indigo-800">${ok.length}명</span>` : ''}${wait.length ? ` <span class="text-amber-700">(승인 대기 ${wait.length})</span>` : ''} <span class="font-normal text-gray-400">· ${isAdminUser() ? '운영진이 추가하면 바로 등록돼요' : '신청하면 운영진 확인 후 명단에 표시돼요'}</span></p>
+          ${ok.length || wait.length ? `<div class="flex flex-wrap gap-1.5 mb-2">${[...ok, ...wait].map(g => guestChipHTML(dateKey, g)).join('')}</div>` : ''}
+          ${currentUser ? `<div class="flex gap-1.5">
+            <label class="sr-only" for="guestInput_${dateKey}">게스트 이름</label>
+            <input id="guestInput_${dateKey}" type="text" maxlength="20" placeholder="게스트 이름 (예: 홍길동)" enterkeyhint="done"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();window.addRegularGuest('${dateKey}')}"
+              class="flex-1 min-w-0 p-2.5 border border-gray-300 rounded-xl text-sm bg-white">
+            <button onclick="window.addRegularGuest('${dateKey}')" class="shrink-0 px-4 rounded-xl text-sm font-bold bg-indigo-950 text-white">${isAdminUser() ? '추가' : '신청'}</button>
+          </div>` : ''}
+        </div>`;
+    }
+    /* 게스트 승인 요청 카드 (운영진 전용) — 홈 맨 위(대기 있을 때)와 운영진 탭에 표시 */
+    function renderGuestApprovalCardHTML(forHome) {
+      if (!isAdminUser()) return '';
+      const today = getTodayString();
+      const all = Object.keys(sampleData.regularGuestsByDate || {}).filter(d => d >= today).sort();
+      const pDates = all.filter(d => pendingGuests(d).length);
+      const total = pDates.reduce((n, d) => n + pendingGuests(d).length, 0);
+      if (forHome && total === 0) return '';
+      const rejected = all.flatMap(d => rejectedGuests(d).map(g => ({ ...g, date: d })));
+      return `
+        <div ${forHome ? 'data-pc="approve"' : ''} class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border ${total ? 'border-amber-300' : 'border-gray-100'} ${forHome ? 'mb-5' : ''}">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-xs sm:text-sm font-black text-gray-900 flex items-center gap-1.5"><span>🙋</span> 게스트 승인 요청</h3>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${total ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'}">대기 ${total}명</span>
+          </div>
+          ${forHome ? '<p class="text-[11px] text-gray-400 mb-2">운영진에게만 보이는 카드예요.</p>' : ''}
+          ${total === 0 ? '<p class="text-xs text-gray-400 py-3 text-center">승인을 기다리는 게스트가 없어요.</p>' : pDates.map(d => `
+            <div class="mb-3 last:mb-0">
+              <p class="text-[11px] font-black text-gray-700 mb-1.5">${d} 정기운동</p>
+              <div class="space-y-1.5">
+                ${pendingGuests(d).map(g => `
+                  <div class="flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-xl text-xs">
+                    <span class="min-w-0"><strong class="text-gray-900">${escH(g.name)}</strong> <span class="text-gray-500">· ${escH(g.by || '')} 신청</span></span>
+                    <span class="flex gap-1.5 shrink-0">
+                      <button onclick="window.approveRegularGuest('${d}', '${g.id}')" class="px-3 py-2 rounded-lg font-bold bg-emerald-600 text-white">승인</button>
+                      <button onclick="window.rejectRegularGuest('${d}', '${g.id}')" class="px-3 py-2 rounded-lg font-bold bg-white text-rose-600 border border-rose-200">거절</button>
+                    </span>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+          ${!forHome && rejected.length ? `
+            <div class="mt-3 pt-3 border-t border-gray-100">
+              <p class="text-[11px] font-black text-gray-500 mb-1.5">거절한 신청 (${rejected.length})</p>
+              <div class="space-y-1.5">
+                ${rejected.map(g => `
+                  <div class="flex items-start justify-between gap-2 p-2.5 bg-rose-50/60 rounded-xl text-xs">
+                    <span class="min-w-0"><strong class="text-gray-900">${escH(g.name)}</strong> <span class="text-gray-500">· ${g.date.slice(5)} · ${escH(g.by || '')} 신청 · ${escH(g.rejectedBy || '')} 거절</span>
+                      <span class="block text-rose-700 mt-0.5">사유: ${escH(g.rejectReason || '')}</span></span>
+                    <span class="flex gap-1 shrink-0">
+                      <button onclick="window.approveRegularGuest('${g.date}', '${g.id}')" class="px-2.5 py-1.5 rounded-lg font-bold bg-white text-emerald-700 border border-emerald-200">승인으로 변경</button>
+                      <button onclick="window.removeRegularGuest('${g.date}', '${g.id}')" aria-label="거절 기록 지우기" class="w-8 h-8 rounded-lg text-gray-400 hover:text-rose-600 flex items-center justify-center">✕</button>
+                    </span>
+                  </div>`).join('')}
+              </div>
+            </div>` : ''}
+        </div>`;
+    }
 
     window.updateHomeAttendance = async (dateKey, status) => {
       if(!currentUser) return window.openLoginModal();
@@ -3405,6 +3602,8 @@
               📢 공지 작성
             </button>
           </div>
+
+          ${renderGuestApprovalCardHTML(false)}
 
           ${renderRetentionCardHTML()}
 
