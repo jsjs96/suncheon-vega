@@ -827,3 +827,8 @@ html body .v2-serve-sec { display: flex; align-items: baseline; gap: 6px; margin
 .v2-serve-sec span { margin-left: auto; font-family: var(--vg-display); font-weight: 400; font-size: 14px; color: var(--vg-text); }
 .v2-serve li.is-sub .k { color: var(--vg-faint); }
 .v2-lchip .sn { font-style: normal; font-family: var(--vg-display); font-size: 13px; color: var(--vg-faint); }
+/* 엔트리: 코트 선수 누르면 나오는 메뉴 · 끌어서 빼기 */
+.v2-chipmenu { position: absolute; z-index: 5; display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+html body .v2-chipmenu button { min-height: 40px; min-width: 40px; padding: 0 12px; border: 0; border-radius: 9px; background: #f4f4f5; color: #0A0A0A; font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+html body .v2-chipmenu button.is-red { background: #D91920; color: #fff; }
+.v2-ghost.is-out { background: #D91920; color: #fff; }

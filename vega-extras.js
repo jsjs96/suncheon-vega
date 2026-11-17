@@ -52,10 +52,10 @@ function getMyLineupRole(lineup) {
 }
 
 /* ---------- 코트 / 칩 HTML ---------- */
-function lineupCourtHTML(placed, interactive, myName, serve) {
+function lineupCourtHTML(placed, interactive, myName, serve, act) {
   const chips = placed.map(p => { const si = (serve || []).indexOf(p.name); return `
     <div ${interactive ? `data-name="${lnEsc(p.name)}" data-from="court"` : ''}
-         class="${interactive ? 'lineup-chip cursor-grab' : ''} v2-courtchip ${p.name === myName ? 'is-me' : ''}"
+         class="${interactive ? 'lineup-chip cursor-grab' : ''} v2-courtchip ${p.name === myName || p.name === act ? 'is-me' : ''}"
          style="left:${p.x}%;top:${p.y}%;touch-action:none;">${lnNoTag(p.name)}${lnEsc(p.name)}${si >= 0 ? `<i class="sv" aria-label="서브 ${si + 1}번">${si + 1}</i>` : ''}</div>`; }).join('');
   return `
     <div id="lineupCourt" class="v2-court select-none" style="touch-action:none;" aria-label="코트 배치">
@@ -64,8 +64,22 @@ function lineupCourtHTML(placed, interactive, myName, serve) {
       <div class="back" aria-hidden="true"></div><div class="attack" aria-hidden="true"></div>
       ${placed.length === 0 && interactive ? '<p class="empty">명단의 이름을 코트로 끌어다 놓거나<br>이름을 누르면 코트에 들어가요</p>' : ''}
       ${chips}
+      ${(() => { const p = act && placed.find(x => x.name === act); if (!p) return ''; const below = p.y < 70;
+        return `<div class="v2-chipmenu" style="left:${Math.min(78, Math.max(22, p.x))}%;top:${below ? `calc(${p.y}% + 26px)` : `calc(${p.y}% - 26px)`};transform:translate(-50%, ${below ? '0' : '-100%'})" role="menu" aria-label="${lnEsc(p.name)} 메뉴">
+          <button type="button" role="menuitem" onclick="window.lineupChipAct('bench')">후보로</button>
+          <button type="button" role="menuitem" onclick="window.lineupChipAct('out')" class="is-red">빼기</button>
+          <button type="button" role="menuitem" onclick="window.lineupChipAct('close')" aria-label="닫기">✕</button>
+        </div>`; })()}
     </div>`;
 }
+window.lineupChipAct = (what) => {
+  const L = lineupDraft; if (!L || !L._act) return;
+  syncLineupInputs();
+  const n = L._act; L._act = null;
+  if (what === 'bench') { removeFromLineup(L, n); L.bench = [n, ...L.bench.filter(x => x !== n)]; }
+  else if (what === 'out') removeFromLineup(L, n);
+  renderLineupEditor();
+};
 
 /* ---------- 에디터 렌더 ---------- */
 function syncLineupInputs() {
@@ -238,11 +252,12 @@ function renderLineupEditor() {
       <p class="flex items-center gap-2 text-[13px] mt-1.5 mb-0" style="color:#d4d4d8"><span class="v2-tag ${published ? 'is-red' : 'is-amber'}">${published ? '공개됨' : '초안'}</span>${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]} · ${published ? '회원에게 보여요' : '아직 회원에게 안 보여요'}</p>
       <div class="v2-stats" style="--n:2">
         <div><span class="v2-num"><span style="color:#FFB61E">${L.placed.length}</span><small style="color:#71717a"> / ${LINEUP_COURT_SIZE}</small></span><p>코트</p></div>
-        <div><span class="v2-num">${L.bench.length}</span><p>교체</p></div>
+        <div><span class="v2-num">${L.bench.length}<small style="color:#71717a"> / ${LINEUP_TOTAL - LINEUP_COURT_SIZE}</small></span><p>후보</p></div>
       </div>
     </header>
     <div class="v2-lmain">
-      ${lineupCourtHTML(L.placed, true, null, lnServe(L))}
+      ${lineupCourtHTML(L.placed, true, null, lnServe(L), L._act)}
+      <p class="text-xs v2-mut" style="margin:-10px 0 0">선수를 누르면 <b>후보로 · 빼기</b>를 고를 수 있어요. 코트 밖으로 끌어 놓아도 빠져요.</p>
 
       ${lineupServeHTML(L)}
 
@@ -327,6 +342,23 @@ function bindLineupDrag(root) {
   });
 }
 
+/* [추가] 끄는 중 화면 위·아래 끝에 가까우면 엔트리 창이 저절로 스크롤 */
+let lnScrollTimer = null, lnScrollDir = 0;
+function lnAutoScroll(y) {
+  const box = document.getElementById('lineupModalBody');
+  if (!box) return;
+  const r = box.getBoundingClientRect();
+  lnScrollDir = y > r.bottom - 70 ? 1 : y < r.top + 70 ? -1 : 0;
+  if (lnScrollDir && !lnScrollTimer) {
+    lnScrollTimer = setInterval(() => { if (!lnScrollDir || !lineupDrag) { clearInterval(lnScrollTimer); lnScrollTimer = null; return; } box.scrollTop += lnScrollDir * 14; }, 16);
+  }
+}
+function lnZoneAt(x, y) {
+  const hit = document.elementFromPoint(x, y);
+  if (!hit) return null;
+  return hit.closest('#lineupCourt') ? 'court' : hit.closest('#lineupBench') ? 'bench' : hit.closest('#lineupRoster') ? 'roster' : null;
+}
+
 function onLineupMove(ev) {
   const d = lineupDrag;
   if (!d) return;
@@ -342,12 +374,21 @@ function onLineupMove(ev) {
   d.ghost.style.left = ev.clientX + 'px';
   d.ghost.style.top = ev.clientY + 'px';
   d.ghost.style.transform = 'translate(-50%,-140%)';
+  /* 코트 밖으로 끌면 '놓으면 빠져요' 표시 */
+  if (d.from === 'court') {
+    const z = lnZoneAt(ev.clientX, ev.clientY);
+    const out = z !== 'court';
+    d.ghost.classList.toggle('is-out', out && z !== 'bench');
+    d.ghost.textContent = out ? (z === 'bench' ? `${d.name} → 후보` : `${d.name} 빼기`) : d.name;
+  }
+  lnAutoScroll(ev.clientY);
 }
 
 function onLineupUp(ev) {
   document.removeEventListener('pointermove', onLineupMove);
   document.removeEventListener('pointerup', onLineupUp);
   document.removeEventListener('pointercancel', onLineupUp);
+  lnScrollDir = 0;
   const d = lineupDrag;
   lineupDrag = null;
   if (!d) return;
@@ -360,13 +401,23 @@ function onLineupUp(ev) {
     if (d.from === 'roster') {
       lnAutoPlace(L, d.name);   /* [변경] 이름을 누르면 바로 코트 빈 자리에 들어감 → 끌어서 자유롭게 옮김 */
       if (L.placed.some(p => p.name === d.name)) L.serveOrder = [...lnServe(L), d.name];   /* 누른 순서대로 서브 번호 */
-      L._selected = null;
+      L._act = null;
     } else if (d.from === 'bench') {
       removeFromLineup(L, d.name);
-      L._selected = null;
+      L._act = null;
+    } else if (d.from === 'court') {
+      L._act = L._act === d.name ? null : d.name;   /* [추가] 코트 선수를 누르면 '후보로 · 빼기' 메뉴 */
     }
+    syncLineupInputs();
     renderLineupEditor();
     return;
+  }
+  L._act = null;
+
+  /* 코트 선수를 코트 밖(후보 칸 말고 아무 데나)에 놓으면 엔트리에서 빠짐 */
+  if (d.from === 'court') {
+    const z = lnZoneAt(ev.clientX, ev.clientY);
+    if (z !== 'court' && z !== 'bench') { removeFromLineup(L, d.name); syncLineupInputs(); renderLineupEditor(); return; }
   }
 
   /* 드롭 */
