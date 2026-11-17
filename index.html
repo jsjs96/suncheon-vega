@@ -119,9 +119,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Black+Han+Sans&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="vega-theme.css?v=28">
+  <link rel="stylesheet" href="vega-theme.css?v=33">
   <!-- Tailwind 빌드 결과 (기존 CDN과 같은 v3.4.17, 같은 위치=head 맨 끝). 새 클래스를 쓰면 다시 빌드해야 합니다 -->
-  <link rel="stylesheet" href="vega-tw.css?v=28">
+  <link rel="stylesheet" href="vega-tw.css?v=33">
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
 
@@ -2002,11 +2002,20 @@
       switchTab(currentTab);
     };
 
+    /* [추가] 탭 이동 빠르게: 이미 본 탭은 기억해 둔 화면을 먼저 보여 주고, 최신 데이터로 바로 다시 그림.
+       돌아오면 보던 위치 그대로, 지금 탭을 한 번 더 누르면 맨 위로 */
+    const tabHtmlCache = {}, tabScrollMem = {};
     window.switchTab = (tabName, categoryName) => {
       /* [PC] 게시판을 떠나면 오른쪽에 붙어 있던 글 창을 닫음, 게시판에 들어오면 첫 글을 자동으로 보여줌 */
       if (isPC() && currentTab === 'board' && tabName !== 'board') window.closePostDetailModal();
       if (tabName === 'board') pcBoardAutoOpen = true;
-      const tabChanged = currentTab !== tabName;
+      const prevTab = currentTab;
+      const tabChanged = prevTab !== tabName;
+      const app = document.getElementById('app');
+      if (tabChanged) {
+        tabScrollMem[prevTab] = window.scrollY;
+        if (!isPC() && prevTab !== 'calendar' && app && dataArrived && !isTypingInApp()) tabHtmlCache[prevTab] = { h: app.innerHTML, u: currentUser ? currentUser.name + currentUser.role : '' };
+      }
       currentTab = tabName;
       if (tabName === 'myinfo') loadMyComments();
       ['home', 'calendar', 'board', 'myinfo', 'admin'].forEach(tab => {
@@ -2016,6 +2025,7 @@
           : "flex flex-col items-center text-[10px] sm:text-xs font-bold text-gray-400 hover:text-indigo-900";
       });
 
+      const catChanged = !!categoryName && categoryName !== currentBoardCategory;
       if(categoryName) currentBoardCategory = categoryName;
 
       /* [개선] 탭을 옮기면 달력을 정리하고, 다음에 일정 탭을 열 때는 이번 달부터 보여줌 */
@@ -2023,12 +2033,28 @@
       calViewDate = null;
       renderPending = false;
 
-      const app = document.getElementById('app');
-      renderTabNow(app);
-      if (tabChanged) {
-        window.scrollTo(0, 0);   /* [추가] 다른 탭으로 가면 맨 위에서 시작 */
-        app.classList.remove('vx-fade'); void app.offsetWidth; app.classList.add('vx-fade');   /* 살짝 나타나는 효과 */
+      if (!tabChanged) {
+        renderTabNow(app);
+        if (!categoryName) window.scrollTo({ top: 0, behavior: 'smooth' });   /* 지금 탭을 또 누르면 맨 위로 */
+        window.dispatchEvent(new Event('vega:render'));
+        return;
       }
+      const _c = tabHtmlCache[tabName];
+      const cached = (!catChanged && tabName !== 'calendar' && !isPC() && _c && _c.u === (currentUser ? currentUser.name + currentUser.role : '')) ? _c.h : null;
+      const backY = catChanged ? 0 : (tabScrollMem[tabName] || 0);
+      if (cached) {
+        /* 기억해 둔 화면을 바로 보여 주고 → 다음 순간 최신 데이터로 다시 그림 */
+        undockPostDetail();
+        app.dataset.tab = tabName;
+        app.innerHTML = cached;
+        window.scrollTo(0, backY);
+        requestAnimationFrame(() => { if (currentTab === tabName) refreshCurrentTab(); });
+        window.dispatchEvent(new Event('vega:render'));
+        return;
+      }
+      renderTabNow(app);
+      window.scrollTo(0, backY);
+      app.classList.remove('vx-fade'); void app.offsetWidth; app.classList.add('vx-fade');   /* 처음 여는 탭만 살짝 나타나는 효과 */
       window.dispatchEvent(new Event('vega:render'));
     };
 
@@ -2079,6 +2105,11 @@
             }).join('')}
           </div>
         </section>`;
+    }
+
+    /* [추가] 빈 화면 안내: 무엇이 없는지 + 바로 할 수 있는 버튼 */
+    function emptyHTML(text, btnLabel, onclick) {
+      return `<div class="v2-empty"><p>${text}</p>${btnLabel ? `<button onclick="${onclick}" class="v2-btn is-sm">${btnLabel}</button>` : ''}</div>`;
     }
 
     /* [디자인 2차] 일정 한 줄: 날짜 칸(종류별 색) + 제목 + 종류 표시 */
@@ -2233,7 +2264,7 @@
               <button onclick="window.switchTab('board')" class="v2-more">전체보기</button>
             </div>
             <div>
-              ${pagedPosts.length === 0 ? '<p class="text-xs v2-mut py-6 text-center">등록된 글이 없습니다.</p>' : ''}
+              ${pagedPosts.length === 0 ? emptyHTML('아직 올라온 글이 없어요.', currentUser ? '첫 글 쓰기' : '', "window.openWritePostModal()") : ''}
               ${pagedPosts.map(post => `
                 <button onclick="window.openPostDetail('${post.id}')" class="v2-row">
                   <span class="v2-tag ${post.type === '공지' ? 'is-red' : 'is-soft'}">${post.type}</span>
@@ -2252,7 +2283,7 @@
               <button onclick="window.switchTab('calendar')" class="v2-more">캘린더</button>
             </div>
             <div class="flex flex-col gap-2">
-              ${pagedUpcomingEvents.length === 0 ? '<p class="text-xs v2-mut py-6 text-center">다가오는 일정이 없습니다.</p>' : ''}
+              ${pagedUpcomingEvents.length === 0 ? emptyHTML('잡혀 있는 일정이 없어요.', (currentUser && currentUser.role === 'admin') ? '일정 추가' : '', "window.openAddEventModal()") : ''}
               ${pagedUpcomingEvents.map(evt => evtRowHTML(evt, `window.openEventDetail('${evt.id}')`)).join('')}
             </div>
             ${renderPaginationUI(upcomingEvents.length, 5, pageState.homeUpcomingEvents, 'changeHomeUpcomingEventsPage')}
@@ -2266,7 +2297,7 @@
             <button onclick="window.switchTab('board', '영상게시판')" class="v2-more">더보기</button>
           </div>
           <div>
-            ${videoPosts.length === 0 ? '<p class="text-xs v2-mut py-5 text-center">등록된 영상이 없습니다.</p>' : ''}
+            ${videoPosts.length === 0 ? emptyHTML('경기나 훈련 영상을 유튜브 링크로 올려 보세요.', currentUser ? '영상 올리기' : '', "window.openWritePostModal('영상게시판')") : ''}
             ${pagedVideoPosts.map(v => `
               <button onclick="${v.videoUrl ? `window.openYouTubeLink('${v.videoUrl}')` : `window.openPostDetail('${v.id}')`}" class="v2-video">
                 <span class="play" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span>
@@ -2812,7 +2843,7 @@
           ${isAdmin ? '<button onclick="window.openAddEventModal()" class="v2-btn is-ink is-sm">일정 추가</button>' : ''}
         </div>
         <p class="text-xs v2-mut mt-0 mb-3">정기운동은 달력에서 확인하세요${isAdmin ? ' · 일정을 누르면 수정·삭제할 수 있어요' : ''}</p>
-        ${evs.length === 0 ? '<p class="text-sm v2-mut m-0 py-2">이 달에는 대회 · 친선전 · 회식 일정이 없어요.</p>' : ''}
+        ${evs.length === 0 ? emptyHTML('이 달에는 대회 · 친선전 · 회식 일정이 없어요.', isAdmin ? '일정 추가' : '', "window.openAddEventModal()") : ''}
         <div class="flex flex-col gap-2">${evs.map(e => evtRowHTML(e, `window.openEventDetail('${e.id}')`)).join('')}</div>
       </section>`;
     }
@@ -2938,7 +2969,8 @@
         const c = CAL_COLORS[evt.type] || CAL_COLORS.etc;
         return {
           id: evt.id,
-          title: evt.title,
+          /* [수정] 휴대폰 달력 칸은 좁아서 '화요 정기운동' → '정기운동'처럼 요일 말머리는 빼고 보여줌 (PC는 그대로) */
+          title: (window.innerWidth < 768 ? String(evt.title || '').replace(/^\s*[월화수목금토일](요일?)?\s+/, '') : '') || evt.title,
           start: `${evt.date}T${evt.time || '00:00'}:00`,
           color: c[0],
           textColor: c[1],
@@ -3004,6 +3036,27 @@
       renderBoardTab(document.getElementById('app'));
     };
 
+    /* [추가] 검색 도우미: 일반 글자 또는 초성 */
+    let boardQuery = '';
+    const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+    const toCho = (str) => [...String(str)].map(ch => { const c = ch.charCodeAt(0) - 0xAC00; return (c >= 0 && c <= 11171) ? CHO[Math.floor(c / 588)] : ch; }).join('');
+    function textMatch(text, q) {
+      const t = String(text || '').toLowerCase().replace(/\s+/g, ''), k = String(q).toLowerCase().replace(/\s+/g, '');
+      if (!k) return true;
+      if (t.includes(k)) return true;
+      return /^[ㄱ-ㅎ]+$/.test(k) && toCho(t).includes(k);
+    }
+    window.boardSearchInput = (el, ev) => {
+      if (ev && ev.isComposing) return;   /* 한글 조합 중에는 기다렸다가 글자가 완성되면 반영 */
+      boardQuery = el.value;
+      pageState.boardPosts = 1;
+      const pos = el.selectionStart;
+      renderBoardTab(document.getElementById('app'));
+      const n = document.getElementById('boardSearch');
+      if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} }
+    };
+    window.boardSearchClear = () => { boardQuery = ''; pageState.boardPosts = 1; renderBoardTab(document.getElementById('app')); };
+
     function renderBoardTab(container) {
       undockPostDetail();
       const categories = ['공지사항', '자유게시판', '영상게시판', '🔒 익명 건의사항'];
@@ -3051,6 +3104,10 @@
       } else {
         posts = sortPostsByDate(sampleData.boardPosts.filter(p => p.category === currentBoardCategory));
       }
+      /* [추가] 영상게시판 검색: 제목 · 내용 · 작성자, 초성(ㄹㄱㅈ)도 됨 */
+      const isVideoTab = currentBoardCategory === '영상게시판';
+      const bq = isVideoTab ? boardQuery.trim() : '';
+      if (bq) posts = posts.filter(p => textMatch([p.title, p.content, p.author].join(' '), bq));
 
       const pagedPosts = paginate(posts, 5, pageState.boardPosts);
 
@@ -3077,9 +3134,17 @@
           </div>
 
           ${noticeBanner ? `<div class="v2-board-note">${noticeBanner}</div>` : ''}
+          ${isVideoTab ? `<div class="v2-bsearch" role="search">
+            <label for="boardSearch" class="sr-only">영상 검색</label>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+            <input id="boardSearch" type="search" value="${escH(boardQuery)}" placeholder="영상 제목 · 내용 · 올린 사람 (초성도 돼요)" autocomplete="off" oninput="window.boardSearchInput(this, event)" oncompositionend="window.boardSearchInput(this)" />
+            ${boardQuery ? '<button type="button" onclick="window.boardSearchClear()" aria-label="검색어 지우기">✕</button>' : ''}
+          </div>
+          ${bq ? `<p class="text-xs v2-mut" style="margin:-4px 4px 10px">"${escH(bq)}" 검색 결과 ${posts.length}개</p>` : ''}` : ''}
 
           <section class="v2-card" style="padding:0 16px" aria-label="글 목록">
-            ${pagedPosts.length === 0 ? `<p class="text-sm v2-mut py-8 text-center m-0">${emptyMessage}</p>` : ''}
+            ${pagedPosts.length === 0 && bq ? emptyHTML('찾는 영상이 없어요. 다른 낱말로 검색해 보세요.', '검색어 지우기', "window.boardSearchClear()") : ''}
+            ${pagedPosts.length === 0 && !bq ? emptyHTML(isSuggestionTab ? emptyMessage : (currentBoardCategory === '영상게시판' ? '아직 올라온 영상이 없어요.' : '아직 올라온 글이 없어요.'), (currentUser && !(isSuggestionTab && currentUser.role === 'admin') && (currentBoardCategory !== '공지사항' || currentUser.role === 'admin')) ? (isSuggestionTab ? '건의사항 쓰기' : currentBoardCategory === '영상게시판' ? '영상 올리기' : '첫 글 쓰기') : '', "window.openWritePostModal()") : ''}
             ${pagedPosts.map(p => {
               const clickAction = (p.category === '영상게시판' && p.videoUrl) ? `window.openYouTubeLink('${p.videoUrl}')` : `window.openPostDetail('${p.id}')`;
               const canDelete = currentUser && (currentUser.role === 'admin' || currentUser.name === p.author || p.mine === true);
@@ -3596,7 +3661,7 @@
           <section class="v2-card">
             <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>📝</span> 내가 쓴 글</h3><span class="v2-num" style="font-size:18px">${myPosts.length}</span></div>
             <div>
-              ${myPosts.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 게시글이 없습니다.</p>' : ''}
+              ${myPosts.length === 0 ? emptyHTML('아직 쓴 글이 없어요.', '게시판 가기', "window.switchTab('board', '자유게시판')") : ''}
               ${pagedMyPosts.map(p => `
                 <button onclick="window.openPostDetail('${p.id}')" class="v2-row"><span class="v2-ell font-bold">${escH(p.title)}</span><span class="text-xs v2-mut shrink-0">${(p.date || '').substring(5)}</span></button>
               `).join('')}
@@ -3608,7 +3673,7 @@
           <section class="v2-card">
             <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>💬</span> 내가 쓴 댓글</h3><span class="v2-num" style="font-size:18px">${myComments.length}</span></div>
             <div>
-              ${myComments.length === 0 ? '<p class="text-xs text-gray-400 py-6 text-center">작성한 댓글이 없습니다.</p>' : ''}
+              ${myComments.length === 0 ? emptyHTML('아직 남긴 댓글이 없어요.', '최신 글 보러 가기', "window.switchTab('board')") : ''}
               ${pagedMyComments.map(c => `
                 <button onclick="window.openPostDetail('${c.postId}')" class="v2-row"><span class="v2-ell">${escH(c.text)}</span><span class="text-xs v2-mut shrink-0">${(c.date || '').substring(5)}</span></button>
               `).join('')}
@@ -3812,6 +3877,12 @@
                 + 새 회원 추가
               </button>
             </div>
+            <!-- [추가] 엑셀로 받기 · 올리기 -->
+            <div class="v2-xlbar">
+              <button type="button" onclick="window.memberExcelDownload()" class="v2-btn is-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>엑셀로 받기</button>
+              <label class="v2-btn is-sm" style="cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>엑셀 올리기<input id="memberExcelInput" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="sr-only" onchange="window.memberExcelUpload(this)"></label>
+              <p class="text-[11px] v2-mut m-0">받은 파일을 고쳐서 올리면 추가 · 수정돼요. 파일에 없는 회원은 그대로 남아요.</p>
+            </div>
 
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse min-w-[560px]">
@@ -3993,6 +4064,126 @@
     window.openAddMemberModal = () => document.getElementById('addMemberModal').classList.remove('hidden');
     window.closeAddMemberModal = () => document.getElementById('addMemberModal').classList.add('hidden');
 
+
+    /* ==================== [추가] 회원 명단 엑셀로 받기 · 올리기 ==================== */
+    const XL_COLS = ['이름', '역할', '배번', '가입일', '비밀번호'];
+    const XL_ROLE_IN = { '운영진': 'admin', 'admin': 'admin', '일반회원': 'member', '회원': 'member', '일반': 'member', 'member': 'member', '쉼회원': 'rest', '휴식': 'rest', '쉼': 'rest', 'rest': 'rest', '코치': 'coach', 'coach': 'coach' };
+    let xlPending = null;
+    const xlLib = () => import('./vega-xlsx.js?v=33');
+    function xlDate(v) {
+      if (v && typeof v === 'object' && 'n' in v) {   /* 엑셀 날짜 숫자 → 2026-08-09 */
+        const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v.n) * 86400000);
+        return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+      }
+      const t = String(v || '').trim();
+      if (!t) return '';
+      const m = /^(\d{4})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})/.exec(t);
+      return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : null;   /* null = 알아볼 수 없는 날짜 */
+    }
+    const xlText = (v) => (v && typeof v === 'object' && 'n' in v) ? String(v.n) : String(v == null ? '' : v).trim();
+
+    window.memberExcelDownload = async () => {
+      if (!currentUser || currentUser.role !== 'admin') return;
+      try {
+        const { writeXlsx } = await xlLib();
+        const rows = [XL_COLS, ...sortMembers(sampleData.members).map(m => [m.name, roleLabels[m.role] || '일반회원', m.number != null ? String(m.number) : '', m.joinDate || '', m.password || '0000'])];
+        const blob = writeXlsx(rows, { sheet: '회원명단', widths: [14, 10, 8, 14, 10] });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `VEGA_회원명단_${getTodayString().replace(/-/g, '')}.xlsx`;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+        showToast(`회원 ${rows.length - 1}명을 엑셀로 받았어요`);
+      } catch (e) { console.error(e); alert('엑셀 파일을 만들지 못했어요. 다시 시도해 주세요.'); }
+    };
+
+    window.memberExcelUpload = async (input) => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file || !currentUser || currentUser.role !== 'admin') return;
+      let rows;
+      try {
+        const lib = await xlLib();
+        rows = /\.csv$/i.test(file.name) ? await lib.readCsv(file) : await lib.readXlsx(file);
+      } catch (e) {
+        console.error(e);
+        return alert(e && e.message === 'NO_DECOMPRESS' ? '이 브라우저에서는 엑셀 파일을 읽을 수 없어요. 크롬이나 최신 사파리에서 해 주세요.' : '파일을 읽지 못했어요. "엑셀로 받기"로 받은 파일 형식(xlsx)인지 확인해 주세요.');
+      }
+      /* 제목줄 찾기: '이름' 칸이 있는 줄 */
+      const hi = rows.findIndex(r => r.some(c => xlText(c) === '이름'));
+      if (hi < 0) return alert('첫 줄에 "이름" 제목이 있어야 해요. "엑셀로 받기"로 받은 양식을 써 주세요.');
+      const head = rows[hi].map(xlText);
+      const col = (name) => head.indexOf(name);
+      const ci = { name: col('이름'), role: col('역할'), number: col('배번'), join: col('가입일'), pass: col('비밀번호') };
+      const adds = [], changes = [], same = [], errors = [], seen = new Set();
+      rows.slice(hi + 1).forEach((r, k) => {
+        const line = hi + k + 2;
+        const name = xlText(r[ci.name]);
+        if (!name) { if (r.some(c => xlText(c))) errors.push(`${line}줄: 이름이 비어 있어요`); return; }
+        if (/[\/.#$\[\]]/.test(name)) { errors.push(`${line}줄 ${name}: 이름에 / . # $ [ ] 는 쓸 수 없어요`); return; }
+        if (seen.has(name)) { errors.push(`${line}줄 ${name}: 같은 이름이 두 번 있어요`); return; }
+        seen.add(name);
+        const ex = sampleData.members.find(m => m.name === name);
+        const roleTxt = ci.role >= 0 ? xlText(r[ci.role]) : '';
+        const role = roleTxt ? XL_ROLE_IN[roleTxt] : (ex ? ex.role : 'member');
+        if (!role) { errors.push(`${line}줄 ${name}: 역할 "${roleTxt}"을 모르겠어요 (운영진 · 일반회원 · 쉼회원 · 코치)`); return; }
+        const number = ci.number >= 0 ? xlText(r[ci.number]) : (ex && ex.number != null ? String(ex.number) : '');
+        const join = ci.join >= 0 ? xlDate(r[ci.join]) : (ex ? ex.joinDate || '' : '');
+        if (join === null) { errors.push(`${line}줄 ${name}: 가입일 "${xlText(r[ci.join])}"을 알아볼 수 없어요 (예: 2026-08-09)`); return; }
+        let pass = ci.pass >= 0 ? xlText(r[ci.pass]) : '';
+        if (/^\d{1,3}$/.test(pass)) pass = pass.padStart(4, '0');   /* 엑셀이 0000 → 0 으로 바꾼 경우 */
+        if (pass && !/^\d{4}$/.test(pass)) { errors.push(`${line}줄 ${name}: 비밀번호는 숫자 4자리여야 해요`); return; }
+        const data = { name, role, number, joinDate: join };
+        if (!ex) { data.password = pass || '0000'; adds.push(data); return; }
+        if (pass && pass !== (ex.password || '0000')) data.password = pass;
+        const diff = [];
+        if (role !== ex.role) diff.push(`역할 ${roleLabels[ex.role] || ex.role} → ${roleLabels[role]}`);
+        if (number !== (ex.number != null ? String(ex.number) : '')) diff.push(`배번 ${ex.number || '-'} → ${number || '-'}`);
+        if (join !== (ex.joinDate || '')) diff.push(`가입일 ${ex.joinDate || '-'} → ${join || '-'}`);
+        if (data.password) diff.push('비밀번호 변경');
+        if (diff.length) changes.push({ id: ex.id, data, diff }); else same.push(name);
+      });
+      xlPending = { adds, changes };
+      xlShowPreview(adds, changes, same, errors, file.name);
+    };
+
+    function xlShowPreview(adds, changes, same, errors, fname) {
+      let m = document.getElementById('xlPreview');
+      if (!m) { m = document.createElement('div'); m.id = 'xlPreview'; m.className = 'fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-3'; document.body.appendChild(m); }
+      const li = (t) => `<li>${escH(t)}</li>`;
+      const total = adds.length + changes.length;
+      m.innerHTML = `<div class="v2-card w-full max-w-md max-h-[86vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="xlT" style="padding:20px">
+        <h3 id="xlT" class="v2-h" style="font-size:20px">엑셀 올리기 확인</h3>
+        <p class="text-xs v2-mut mt-1 mb-3">${escH(fname)}</p>
+        <div class="v2-duo" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div><p>새로 추가</p><span class="v2-num" style="color:#D91920">${adds.length}<small>명</small></span></div>
+          <div><p>바뀜</p><span class="v2-num">${changes.length}<small>명</small></span></div>
+          <div><p>그대로</p><span class="v2-num v2-mut">${same.length}<small>명</small></span></div>
+        </div>
+        ${adds.length ? `<p class="v2-llab" style="margin:14px 0 6px">새로 추가</p><ul class="v2-xllist">${adds.map(a => li(`${a.name} · ${roleLabels[a.role]}${a.number ? ' · ' + a.number + '번' : ''}${a.joinDate ? ' · ' + a.joinDate : ''} · 비밀번호 ${a.password}`)).join('')}</ul>` : ''}
+        ${changes.length ? `<p class="v2-llab" style="margin:14px 0 6px">바뀌는 회원</p><ul class="v2-xllist">${changes.map(c => li(`${c.data.name}: ${c.diff.join(', ')}`)).join('')}</ul>` : ''}
+        ${errors.length ? `<p class="v2-llab" style="margin:14px 0 6px;color:var(--vg-red-text)">반영하지 않는 줄 ${errors.length}개</p><ul class="v2-xllist is-err">${errors.map(li).join('')}</ul>` : ''}
+        <p class="text-xs v2-mut mt-3 mb-0">파일에 없는 회원은 지우지 않고 그대로 둬요. 이름은 바꿀 수 없어요 (다른 이름은 새 회원으로 추가돼요).</p>
+        <div class="grid grid-cols-2 gap-2 mt-4">
+          <button type="button" onclick="window.xlClose()" class="v2-btn">취소</button>
+          <button type="button" id="xlApplyBtn" onclick="window.xlApply()" class="v2-btn is-red" ${total ? '' : 'disabled style="opacity:.5"'}>${total ? `${total}명 반영하기` : '바뀐 내용 없음'}</button>
+        </div>
+      </div>`;
+      m.classList.remove('hidden');
+    }
+    window.xlClose = () => { const m = document.getElementById('xlPreview'); if (m) m.remove(); xlPending = null; };
+    window.xlApply = async () => {
+      if (!xlPending) return;
+      const btn = document.getElementById('xlApplyBtn'); if (btn) { btn.disabled = true; btn.textContent = '반영하는 중…'; }
+      const { adds, changes } = xlPending;
+      let ok = 0, fail = 0;
+      for (const a of adds) { try { await setDoc(doc(db, "members", a.name), a); ok++; } catch (e) { console.error(e); fail++; } }
+      for (const c of changes) { try { await setDoc(doc(db, "members", c.id), c.data, { merge: true }); ok++; } catch (e) { console.error(e); fail++; } }
+      window.xlClose();
+      if (fail) alert(`${ok}명 반영했고, ${fail}명은 저장에 실패했어요. 인터넷 연결을 확인하고 다시 올려 주세요.`);
+      else showToast(`회원 ${ok}명을 반영했어요`);
+    };
+
     window.handleCreateMember = async (e) => {
       e.preventDefault();
       const name = document.getElementById('addMemberName').value.trim();
@@ -4141,7 +4332,7 @@
       eligible: isEligibleEvent, reactions: () => reactionsByDate
     };
     /* [수정] 순서대로 불러와서 '나의 정보' 카드 순서가 매번 같도록 */
-    import('./vega-extras.js?v=28').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=28'));
+    import('./vega-extras.js?v=33').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=33'));
   </script>
   <script>
     /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */

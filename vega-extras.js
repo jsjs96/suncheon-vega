@@ -34,10 +34,21 @@ function ensureLineupModal() {
   document.body.appendChild(m);
   return m;
 }
+/* [추가] 엔트리 창이 열려 있는 동안 휴대폰 화면이 꺼지지 않게 (지원하는 기기에서만) */
+let lnWake = null;
+async function lnWakeOn() {
+  try { if ('wakeLock' in navigator && !lnWake) { lnWake = await navigator.wakeLock.request('screen'); lnWake.addEventListener('release', () => { lnWake = null; }); } } catch (e) { lnWake = null; }
+}
+function lnWakeOff() { try { if (lnWake) lnWake.release(); } catch (e) {} lnWake = null; }
+document.addEventListener('visibilitychange', () => {
+  const m = document.getElementById('lineupModal');
+  if (document.visibilityState === 'visible' && m && !m.classList.contains('hidden')) lnWakeOn();
+});
 window.closeLineupModal = () => {
   lineupDraft = null;
   const m = document.getElementById('lineupModal');
   if (m) m.classList.add('hidden');
+  lnWakeOff();
 };
 
 /* ---------- 내 역할 판별 ---------- */
@@ -215,6 +226,158 @@ window.lineupBenchMove = (i, d) => {
 };
 window.lineupBenchRemove = (i) => { const L = lineupDraft; if (!L) return; lnSync(); L.bench = L.bench.filter((_, k) => k !== i); renderLineupEditor(); };
 
+
+/* ---------- [추가] 엔트리 공유 이미지 (단톡방에 올리기 좋은 1080×1350 사진) ---------- */
+async function lnDrawEntryImage(lu) {
+  const body = getComputedStyle(document.body).fontFamily || 'sans-serif';
+  try { await Promise.all([document.fonts.load('40px "Black Han Sans"'), document.fonts.load('40px "Alfa Slab One"')]); } catch (e) {}
+  /* 높이는 내용에 맞춰서: 메모가 짧거나 없으면 빈 공간 없이 */
+  const W = 1080;
+  const mc = document.createElement('canvas').getContext('2d');
+  mc.font = `500 24px ${body}`;
+  const memoLines = [];
+  if (lu.memo) {
+    String(lu.memo).split('\n').forEach(par => {
+      let line = '';
+      for (const ch of par.split(' ')) { const t = line ? line + ' ' + ch : ch; if (mc.measureText(t).width > W - 176 && line) { memoLines.push(line); line = ch; } else line = t; }
+      memoLines.push(line);
+    });
+  }
+  const nStart = Math.max((lu.placed || []).length, lnServe(lu).length), nBench = (lu.bench || []).length;
+  const listEnd = 290 + 14 + nStart * 48 + (nBench ? 36 + nBench * 48 : 0);
+  const contentEnd = Math.max(listEnd, 280 + 600 + 6);
+  const memoTop = contentEnd + 36, memoH = memoLines.length ? 74 + memoLines.length * 36 : 0;
+  const H = (memoLines.length ? memoTop + memoH : contentEnd) + 70;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const F = (px, fam, w) => `${w || ''} ${px}px ${fam}`.trim();
+  const DISP = '"Black Han Sans", ' + body, SLAB = '"Alfa Slab One", serif';
+  const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+  const fit = (txt, max, px, fam, w) => { let s = px; c.font = F(s, fam, w); while (c.measureText(txt).width > max && s > 14) { s -= 1; c.font = F(s, fam, w); } return s; };
+
+  /* 바탕 · 머리 */
+  c.fillStyle = '#EFEFF0'; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#0A0A0A'; c.fillRect(0, 0, W, 230);
+  c.fillStyle = '#D91920'; c.fillRect(0, 230, W, 6);
+  c.textBaseline = 'alphabetic';
+  c.fillStyle = '#d4d4d8'; c.font = F(22, body, 700); c.fillText('S U N C H E O N', 60, 62);
+  c.fillStyle = '#D91920'; c.font = F(40, SLAB); c.fillText('VEGA', 60, 108);
+  c.fillStyle = '#FFB61E'; c.font = F(26, DISP); c.textAlign = 'right'; c.fillText('ENTRY', W - 60, 62); c.textAlign = 'left';
+  const title = lu.title || '엔트리';
+  fit(title, W - 120, 64, DISP); c.fillStyle = '#fff'; c.fillText(title, 60, 180);
+  const d = new Date((lu.date || '') + 'T00:00:00');
+  const evt = sampleData.events.find(e => String(e.id) === String(lu.eventId || lu.id));
+  const sub = [isNaN(d) ? '' : `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${'일월화수목금토'[d.getDay()]})`, evt && evt.time, evt && evt.location].filter(Boolean).join('  ·  ');
+  c.fillStyle = '#a1a1aa'; c.font = F(28, body, 500); c.fillText(sub, 60, 218);
+
+  /* 코트 */
+  const cx = 60, cy = 280, cs = 600;
+  c.fillStyle = '#e4e4e7'; c.fillRect(cx - 6, cy - 6, cs + 12, cs + 12);
+  c.fillStyle = '#1f1113'; c.fillRect(cx, cy, cs, cs);
+  c.fillStyle = '#111113'; c.fillRect(cx, cy + cs / 3, cs, cs * 2 / 3);
+  c.fillStyle = '#e4e4e7'; c.fillRect(cx, cy + cs / 3 - 2, cs, 4);
+  c.fillStyle = '#f4f4f5'; c.fillRect(cx - 6, cy - 6, cs + 12, 12);
+  c.fillStyle = '#D91920'; c.fillRect(cx - 6, cy - 6, 12, 22); c.fillRect(cx + cs - 6, cy - 6, 12, 22);
+  c.fillStyle = '#8a8a92'; c.font = F(16, body, 900); c.textAlign = 'center'; c.fillText('N E T', cx + cs / 2, cy + 34);
+  const serve = lnServe(lu);
+  (lu.placed || []).forEach(p => {
+    const px = cx + cs * p.x / 100, py = cy + cs * p.y / 100;
+    const no = lnNo(p.name);
+    const fs = fit(p.name, 130, 26, body, 800);
+    c.font = F(18, DISP); const nw = no ? Math.max(26, c.measureText(no).width + 10) : 0;
+    c.font = F(fs, body, 800); const tw = c.measureText(p.name).width;
+    const w = tw + 30 + (no ? nw + 8 : 0), h = 50;
+    rr(px - w / 2, py - h / 2, w, h, 12); c.fillStyle = '#fff'; c.fill();
+    let tx = px - w / 2 + 15;
+    if (no) { rr(tx, py - 12, nw, 24, 5); c.fillStyle = '#0A0A0A'; c.fill(); c.fillStyle = '#FFB61E'; c.font = F(18, DISP); c.textAlign = 'center'; c.fillText(no, tx + nw / 2, py + 7); tx += nw + 8; }
+    c.fillStyle = '#0A0A0A'; c.font = F(fs, body, 800); c.textAlign = 'left'; c.fillText(p.name, tx, py + fs * 0.36); c.textAlign = 'center';
+    const si = serve.indexOf(p.name);
+    if (si >= 0) { c.beginPath(); c.arc(px + w / 2 - 4, py - h / 2 + 2, 15, 0, Math.PI * 2); c.fillStyle = '#D91920'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#111113'; c.stroke(); c.fillStyle = '#fff'; c.font = F(18, DISP); c.fillText(String(si + 1), px + w / 2 - 4, py - h / 2 + 9); }
+  });
+  c.textAlign = 'left';
+
+  /* 순서 목록 */
+  const lx = 700, lw = W - 60 - lx;
+  let y = 290;
+  const head = (t, n) => { c.fillStyle = '#6b6b73'; c.font = F(22, body, 800); c.fillText(t, lx, y); c.textAlign = 'right'; c.fillStyle = '#0A0A0A'; c.font = F(24, DISP); c.fillText(n, lx + lw, y); c.textAlign = 'left'; y += 14; };
+  const row = (k, name, isSub) => {
+    rr(lx, y, lw, 42, 8); c.fillStyle = '#fff'; c.fill();
+    c.fillStyle = isSub ? '#8a8a92' : '#D91920'; c.font = F(24, DISP); c.fillText(String(k), lx + 14, y + 30);
+    const no = lnNo(name);
+    let x = lx + 58;
+    if (no) { c.font = F(18, DISP); const nw = Math.max(26, c.measureText(no).width + 10); rr(x, y + 9, nw, 24, 5); c.fillStyle = '#0A0A0A'; c.fill(); c.fillStyle = '#FFB61E'; c.textAlign = 'center'; c.fillText(no, x + nw / 2, y + 28); c.textAlign = 'left'; x += nw + 8; }
+    c.fillStyle = '#0A0A0A'; fit(name, lx + lw - x - 10, 24, body, 800); c.fillText(name, x, y + 30);
+    y += 48;
+  };
+  const starters = serve.length ? serve : (lu.placed || []).map(p => p.name);
+  head('선발 · 서브 순서', `${(lu.placed || []).length}명`);
+  starters.forEach((n, i) => row(serve.length ? i + 1 : '·', n, false));
+  (lu.placed || []).map(p => p.name).filter(n => serve.length && !serve.includes(n)).forEach(n => row('·', n, false));
+  if ((lu.bench || []).length) { y += 22; head('후보', `${lu.bench.length}명`); lu.bench.forEach((n, i) => row(10 + i, n, true)); }
+
+  /* 메모 */
+  if (memoLines.length) {
+    rr(60, memoTop, W - 120, memoH, 16); c.fillStyle = '#fff'; c.fill();
+    c.fillStyle = '#0A0A0A'; c.font = F(24, body, 900); c.fillText('코치 메모', 88, memoTop + 44);
+    c.fillStyle = '#3f3f46'; c.font = F(24, body, 500);
+    memoLines.forEach((ln, i) => c.fillText(ln, 88, memoTop + 84 + i * 36));
+  }
+  c.fillStyle = '#8a8a92'; c.font = F(20, body, 500); c.textAlign = 'right'; c.fillText('VEGA 앱에서 만든 엔트리', W - 60, H - 28); c.textAlign = 'left';
+  return cv;
+}
+window.lineupShareImage = async (src) => {
+  const lu = src === 'draft' ? (syncLineupInputs(), lineupDraft) : (sampleData.lineups || []).find(l => String(l.id) === String(src));
+  if (!lu) return;
+  const btn = document.getElementById('lnShareBtn'); if (btn) { btn.disabled = true; btn.dataset.t = btn.textContent; btn.textContent = '이미지 만드는 중…'; }
+  try {
+    const cv = await lnDrawEntryImage(lu);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    const name = `VEGA_엔트리_${(lu.date || '').replace(/-/g, '')}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: `${lu.title} 엔트리` }); } catch (e) { if (e && e.name !== 'AbortError') throw e; }
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      if (typeof V.showToast === 'function') V.showToast('엔트리 이미지를 저장했어요');
+    }
+  } catch (e) { console.error(e); alert('이미지를 만들지 못했어요. 다시 시도해 주세요.'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.t || '이미지로 공유'; } }
+};
+
+/* [추가] 지난 엔트리 불러오기: 코트 배치 · 서브 순서 · 후보 · 게스트를 그대로 가져와 몇 명만 바꾸기 */
+function lineupLoadHTML(L) {
+  const others = (sampleData.lineups || []).filter(l => String(l.id) !== String(L.eventId) && ((l.placed || []).length || (l.bench || []).length))
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 8);
+  if (!others.length) return '';
+  if (!L._loadOpen) return `<button type="button" onclick="window.lineupLoadToggle()" class="v2-btn w-full"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>지난 엔트리 불러오기</button>`;
+  return `<div class="v2-load">
+    <div class="flex items-center justify-between mb-2"><p class="v2-llab" style="margin:0">지난 엔트리 불러오기</p><button type="button" onclick="window.lineupLoadToggle()" class="v2-btn is-sm">닫기</button></div>
+    <p class="text-xs v2-mut mt-0 mb-2">고르면 코트 배치, 서브 순서, 후보가 그대로 들어와요</p>
+    ${others.map(l => { const d = new Date((l.date || '') + 'T00:00:00'); const ok = !isNaN(d);
+      return `<button type="button" onclick="window.lineupLoadFrom('${lnEsc(String(l.id))}')" class="v2-row">
+        <span class="v2-num" style="font-size:18px;width:44px">${ok ? `${d.getMonth() + 1}/${d.getDate()}` : ''}</span>
+        <span class="v2-ell font-bold">${lnEsc(l.title || '')}</span>
+        <span class="text-xs v2-mut shrink-0">선발 ${(l.placed || []).length} · 후보 ${(l.bench || []).length}</span>
+      </button>`; }).join('')}
+  </div>`;
+}
+window.lineupLoadToggle = () => { if (!lineupDraft) return; syncLineupInputs(); lineupDraft._loadOpen = !lineupDraft._loadOpen; renderLineupEditor(); };
+window.lineupLoadFrom = (id) => {
+  const L = lineupDraft; if (!L) return;
+  const src = (sampleData.lineups || []).find(l => String(l.id) === String(id));
+  if (!src) return;
+  syncLineupInputs();
+  if ((L.placed.length || L.bench.length) && !confirm('지금 배치한 선수는 지우고, 고른 엔트리로 바꿀까요?')) return;
+  L.placed = (src.placed || []).map(p => ({ ...p }));
+  L.bench = [...(src.bench || [])];
+  L.serveOrder = [...(src.serveOrder || [])];
+  L.guests = [...new Set([...(L.guests || []), ...(src.guests || [])])];
+  L._loadOpen = false; L._act = null;
+  renderLineupEditor();
+  if (typeof V.showToast === 'function') V.showToast('지난 엔트리를 불러왔어요');
+};
+
 function renderLineupEditor() {
   syncLineupInputs();
   const L = lineupDraft;
@@ -246,7 +409,8 @@ function renderLineupEditor() {
     <header class="v2-lhead">
       <div class="flex items-center justify-between">
         <p class="m-0 text-xs font-bold" style="color:#a1a1aa">엔트리 작성</p>
-        <button onclick="window.closeLineupModal()" class="v2-lclose" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <span class="flex items-center gap-1">${L.placed.length ? `<button id="lnShareBtn" onclick="window.lineupShareImage('draft')" class="v2-btn is-sm" style="background:transparent;border-color:#3f3f46;color:#e4e4e7">이미지로 공유</button>` : ''}
+        <button onclick="window.closeLineupModal()" class="v2-lclose" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>
       </div>
       <h3 class="v2-num" style="margin:0;font-size:24px;color:#fff">${lnEsc(L.title)}</h3>
       <p class="flex items-center gap-2 text-[13px] mt-1.5 mb-0" style="color:#d4d4d8"><span class="v2-tag ${published ? 'is-red' : 'is-amber'}">${published ? '공개됨' : '초안'}</span>${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]} · ${published ? '회원에게 보여요' : '아직 회원에게 안 보여요'}</p>
@@ -256,16 +420,22 @@ function renderLineupEditor() {
       </div>
     </header>
     <div class="v2-lmain">
+      <div class="v2-lcol is-l">
+        <div style="order:2" class="v2-lstack">
       ${lineupCourtHTML(L.placed, true, null, lnServe(L), L._act)}
       <p class="text-xs v2-mut" style="margin:-10px 0 0">선수를 누르면 <b>후보로 · 빼기</b>를 고를 수 있어요. 코트 밖으로 끌어 놓아도 빠져요.</p>
-
-      ${lineupServeHTML(L)}
-
+        </div>
+        <div style="order:5">
       <div id="lineupBench" class="v2-lbench">
         <p class="v2-llab">후보 (10~15번)<span>끌어 놓으면 후보</span></p>
         <div class="flex flex-wrap gap-1.5">${benchChips}</div>
       </div>
-
+        </div>
+      </div>
+      <div class="v2-lcol is-r">
+        <div style="order:1">${lineupLoadHTML(L)}</div>
+        <div style="order:4">${lineupServeHTML(L)}</div>
+        <div style="order:6">
       <div id="lineupRoster">
         <div class="flex justify-between items-center mb-2 gap-2">
           <p class="v2-llab" style="margin:0">명단</p>
@@ -280,12 +450,17 @@ function renderLineupEditor() {
         <p class="text-xs v2-mut mt-3 mb-1.5">${hasVotes ? (onlyAttend ? '참가 투표한 사람과 게스트' : '전체 명단') + ' · 빨간 점은 참가 투표' : '전체 명단'} · 코트로 끌어다 놓으세요</p>
         <div class="flex flex-wrap gap-1.5">${rosterChips}</div>
       </div>
-
+        </div>
+        <div style="order:7">
       <div>
         <label for="lineupMemo" class="v2-llab">코치 메모 · 전술 포인트</label>
         <textarea id="lineupMemo" rows="3" placeholder="예: 리시브는 센터 쪽으로 집중, 서브는 5번 자리 공략" class="w-full p-3 border border-gray-300 rounded-xl text-sm leading-relaxed">${lnEsc(L.memo || '')}</textarea>
       </div>
+        </div>
+        <div style="order:8" class="flex justify-center">
       ${getLineup(L.eventId) ? `<button onclick="window.deleteLineup()" class="v2-ldel">이 엔트리 삭제</button>` : ''}
+        </div>
+      </div>
     </div>
     <div class="v2-lbar">
       ${published ? `
@@ -497,6 +672,7 @@ window.openLineupEditor = (eventId) => {
   const m = ensureLineupModal();
   m.classList.remove('hidden');
   renderLineupEditor();
+  lnWakeOn();
 };
 
 window.saveLineup = async (status) => {
@@ -584,17 +760,22 @@ window.openLineupView = (eventId) => {
       ${role ? `<p class="m-0 mt-3 text-sm font-bold" style="color:${role.type === 'court' ? '#FFB61E' : '#fff'}">${role.type === 'court' ? `나는 선발이에요${role.no ? ` · 서브 ${role.no}번` : ''}` : role.type === 'bench' ? `나는 후보 ${role.no}번이에요. 준비해 주세요` : '이번 엔트리에는 들어가지 않았어요'}</p>` : ''}
     </header>
     <div class="v2-lmain">
+      <div class="v2-lcol is-l"><div style="order:1">
       ${lineupCourtHTML(lu.placed || [], false, myName, lnServe(lu))}
+      </div></div>
+      <div class="v2-lcol is-r"><div style="order:2" class="v2-lstack">
       ${(lnServe(lu).length || (lu.bench || []).length) ? `<div class="v2-serve"><p class="v2-llab">엔트리 순서</p>
         ${lnServe(lu).length ? `<p class="v2-serve-sec">선발 · 서브 순서</p><ol>${lnServe(lu).map((n, i) => `<li><span class="v2-num k">${i + 1}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol>` : ''}
         ${(lu.bench || []).length ? `<p class="v2-serve-sec" style="margin-top:12px">후보</p><ol>${lu.bench.map((n, i) => `<li class="is-sub"><span class="v2-num k">${10 + i}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol>` : ''}
       </div>` : ''}
       ${lu.memo ? `<div><p class="v2-llab">코치 메모</p><p class="v2-note m-0 whitespace-pre-line">${lnEsc(lu.memo)}</p></div>` : ''}
       <p class="text-xs v2-mut m-0">작성: ${lnEsc(lu.createdBy || '')}</p>
+      </div></div>
     </div>
-    <div class="v2-lbar" style="grid-template-columns:1fr"><button onclick="window.closeLineupModal()" class="v2-btn is-ink">닫기</button></div>
+    <div class="v2-lbar"><button onclick="window.closeLineupModal()" class="v2-btn">닫기</button><button id="lnShareBtn" onclick="window.lineupShareImage('${lnEsc(String(lu.id))}')" class="v2-btn is-ink">이미지로 공유</button></div>
   `;
   m.classList.remove('hidden');
+  lnWakeOn();
 };
 
 /* ---------- 일정 상세 모달에 버튼 주입 ---------- */
@@ -722,7 +903,7 @@ function journalCardHTML() {
     </div>
     ${tt.length ? `<p class="text-[13px] mt-3 mb-0"><span class="v2-mut">자주 적은 아쉬운 기술</span> ${tt.map(([t, c]) => `<strong>${t}</strong> ${c}`).join(' · ')}</p>` : ''}
     <div class="mt-2">
-      ${mine.length === 0 ? '<p class="text-xs v2-mut py-4 text-center">운동 끝나고 30초만 투자해 첫 일지를 남겨 보세요.</p>' : ''}
+      ${mine.length === 0 ? '<div class="v2-empty"><p>운동 끝나고 30초만 투자해 첫 일지를 남겨 보세요.</p><button onclick="window.vxJournalOpen()" class="v2-btn is-sm">첫 일지 쓰기</button></div>' : ''}
       ${mine.slice(0, jLimit).map(j => `
         <button onclick="window.vxJournalOpen('${j.id}')" class="v2-row" style="display:block">
           <span class="flex justify-between items-center text-xs mb-1"><span class="font-bold">${j.date}</span><span class="v2-mut">${j.sharedWithCoach ? '코치 공유' : '나만 보기'}${(j.coachComments || []).length ? ' · 코치 코멘트' : ''}</span></span>
@@ -880,7 +1061,7 @@ function renderCoach(app) {
     <section class="v2-card" aria-label="엔트리">
       <div class="v2-head" style="margin-bottom:4px"><h3 class="v2-h"><span>📋</span> 엔트리</h3></div>
       <p class="v2-sub" style="margin:0 0 8px">다가오는 일정마다 선발 명단을 짜 두세요</p>
-      ${upcoming.length === 0 ? '<p class="text-sm v2-mut py-4 text-center">다가오는 일정이 없습니다.</p>' : ''}
+      ${upcoming.length === 0 ? `<div class="v2-empty"><p>엔트리를 짤 다가오는 일정이 없어요.</p><button onclick="window.switchTab('calendar')" class="v2-btn is-sm">일정 보기</button></div>` : ''}
       ${upcoming.map(e => { const l = luOf(e.id); const st = !l ? ['미작성', 'is-line'] : l.status === 'published' ? ['공개됨', 'is-ink'] : ['초안', 'is-amber'];
         const d = new Date(e.date + 'T00:00:00'); const k = typeKey(e.type);
         return `<div class="v2-entry">
@@ -905,7 +1086,7 @@ function renderCoach(app) {
         <p class="text-[13px] font-bold m-0 mb-2.5">이번 달 팀이 아쉬워한 기술</p>
         ${tt.map(([t, c], i) => `<div class="v2-skill"><span class="v2-num" style="color:${i === 0 ? '#FFB61E' : '#71717a'}">${i + 1}</span><span>${lnEsc(t)}</span><span class="v2-meter ${i === 0 ? 'is-amber' : ''}"><span style="width:${maxTag ? Math.round(c / maxTag * 100) : 0}%"></span></span><span class="v2-num">${c}</span></div>`).join('')}
       </div>` : ''}
-      ${shared.length === 0 ? '<p class="text-sm v2-mut py-4 text-center">공유된 일지가 없습니다.</p>' : ''}
+      ${shared.length === 0 ? '<div class="v2-empty"><p>회원이 일지를 쓰고 코치 공유를 켜면 여기에 모여요.</p></div>' : ''}
       ${[...unreplied, ...shared.filter(j => (j.coachComments || []).length)].slice(0, coachJLimit).map(j => { const done = (j.coachComments || []).length;
         return `<button onclick="window.vxCoachOpen('${j.id}')" class="v2-row" style="display:block">
           <span class="flex items-center gap-1.5 text-sm font-bold">${lnEsc(j.author)}<span class="text-xs font-medium v2-mut">${(j.date || '').substring(5)}</span><span class="v2-tag ml-auto ${done ? 'is-soft' : 'is-red'}">${done ? '코멘트 완료' : '코멘트 필요'}</span></span>

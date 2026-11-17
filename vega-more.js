@@ -253,16 +253,19 @@ function vxGroupAdmin(root, cards) {
   if (root.dataset.vxSig === sig) return;
   root.dataset.vxSig = sig;
   root.querySelectorAll(':scope > .v2-glabel').forEach(x => x.remove());
-  const boxes = [...root.querySelectorAll(':scope > .v2-gbox')];
+  const olds = [...root.querySelectorAll(':scope > .v2-gbox, :scope > .v2-group')];
   top.forEach(el => root.appendChild(el));
+  /* [수정] 묶음 이름 + 목록을 한 덩어리(.v2-group)로 → PC 2단 배치에서 이름과 목록이 갈라지지 않음 */
   groups.forEach(g => {
     if (!g.els.length) return;
+    const wrap = document.createElement('section'); wrap.className = 'v2-group'; wrap.setAttribute('aria-label', g.n);
     const lab = document.createElement('p'); lab.className = 'v2-glabel'; lab.textContent = g.n;
     const box = document.createElement('div'); box.className = 'v2-gbox';
-    root.appendChild(lab); root.appendChild(box);
+    wrap.appendChild(lab); wrap.appendChild(box);
+    root.appendChild(wrap);
     g.els.forEach(el => box.appendChild(el));
   });
-  boxes.forEach(b => { if (!b.children.length) b.remove(); });
+  olds.forEach(b => b.remove());
 }
 function vxEnhanceAdmin(app) {
   const root = app.firstElementChild;
@@ -271,6 +274,7 @@ function vxEnhanceAdmin(app) {
   const cards = [];
   [...root.children].forEach(c => {
     if (c === header || c.id === 'vxAdminNav' || c.classList.contains('v2-glabel')) return;
+    if (c.classList.contains('v2-group')) { const bx = c.querySelector(':scope > .v2-gbox'); if (bx) cards.push(...bx.children); return; }
     if (c.classList.contains('v2-gbox')) cards.push(...c.children); else cards.push(c);
   });
   const keys = [];
@@ -336,3 +340,171 @@ new MutationObserver(() => {
   queueMicrotask(() => { vxQueued = false; vxEnhance(); });
 }).observe(document.getElementById('app'), { childList: true, subtree: true });
 vxEnhance();
+
+/* =====================================================================
+   [추가] 앱처럼 쓰기: 당겨서 새로고침 · 좌우로 밀어 탭 넘기기 · 위로 가기 버튼
+   ===================================================================== */
+const vxModalOpen = () => !!document.getElementById('vxOnboard') || [...document.querySelectorAll('.fixed.inset-0')].some(m => !m.classList.contains('hidden') && getComputedStyle(m).display !== 'none');
+const vxTabs = () => [...document.querySelectorAll('nav button[id^="nav-"]')].filter(b => b.offsetParent !== null).map(b => b.id.slice(4));
+/* 가로로 스크롤되는 곳(버튼 줄 · 표)에서는 탭 넘기기 안 함 */
+function vxInHScroll(el) {
+  for (let n = el; n && n !== document.body; n = n.parentElement) {
+    if (n.matches && n.matches('input, textarea, select, .vx-chips, .vx-chips-row, .v2-court, [data-noswipe]')) return true;
+    const cs = getComputedStyle(n);
+    if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && n.scrollWidth > n.clientWidth + 4) return true;
+  }
+  return false;
+}
+
+/* 당겨서 새로고침 표시 */
+const ptr = document.createElement('div');
+ptr.id = 'vxPtr';
+ptr.setAttribute('aria-hidden', 'true');
+ptr.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+document.body.appendChild(ptr);
+const PTR_GO = 70;
+
+let tStart = null;
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1 || vxModalOpen()) { tStart = null; return; }
+  const t = e.touches[0];
+  const inApp = !!(e.target.closest && e.target.closest('#app'));
+  tStart = { x: t.clientX, y: t.clientY, at: Date.now(), axis: null, top: window.scrollY <= 0, inApp, h: inApp && vxInHScroll(e.target), cal: !!(e.target.closest && e.target.closest('.v2-calcard #calendar')) };
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (!tStart) return;
+  const t = e.touches[0], dx = t.clientX - tStart.x, dy = t.clientY - tStart.y;
+  if (!tStart.axis && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) tStart.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  if (tStart.axis === 'y' && tStart.top && dy > 0 && window.scrollY <= 0) {
+    const pull = Math.min(dy * 0.5, 110);
+    tStart.pull = pull;
+    ptr.style.transform = `translate(-50%, ${pull - 50}px) rotate(${pull * 3}deg)`;
+    ptr.style.opacity = Math.min(1, pull / PTR_GO);
+    ptr.classList.toggle('is-ready', pull >= PTR_GO);
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  const s = tStart; tStart = null;
+  if (!s) return;
+  /* 당겨서 새로고침 */
+  if (s.pull) {
+    if (s.pull >= PTR_GO) {
+      ptr.classList.add('is-spin');
+      ptr.style.transform = 'translate(-50%, 24px)';
+      if (window.__vega && window.__vega.refresh) window.__vega.refresh();
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+      setTimeout(() => {
+        ptr.classList.remove('is-spin', 'is-ready'); ptr.style.transform = ''; ptr.style.opacity = '';
+        const V = window.__vega;
+        if (V && V.showToast) V.showToast(navigator.onLine === false ? '인터넷 연결이 끊겨 있어요' : '최신 상태로 새로 고쳤어요');
+      }, 700);
+    } else { ptr.style.transform = ''; ptr.style.opacity = ''; ptr.classList.remove('is-ready'); }
+    return;
+  }
+  /* 좌우로 밀기 */
+  const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
+  if (s.axis !== 'x' || !s.inApp || s.h || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5 || Date.now() - s.at > 700) return;
+  if (window.innerWidth >= 1024) return;   /* PC에서는 사용 안 함 */
+  if (s.cal && window.calNav) { window.calNav(dx < 0 ? 1 : -1); return; }   /* 달력 위에서 밀면 달 넘기기 */
+  const tabs = vxTabs(), cur = window.__vega && window.__vega.tab();
+  const i = tabs.indexOf(cur);
+  if (i < 0) return;
+  const next = tabs[i + (dx < 0 ? 1 : -1)];
+  if (!next) return;
+  window.switchTab(next);
+  const app = document.getElementById('app');
+  if (app) { app.classList.remove('vx-slide-l', 'vx-slide-r', 'vx-fade'); void app.offsetWidth; app.classList.add(dx < 0 ? 'vx-slide-l' : 'vx-slide-r'); }
+}, { passive: true });
+
+/* 위로 가기 버튼 */
+const topBtn = document.createElement('button');
+topBtn.id = 'vxTopBtn';
+topBtn.type = 'button';
+topBtn.setAttribute('aria-label', '맨 위로');
+topBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+topBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+document.body.appendChild(topBtn);
+let topRaf = 0;
+window.addEventListener('scroll', () => {
+  if (topRaf) return;
+  topRaf = requestAnimationFrame(() => { topRaf = 0; topBtn.classList.toggle('is-on', window.scrollY > 700); });
+}, { passive: true });
+
+/* =====================================================================
+   [추가] 앱 아이콘 숫자: 아직 투표 안 한 다가오는 정기운동 수
+   (PC에 설치한 앱 · 알림을 허용한 아이폰 홈 화면 앱에서 보임. 안드로이드는 미지원이라 조용히 넘어감)
+   ===================================================================== */
+function vxUnvotedCount() {
+  const V = window.__vega; if (!V) return 0;
+  const u = V.user();
+  if (!u || !(u.role === 'admin' || u.role === 'member')) return 0;
+  const today = V.getTodayString();
+  const limit = new Date(today + 'T00:00:00'); limit.setDate(limit.getDate() + 14);
+  const lim = limit.toISOString().slice(0, 10);
+  return V.sampleData.events.filter(e => e.type === 'regular' && e.date >= today && e.date <= lim && !V.isEventPast(e)
+    && !((V.sampleData.regularVotesByDate[e.date] || {})[u.name])).length;
+}
+let vxBadgeLast = -1;
+function vxUpdateAppBadge() {
+  if (!('setAppBadge' in navigator)) return;
+  const n = vxUnvotedCount();
+  if (n === vxBadgeLast) return;
+  vxBadgeLast = n;
+  try { (n > 0 ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
+}
+window.addEventListener('vega:render', () => setTimeout(vxUpdateAppBadge, 0));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { vxBadgeLast = -1; vxUpdateAppBadge(); } });
+
+/* =====================================================================
+   [추가] 첫 실행 안내: 처음 로그인한 회원에게 세 장짜리 짧은 안내 (한 번만)
+   ===================================================================== */
+const VX_OB_STEPS = [
+  { t: '정기운동 투표', d: '홈 맨 위 전광판에서 <b>참가 · 불참 · 미정</b>을 눌러 주세요. 누가 오는지 모두 볼 수 있고, 게스트도 신청할 수 있어요.', ico: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
+  { t: '기록이 쌓여요', d: '출석하면 <b>출석 순위 · 칭호</b>가 올라가요. 운동 끝나고 <b>나의 정보 → 배구 일지</b>에 30초만 남기면 코치님이 코멘트를 달아 줘요.', ico: 'M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 15.6 7 18.2l1-5.5-4-3.9L9.5 8z' },
+  { t: '앱처럼 쓰기', d: '', ico: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2' }
+];
+const vxIsIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const vxStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let vxObStep = 0;
+function vxObInstallText() {
+  if (vxStandalone()) return '이미 앱으로 쓰고 있어요. 화면을 <b>아래로 당기면 새로고침</b>, <b>좌우로 밀면 탭 이동</b>이에요.';
+  if (vxIsIOS()) return '사파리 아래 <b>공유 버튼(□↑) → 홈 화면에 추가</b>를 누르면 아이콘으로 바로 열려요. 화면을 아래로 당기면 새로고침, 좌우로 밀면 탭 이동이에요.';
+  return '<b>홈 화면에 앱으로 설치</b>하면 아이콘으로 바로 열려요. 화면을 아래로 당기면 새로고침, 좌우로 밀면 탭 이동이에요.';
+}
+function vxObRender() {
+  const m = document.getElementById('vxOnboard'); if (!m) return;
+  const st = VX_OB_STEPS[vxObStep], last = vxObStep === VX_OB_STEPS.length - 1;
+  const canInstall = last && window.__deferredInstall && !vxStandalone();
+  m.innerHTML = `<div class="vx-ob" role="dialog" aria-modal="true" aria-labelledby="vxObT">
+    <div class="vx-ob-top"><span class="vx-ob-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${st.ico}"/></svg></span>
+      <span class="vx-ob-dots" aria-label="${VX_OB_STEPS.length}장 중 ${vxObStep + 1}장">${VX_OB_STEPS.map((_, i) => `<i class="${i === vxObStep ? 'on' : ''}"></i>`).join('')}</span></div>
+    <h2 id="vxObT">${st.t}</h2>
+    <p>${last ? vxObInstallText() : st.d}</p>
+    <div class="vx-ob-btns">
+      ${vxObStep === 0 ? '<button type="button" onclick="vxObDone()" class="v2-btn">건너뛰기</button>' : '<button type="button" onclick="vxObGo(-1)" class="v2-btn">이전</button>'}
+      ${canInstall ? '<button type="button" onclick="vxObInstall()" class="v2-btn is-red">앱 설치하기</button>' : `<button type="button" onclick="${last ? 'vxObDone()' : 'vxObGo(1)'}" class="v2-btn is-red">${last ? '시작하기' : '다음'}</button>`}
+    </div>
+  </div>`;
+  const dlg = m.querySelector('.vx-ob'); if (dlg) { dlg.tabIndex = -1; dlg.focus({ preventScroll: true }); }
+}
+window.vxObGo = (d) => { vxObStep = Math.max(0, Math.min(VX_OB_STEPS.length - 1, vxObStep + d)); vxObRender(); };
+window.vxObInstall = async () => { const p = window.__deferredInstall; if (p) { p.prompt(); try { await p.userChoice; } catch (e) {} window.__deferredInstall = null; } vxObDone(); };
+window.vxObDone = () => {
+  const V = window.__vega, u = V && V.user();
+  try { if (u) localStorage.setItem('vxOnboard_' + u.name, '1'); } catch (e) {}
+  const m = document.getElementById('vxOnboard'); if (m) m.remove();
+};
+function vxMaybeOnboard() {
+  const V = window.__vega, u = V && V.user();
+  if (!u || u.role === 'coach' || document.getElementById('vxOnboard')) return;
+  try { if (localStorage.getItem('vxOnboard_' + u.name)) return; } catch (e) { return; }
+  if (vxModalOpen()) return;   /* 설문 · 비밀번호 창이 떠 있으면 다음 기회에 */
+  const m = document.createElement('div');
+  m.id = 'vxOnboard'; m.className = 'vx-ob-wrap';
+  m.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.vxObDone(); });
+  document.body.appendChild(m);
+  vxObStep = 0; vxObRender();
+}
+window.addEventListener('vega:render', () => setTimeout(vxMaybeOnboard, 400));

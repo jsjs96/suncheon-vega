@@ -832,3 +832,96 @@ html body .v2-serve-sec { display: flex; align-items: baseline; gap: 6px; margin
 html body .v2-chipmenu button { min-height: 40px; min-width: 40px; padding: 0 12px; border: 0; border-radius: 9px; background: #f4f4f5; color: #0A0A0A; font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap; }
 html body .v2-chipmenu button.is-red { background: #D91920; color: #fff; }
 .v2-ghost.is-out { background: #D91920; color: #fff; }
+.v2-load { border: 1px solid var(--vg-line); border-radius: 12px; padding: 12px 14px 4px; background: var(--vg-surface-2); }
+.v2-load .v2-row { background: transparent; }
+/* 엔트리 창: 휴대폰은 한 줄(순서: 불러오기 → 코트 → 순서 → 후보 → 명단 → 메모), PC는 코트 왼쪽 · 나머지 오른쪽 */
+.v2-lcol { display: contents; }
+.v2-lstack { display: flex; flex-direction: column; gap: 18px; }
+.v2-lmain > .v2-lcol > div:empty { display: none; }
+@media (min-width: 1024px) {
+  html body #lineupModalBody.v2-lineup { max-width: 1000px; max-height: 94vh; }
+  .v2-lmain { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: start; padding: 20px 24px; }
+  .v2-lcol { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .v2-lcol.is-l { position: sticky; top: 0; }
+  .v2-lcol > div { order: 0 !important; }
+  .v2-lhead { padding: 14px 24px 18px; }
+  .v2-lbar { padding: 12px 24px 18px; grid-template-columns: 200px 260px; justify-content: end; }
+}
+#lineupModal { z-index: 90 !important; }
+.v2-ghost { z-index: 100 !important; }
+/* 빈 화면 안내 */
+.v2-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 8px; text-align: center; }
+html body .v2-empty p { margin: 0; font-size: 13px; color: var(--vg-faint); line-height: 1.6; }
+/* 당겨서 새로고침 · 탭 밀기 · 위로 가기 */
+html, body { overscroll-behavior-y: contain; }
+#vxPtr { position: fixed; left: 50%; top: 64px; z-index: 45; width: 40px; height: 40px; border-radius: 50%; background: var(--vg-surface); color: var(--vg-faint); box-shadow: 0 4px 14px rgba(0, 0, 0, .25); display: flex; align-items: center; justify-content: center; transform: translate(-50%, -60px); opacity: 0; pointer-events: none; transition: transform .2s ease, opacity .2s ease; }
+#vxPtr.is-ready { color: #D91920; }
+#vxPtr.is-spin { color: #D91920; opacity: 1; animation: vxSpin .7s linear infinite; }
+@keyframes vxSpin { from { rotate: 0deg; } to { rotate: 360deg; } }
+#app.vx-slide-l { animation: vxSlideL .2s ease-out; }
+#app.vx-slide-r { animation: vxSlideR .2s ease-out; }
+@keyframes vxSlideL { from { transform: translateX(28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes vxSlideR { from { transform: translateX(-28px); opacity: .4; } to { transform: none; opacity: 1; } }
+#vxTopBtn { position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 35; width: 46px; height: 46px; border-radius: 50%; border: 0; background: #0A0A0A; color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; }
+html.dark #vxTopBtn { background: #f4f4f5; color: #0A0A0A; }
+#vxTopBtn.is-on { opacity: 1; transform: none; pointer-events: auto; }
+@media (min-width: 1024px) { #vxTopBtn { bottom: 28px; right: 28px; } }
+@media (prefers-reduced-motion: reduce) { #app.vx-slide-l, #app.vx-slide-r, #vxPtr.is-spin { animation: none; } }
+/* 첫 실행 안내 */
+.vx-ob-wrap { position: fixed; inset: 0; z-index: 95; background: rgba(0, 0, 0, .6); display: flex; align-items: flex-end; justify-content: center; padding: 12px; }
+@media (min-width: 640px) { .vx-ob-wrap { align-items: center; } }
+.vx-ob { width: 100%; max-width: 420px; background: var(--vg-surface); color: var(--vg-text); border-radius: 20px; padding: 22px 20px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, .4); animation: vxObIn .22s ease-out; }
+@keyframes vxObIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.vx-ob-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.vx-ob-ico { width: 56px; height: 56px; border-radius: 16px; background: #0A0A0A; color: #FFB61E; display: flex; align-items: center; justify-content: center; }
+.vx-ob-dots { display: flex; gap: 5px; }
+.vx-ob-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--vg-line-2); }
+.vx-ob-dots i.on { width: 22px; border-radius: 4px; background: #D91920; }
+html body .vx-ob h2 { margin: 0; font-family: var(--vg-display); font-weight: 400; font-size: 26px; color: var(--vg-text); }
+html body .vx-ob p { margin: 10px 0 18px; font-size: 15px; line-height: 1.7; color: var(--vg-muted); }
+.vx-ob p b { color: var(--vg-text); }
+.vx-ob-btns { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; }
+html body .vx-ob-btns .v2-btn { min-height: 50px; font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { .vx-ob { animation: none; } }
+.vx-ob:focus { outline: none; }
+/* 영상게시판 검색 */
+.v2-bsearch { position: relative; margin: 0 0 12px; }
+.v2-bsearch svg { position: absolute; left: 14px; top: 15px; color: var(--vg-faint); pointer-events: none; }
+html body .v2-bsearch input { width: 100%; min-height: 48px; box-sizing: border-box; border: 1px solid var(--vg-line-2); border-radius: 12px; padding: 0 44px 0 42px; font-size: 15px; background: var(--vg-surface); color: var(--vg-text); -webkit-appearance: none; appearance: none; }
+html body .v2-bsearch input:focus { outline: none; border-color: var(--vg-text); box-shadow: 0 0 0 3px rgba(255, 182, 30, .45); }
+.v2-bsearch input::-webkit-search-cancel-button { display: none; }
+html body .v2-bsearch button { position: absolute; right: 4px; top: 4px; width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--vg-faint); font-weight: 700; cursor: pointer; }
+/* [수정] 달력 일정 글자: 휴대폰에서만 작게 → 칸 안에 4~5글자 (PC는 예전 그대로) */
+@media (max-width: 767px) {
+  html body .v2-calcard .fc-daygrid-event-harness { margin: 1px 1px 0 !important; }
+  html body .v2-calcard .fc-daygrid-block-event, html body .v2-calcard .fc-daygrid-block-event .fc-event-main { padding: 0 !important; }
+  html body .v2-calcard .fc-daygrid-block-event .fc-event-main-frame, html body .v2-calcard .fc-daygrid-block-event .fc-event-title-container { display: block; min-width: 0; }
+  html body .v2-calcard .fc-daygrid-block-event .fc-event-title,
+  html.vx-fs body .v2-calcard .fc-daygrid-block-event .fc-event-title { display: block; font-size: 9.5px !important; line-height: 15px; letter-spacing: -0.04em; padding: 0 2px !important; white-space: nowrap; overflow: hidden; text-overflow: clip; font-weight: 700; }
+  html body .v2-calcard .fc-daygrid-day-events { margin: 0 !important; }
+  html body .v2-calcard .fc-daygrid-day-frame { padding: 0 1px; }
+}
+/* [수정] 운영진 PC 배치: 요약 · 바로가기는 위에 가로로, 그 아래는 묶음별로 2단 (묶음이 갈라지지 않게) */
+html body .v2-group { break-inside: avoid; }
+html body .v2-group > .v2-glabel { margin: 4px 4px 8px !important; }
+@media (min-width: 1024px) {
+  #app[data-tab="admin"] > .space-y-4 { columns: auto !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  #app[data-tab="admin"] > .space-y-4 > * { margin: 0 !important; min-width: 0; }
+  #app[data-tab="admin"] > .space-y-4 > :first-child,
+  #app[data-tab="admin"] > .space-y-4 > #vxAdminNav { grid-column: 1 / -1; }
+  #app[data-tab="admin"] > .space-y-4 > .v2-group > .v2-glabel { margin-top: 0 !important; }
+}
+@media (min-width: 1024px) {
+  #app[data-tab="admin"] > .space-y-4 > :not(.v2-group) { grid-column: 1 / -1; }
+}
+@media (min-width: 1200px) {
+  #app[data-tab="admin"] > .space-y-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  #app[data-tab="admin"] > .space-y-4 > .v2-group:has(.v2-gbox > :not(.vx-collapsed) table) { grid-column: 1 / -1; }
+}
+/* 회원 명단 엑셀 */
+.v2-xlbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: -6px 0 14px; }
+.v2-xlbar p { flex-basis: 100%; }
+.v2-xllist { margin: 0; padding: 8px 12px 8px 28px; border-radius: 10px; background: var(--vg-surface-2); font-size: 13px; line-height: 1.7; max-height: 180px; overflow-y: auto; }
+.v2-xllist.is-err { color: var(--vg-red-text); }
