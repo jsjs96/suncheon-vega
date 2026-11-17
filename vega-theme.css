@@ -821,3 +821,9 @@ html body .v2-calcard .fc-daygrid-block-event .fc-event-title { white-space: now
 html body .v2-calcard .fc-daygrid-event-harness { margin-top: 2px; }
 html body .v2-calcard .holiday-name-label { font-size: 9px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; padding: 0 2px; }
 html body .v2-calcard .fc-daygrid-more-link { font-size: 10px; font-weight: 700; }
+/* 엔트리 순서: 1~9 선발 / 10~15 후보 */
+html body .v2-serve-sec { display: flex; align-items: baseline; gap: 6px; margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--vg-faint); }
+.v2-serve-sec b { color: var(--vg-text); }
+.v2-serve-sec span { margin-left: auto; font-family: var(--vg-display); font-weight: 400; font-size: 14px; color: var(--vg-text); }
+.v2-serve li.is-sub .k { color: var(--vg-faint); }
+.v2-lchip .sn { font-style: normal; font-family: var(--vg-display); font-size: 13px; color: var(--vg-faint); }

@@ -119,9 +119,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Black+Han+Sans&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="vega-theme.css?v=26">
+  <link rel="stylesheet" href="vega-theme.css?v=27">
   <!-- Tailwind 빌드 결과 (기존 CDN과 같은 v3.4.17, 같은 위치=head 맨 끝). 새 클래스를 쓰면 다시 빌드해야 합니다 -->
-  <link rel="stylesheet" href="vega-tw.css?v=26">
+  <link rel="stylesheet" href="vega-tw.css?v=27">
 </head>
 <body class="bg-gray-100 font-sans antialiased text-gray-900 pb-24 md:pb-8">
 
@@ -4141,7 +4141,7 @@
       eligible: isEligibleEvent, reactions: () => reactionsByDate
     };
     /* [수정] 순서대로 불러와서 '나의 정보' 카드 순서가 매번 같도록 */
-    import('./vega-extras.js?v=26').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=26'));
+    import('./vega-extras.js?v=27').catch(e => console.error(e)).finally(() => import('./vega-more.js?v=27'));
   </script>
   <script>
     /* PWA: 서비스 워커 등록 + 설치 버튼용 이벤트 보관 */

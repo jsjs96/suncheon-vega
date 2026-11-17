@@ -14,7 +14,8 @@ const { showToast, sortMembers, isEventPast, getTodayString } = V;
 /* ============================ 블록 시작 ============================ */
 sampleData.lineups = [];
 
-const LINEUP_COURT_SIZE = 9;   /* 9인제: 인원 확인용일 뿐, 위치는 고정되지 않음 */
+const LINEUP_COURT_SIZE = 9;
+const LINEUP_TOTAL = 15;   /* 엔트리 전체 인원: 1~9번 선발, 10~15번 후보 */   /* 9인제: 인원 확인용일 뿐, 위치는 고정되지 않음 */
 const lnClampPct = (v) => Math.round(Math.min(94, Math.max(6, v)) * 10) / 10;
 let lineupDraft = null;
 let lineupDrag = null;
@@ -42,9 +43,11 @@ window.closeLineupModal = () => {
 /* ---------- 내 역할 판별 ---------- */
 function getMyLineupRole(lineup) {
   if (!V.user() || !lineup) return null;
-  const p = (lineup.placed || []).find(x => x.name === V.user().name);
-  if (p) return { type: 'court' };
-  if ((lineup.bench || []).includes(V.user().name)) return { type: 'bench' };
+  const me = V.user().name;
+  const p = (lineup.placed || []).find(x => x.name === me);
+  if (p) { const i = lnServe(lineup).indexOf(me); return { type: 'court', no: i >= 0 ? i + 1 : null }; }
+  const bi = (lineup.bench || []).indexOf(me);
+  if (bi >= 0) return { type: 'bench', no: 10 + bi };
   return { type: 'none' };
 }
 
@@ -99,8 +102,10 @@ const lnNoTag = (name) => { const n = lnNo(name); return n ? `<b class="no">${ln
 /* [추가] 서브 순서: 코트에 있는 선수만, 순서대로 */
 const lnServe = (L) => (L.serveOrder || []).filter(n => (L.placed || []).some(p => p.name === n));
 const LN_SLOTS = [[20, 22], [50, 22], [80, 22], [20, 52], [50, 52], [80, 52], [20, 80], [50, 80], [80, 80]];
-function lnAutoPlace(L, name) {
+function lnAutoPlace(L, name, toCourt) {
   removeFromLineup(L, name);
+  /* [변경] 선발(코트) 9명이 차면 다음 사람은 후보로 → 1~9번 선발, 10~15번 후보 */
+  if (!toCourt && L.placed.length >= LINEUP_COURT_SIZE) { L.bench.push(name); return; }
   const free = LN_SLOTS.find(([x, y]) => !L.placed.some(p => Math.abs(p.x - x) < 10 && Math.abs(p.y - y) < 10)) || [50, 66];
   L.placed.push({ name, x: free[0], y: free[1] });
 }
@@ -128,6 +133,7 @@ window.lineupSearch = (el) => {
 window.lineupPick = (name) => {
   if (!lineupDraft) return;
   lnAutoPlace(lineupDraft, name);
+  if (lineupDraft.placed.some(p => p.name === name)) lineupDraft.serveOrder = [...lnServe(lineupDraft), name];
   lineupDraft._q = '';
   renderLineupEditor();
 };
@@ -135,22 +141,65 @@ window.lineupPick = (name) => {
 function lineupServeHTML(L) {
   const order = lnServe(L);
   const rest = L.placed.map(p => p.name).filter(n => !order.includes(n));
-  if (!L.placed.length) return '';
-  return `<div class="v2-serve">
-    <p class="v2-llab">서브 순서<span>${order.length}/${L.placed.length}명</span></p>
-    ${order.length ? `<ol>${order.map((n, i) => `<li>
+  const total = L.placed.length + L.bench.length;
+  if (!total) return '';
+  const ico = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const UP = 'M6 15l6-6 6 6', DN = 'M6 9l6 6 6-6', X = 'M6 6l12 12M18 6L6 18';
+  const starters = order.map((n, i) => `<li>
       <span class="v2-num k">${i + 1}</span><span class="nm">${lnNoTag(n)}${lnEsc(n)}</span>
-      <button type="button" onclick="window.lineupServeMove(${i}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="${lnEsc(n)} 앞으로"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
-      <button type="button" onclick="window.lineupServeMove(${i}, 1)" ${i === order.length - 1 ? 'disabled' : ''} aria-label="${lnEsc(n)} 뒤로"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
-      <button type="button" onclick="window.lineupServeRemove(${i})" aria-label="${lnEsc(n)} 순서에서 빼기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    </li>`).join('')}</ol>` : ''}
-    ${rest.length ? `<p class="text-xs v2-mut mt-2 mb-1.5">누르는 순서대로 ${order.length + 1}번부터 들어가요</p>
+      <button type="button" onclick="window.lineupServeMove(${i}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="${lnEsc(n)} 앞으로">${ico(UP)}</button>
+      <button type="button" onclick="window.lineupServeMove(${i}, 1)" ${(i === order.length - 1 && rest.length) ? 'disabled' : ''} aria-label="${lnEsc(n)} 뒤로${i === order.length - 1 ? ' (후보로)' : ''}">${ico(DN)}</button>
+      <button type="button" onclick="window.lineupServeRemove(${i})" aria-label="${lnEsc(n)} 순서에서 빼기">${ico(X)}</button>
+    </li>`).join('');
+  const subs = L.bench.map((n, i) => `<li class="is-sub">
+      <span class="v2-num k">${10 + i}</span><span class="nm">${lnNoTag(n)}${lnEsc(n)}</span>
+      <button type="button" onclick="window.lineupBenchMove(${i}, -1)" ${(i === 0 && (L.placed.length >= LINEUP_COURT_SIZE || rest.length)) ? 'disabled' : ''} aria-label="${lnEsc(n)} 앞으로${i === 0 ? ' (선발로)' : ''}">${ico(UP)}</button>
+      <button type="button" onclick="window.lineupBenchMove(${i}, 1)" ${i === L.bench.length - 1 ? 'disabled' : ''} aria-label="${lnEsc(n)} 뒤로">${ico(DN)}</button>
+      <button type="button" onclick="window.lineupBenchRemove(${i})" aria-label="${lnEsc(n)} 엔트리에서 빼기">${ico(X)}</button>
+    </li>`).join('');
+  return `<div class="v2-serve">
+    <p class="v2-llab">엔트리 순서<span>${total}/${LINEUP_TOTAL}명</span></p>
+    <p class="v2-serve-sec">선발 · 서브 순서 <b>1~9번</b><span>${L.placed.length}/${LINEUP_COURT_SIZE}</span></p>
+    ${order.length ? `<ol>${starters}</ol>` : ''}
+    ${rest.length ? `<p class="text-xs v2-mut mt-2 mb-1.5">코트에 있는 선수예요. 누르는 순서대로 ${order.length + 1}번이 돼요</p>
       <div class="flex flex-wrap gap-1.5">${rest.map(n => `<button type="button" onclick="window.lineupServeAdd('${lnEsc(n)}')" class="v2-lchip" style="cursor:pointer">${lnNoTag(n)}${lnEsc(n)}</button>`).join('')}</div>` : ''}
+    ${!L.placed.length ? '<p class="text-xs v2-mut m-0">명단에서 이름을 누르면 1번부터 선발로 들어가요</p>' : ''}
+    <p class="v2-serve-sec" style="margin-top:14px">후보 <b>10~15번</b><span>${L.bench.length}/${LINEUP_TOTAL - LINEUP_COURT_SIZE}</span></p>
+    ${L.bench.length ? `<ol>${subs}</ol>` : `<p class="text-xs v2-mut m-0">선발 9명이 차면 다음에 누른 사람은 후보로 들어가요</p>`}
+    ${total > LINEUP_TOTAL ? `<p class="v2-note" style="margin:10px 0 0;background:#D91920;color:#fff;font-weight:700">엔트리가 ${total}명이에요. ${LINEUP_TOTAL}명까지만 넣어 주세요.</p>` : ''}
   </div>`;
 }
-window.lineupServeAdd = (name) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); L.serveOrder = [...lnServe(L), name]; renderLineupEditor(); };
-window.lineupServeRemove = (i) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); const o = lnServe(L); o.splice(i, 1); L.serveOrder = o; renderLineupEditor(); };
-window.lineupServeMove = (i, d) => { const L = lineupDraft; if (!L) return; syncLineupInputs(); const o = lnServe(L); const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; L.serveOrder = o; renderLineupEditor(); };
+const lnSync = () => { syncLineupInputs(); };
+window.lineupServeAdd = (name) => { const L = lineupDraft; if (!L) return; lnSync(); L.serveOrder = [...lnServe(L), name]; renderLineupEditor(); };
+window.lineupServeRemove = (i) => { const L = lineupDraft; if (!L) return; lnSync(); const o = lnServe(L); o.splice(i, 1); L.serveOrder = o; renderLineupEditor(); };
+window.lineupServeMove = (i, d) => {
+  const L = lineupDraft; if (!L) return; lnSync();
+  const o = lnServe(L);
+  if (d > 0 && i === o.length - 1) {
+    /* 선발 마지막 → 후보 맨 앞(10번)으로 */
+    const n = o[i];
+    L.placed = L.placed.filter(p => p.name !== n);
+    L.bench = [n, ...L.bench.filter(x => x !== n)];
+    L.serveOrder = o.slice(0, i);
+    return renderLineupEditor();
+  }
+  const j = i + d; if (j < 0 || j >= o.length) return;
+  [o[i], o[j]] = [o[j], o[i]]; L.serveOrder = o; renderLineupEditor();
+};
+window.lineupBenchMove = (i, d) => {
+  const L = lineupDraft; if (!L) return; lnSync();
+  if (d < 0 && i === 0) {
+    /* 후보 맨 앞(10번) → 선발 마지막 번호로 */
+    if (L.placed.length >= LINEUP_COURT_SIZE) return alert(`선발이 이미 ${LINEUP_COURT_SIZE}명이에요. 선발 한 명을 먼저 후보로 내려 주세요.`);
+    const n = L.bench[0];
+    lnAutoPlace(L, n, true);
+    L.serveOrder = [...lnServe(L).filter(x => x !== n), n];
+    return renderLineupEditor();
+  }
+  const j = i + d; if (j < 0 || j >= L.bench.length) return;
+  const b = [...L.bench]; [b[i], b[j]] = [b[j], b[i]]; L.bench = b; renderLineupEditor();
+};
+window.lineupBenchRemove = (i) => { const L = lineupDraft; if (!L) return; lnSync(); L.bench = L.bench.filter((_, k) => k !== i); renderLineupEditor(); };
 
 function renderLineupEditor() {
   syncLineupInputs();
@@ -177,7 +226,7 @@ function renderLineupEditor() {
 
   const benchChips = L.bench.length === 0
     ? '<p class="text-xs v2-mut m-0">여기로 끌어다 놓으면 교체 명단이 돼요</p>'
-    : L.bench.map(n => `<span data-name="${lnEsc(n)}" data-from="bench" class="lineup-chip v2-lchip is-bench" style="touch-action:none;">${lnNoTag(n)}${lnEsc(n)}</span>`).join('');
+    : L.bench.map(n => `<span data-name="${lnEsc(n)}" data-from="bench" class="lineup-chip v2-lchip is-bench" style="touch-action:none;"><i class="sn">${10 + L.bench.indexOf(n)}</i>${lnNoTag(n)}${lnEsc(n)}</span>`).join('');
 
   body.innerHTML = `
     <header class="v2-lhead">
@@ -198,7 +247,7 @@ function renderLineupEditor() {
       ${lineupServeHTML(L)}
 
       <div id="lineupBench" class="v2-lbench">
-        <p class="v2-llab">교체<span>끌어 놓으면 교체 명단</span></p>
+        <p class="v2-llab">후보 (10~15번)<span>끌어 놓으면 후보</span></p>
         <div class="flex flex-wrap gap-1.5">${benchChips}</div>
       </div>
 
@@ -310,6 +359,7 @@ function onLineupUp(ev) {
   if (!d.moved) {
     if (d.from === 'roster') {
       lnAutoPlace(L, d.name);   /* [변경] 이름을 누르면 바로 코트 빈 자리에 들어감 → 끌어서 자유롭게 옮김 */
+      if (L.placed.some(p => p.name === d.name)) L.serveOrder = [...lnServe(L), d.name];   /* 누른 순서대로 서브 번호 */
       L._selected = null;
     } else if (d.from === 'bench') {
       removeFromLineup(L, d.name);
@@ -357,7 +407,7 @@ window.addLineupGuest = (fromSearch) => {
   const exists = sampleData.members.some(m => m.name === name) || (lineupDraft.guests || []).includes(name);
   if (exists) return alert('이미 명단에 있는 이름입니다.');
   lineupDraft.guests = [...(lineupDraft.guests || []), name];
-  if (fromSearch) lnAutoPlace(lineupDraft, name);
+  if (fromSearch) { lnAutoPlace(lineupDraft, name); if (lineupDraft.placed.some(p => p.name === name)) lineupDraft.serveOrder = [...lnServe(lineupDraft), name]; }
   lineupDraft._q = '';
   renderLineupEditor();
 };
@@ -480,17 +530,14 @@ window.openLineupView = (eventId) => {
       </div>
       <h3 class="v2-num" style="margin:0;font-size:24px;color:#fff">${lnEsc(lu.title)}</h3>
       <p class="text-[13px] mt-1.5 mb-0" style="color:#d4d4d8">${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}${lu.edited ? ' · 수정됨' : ''}${lu.status !== 'published' ? ' · <span class="v2-tag is-amber">초안</span>' : ''}</p>
-      ${role ? `<p class="m-0 mt-3 text-sm font-bold" style="color:${role.type === 'court' ? '#FFB61E' : '#fff'}">${role.type === 'court' ? '나는 코트 선발이에요' : role.type === 'bench' ? '나는 교체 명단이에요. 준비해 주세요' : '이번 엔트리에는 들어가지 않았어요'}</p>` : ''}
+      ${role ? `<p class="m-0 mt-3 text-sm font-bold" style="color:${role.type === 'court' ? '#FFB61E' : '#fff'}">${role.type === 'court' ? `나는 선발이에요${role.no ? ` · 서브 ${role.no}번` : ''}` : role.type === 'bench' ? `나는 후보 ${role.no}번이에요. 준비해 주세요` : '이번 엔트리에는 들어가지 않았어요'}</p>` : ''}
     </header>
     <div class="v2-lmain">
       ${lineupCourtHTML(lu.placed || [], false, myName, lnServe(lu))}
-      ${lnServe(lu).length ? `<div class="v2-serve"><p class="v2-llab">서브 순서</p><ol>${lnServe(lu).map((n, i) => `<li><span class="v2-num k">${i + 1}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol></div>` : ''}
-      <div class="v2-lbench" style="border-style:solid">
-        <p class="v2-llab">교체</p>
-        <div class="flex flex-wrap gap-1.5">
-          ${(lu.bench || []).length === 0 ? '<span class="text-xs v2-mut">없음</span>' : lu.bench.map(n => `<span class="v2-lchip is-bench ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span>`).join('')}
-        </div>
-      </div>
+      ${(lnServe(lu).length || (lu.bench || []).length) ? `<div class="v2-serve"><p class="v2-llab">엔트리 순서</p>
+        ${lnServe(lu).length ? `<p class="v2-serve-sec">선발 · 서브 순서</p><ol>${lnServe(lu).map((n, i) => `<li><span class="v2-num k">${i + 1}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol>` : ''}
+        ${(lu.bench || []).length ? `<p class="v2-serve-sec" style="margin-top:12px">후보</p><ol>${lu.bench.map((n, i) => `<li class="is-sub"><span class="v2-num k">${10 + i}</span><span class="nm ${n === myName ? 'is-me' : ''}">${lnNoTag(n)}${lnEsc(n)}</span></li>`).join('')}</ol>` : ''}
+      </div>` : ''}
       ${lu.memo ? `<div><p class="v2-llab">코치 메모</p><p class="v2-note m-0 whitespace-pre-line">${lnEsc(lu.memo)}</p></div>` : ''}
       <p class="text-xs v2-mut m-0">작성: ${lnEsc(lu.createdBy || '')}</p>
     </div>
@@ -542,7 +589,7 @@ function renderLineupHomeCardHTML() {
       <div class="flex flex-col gap-2">
         ${items.map(({ l, evt }) => {
           const r = getMyLineupRole(l);
-          const mine = !r ? '' : r.type === 'court' ? '내 자리: 코트 선발' : r.type === 'bench' ? '교체 명단, 준비해 주세요' : '이번 엔트리에는 들어가지 않았어요';
+          const mine = !r ? '' : r.type === 'court' ? `내 자리: 선발${r.no ? ` · 서브 ${r.no}번` : ''}` : r.type === 'bench' ? `후보 ${r.no}번, 준비해 주세요` : '이번 엔트리에는 들어가지 않았어요';
           const t = ({ regular: 'regular', match: 'match', friendly: 'friendly' })[evt.type] || 'etc';
           const d = new Date(evt.date + 'T00:00:00');
           return `
