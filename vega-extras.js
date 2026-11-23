@@ -402,7 +402,7 @@ function renderLineupEditor() {
       }).join('');
 
   const benchChips = L.bench.length === 0
-    ? '<p class="text-xs v2-mut m-0">여기로 끌어다 놓으면 교체 명단이 돼요</p>'
+    ? '<p class="text-xs v2-mut m-0">여기로 끌어다 놓으면 후보가 돼요</p>'
     : L.bench.map(n => `<span data-name="${lnEsc(n)}" data-from="bench" class="lineup-chip v2-lchip is-bench" style="touch-action:none;"><i class="sn">${10 + L.bench.indexOf(n)}</i>${lnNoTag(n)}${lnEsc(n)}</span>`).join('');
 
   body.innerHTML = `
@@ -482,8 +482,8 @@ function renderLineupEditor() {
     removeFromLineup(D, D._selected);
     D.placed.push({
       name: D._selected,
-      x: lnClampPct((ev.clientX - rect.left) / rect.width * 100),
-      y: lnClampPct((ev.clientY - rect.top) / rect.height * 100)
+      x: lnClampPct((px - rect.left) / rect.width * 100),
+      y: lnClampPct((py - rect.top) / rect.height * 100)
     });
     D._selected = null;
     renderLineupEditor();
@@ -509,7 +509,10 @@ function bindLineupDrag(root) {
   root.querySelectorAll('.lineup-chip').forEach(el => {
     el.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
-      lineupDrag = { name: el.dataset.name, from: el.dataset.from, sx: ev.clientX, sy: ev.clientY, moved: false, ghost: null };
+      /* [수정] 잡은 지점과 이름표 가운데의 차이를 기억 → 놓은 자리에 이름표가 그대로 놓임 */
+      const r = el.getBoundingClientRect();
+      lineupDrag = { name: el.dataset.name, from: el.dataset.from, sx: ev.clientX, sy: ev.clientY, moved: false, ghost: null,
+        ox: ev.clientX - (r.left + r.width / 2), oy: ev.clientY - (r.top + r.height / 2), el };
       document.addEventListener('pointermove', onLineupMove);
       document.addEventListener('pointerup', onLineupUp);
       document.addEventListener('pointercancel', onLineupUp);
@@ -542,19 +545,30 @@ function onLineupMove(ev) {
     d.moved = true;
     const g = document.createElement('div');
     g.className = 'fixed z-[80] pointer-events-none v2-ghost';
-    g.textContent = d.name;
+    g.innerHTML = lnNoTag(d.name) + lnEsc(d.name);
+    /* 끄는 이름표도 코트 크기에 맞춘 크기로 (코트 위 이름표와 같게) */
+    const court = document.getElementById('lineupCourt');
+    if (court) {
+      const w = court.clientWidth, cl = (v, a, b) => Math.min(b, Math.max(a, v));
+      g.style.fontSize = cl(w * 0.036, 11, 16) + 'px';
+      g.style.minHeight = cl(w * 0.09, 28, 44) + 'px';
+      g.style.padding = `0 ${cl(w * 0.026, 7, 14)}px`;
+      g.style.borderRadius = cl(w * 0.02, 6, 10) + 'px';
+    }
     document.body.appendChild(g);
     d.ghost = g;
   }
-  d.ghost.style.left = ev.clientX + 'px';
-  d.ghost.style.top = ev.clientY + 'px';
-  d.ghost.style.transform = 'translate(-50%,-140%)';
+  const cx = ev.clientX - d.ox, cy = ev.clientY - d.oy;   /* 이름표 가운데 = 놓일 자리 */
+  d.ghost.style.left = cx + 'px';
+  d.ghost.style.top = cy + 'px';
+  d.ghost.style.transform = 'translate(-50%,-50%)';
+  if (d.el) d.el.classList.add('is-dragging');
   /* 코트 밖으로 끌면 '놓으면 빠져요' 표시 */
   if (d.from === 'court') {
-    const z = lnZoneAt(ev.clientX, ev.clientY);
+    const z = lnZoneAt(cx, cy);
     const out = z !== 'court';
     d.ghost.classList.toggle('is-out', out && z !== 'bench');
-    d.ghost.textContent = out ? (z === 'bench' ? `${d.name} → 후보` : `${d.name} 빼기`) : d.name;
+    d.ghost.innerHTML = out ? lnEsc(z === 'bench' ? `${d.name} → 후보` : `${d.name} 빼기`) : lnNoTag(d.name) + lnEsc(d.name);
   }
   lnAutoScroll(ev.clientY);
 }
@@ -568,6 +582,8 @@ function onLineupUp(ev) {
   lineupDrag = null;
   if (!d) return;
   if (d.ghost) d.ghost.remove();
+  if (d.el) d.el.classList.remove('is-dragging');
+  const px = ev.clientX - (d.ox || 0), py = ev.clientY - (d.oy || 0);   /* 이름표 가운데 기준으로 놓기 */
   const L = lineupDraft;
   if (!L) return;
 
@@ -591,12 +607,12 @@ function onLineupUp(ev) {
 
   /* 코트 선수를 코트 밖(후보 칸 말고 아무 데나)에 놓으면 엔트리에서 빠짐 */
   if (d.from === 'court') {
-    const z = lnZoneAt(ev.clientX, ev.clientY);
+    const z = lnZoneAt(px, py);
     if (z !== 'court' && z !== 'bench') { removeFromLineup(L, d.name); syncLineupInputs(); renderLineupEditor(); return; }
   }
 
   /* 드롭 */
-  const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+  const hit = document.elementFromPoint(px, py);
   if (!hit) return;
   const zone = hit.closest('#lineupCourt') ? 'court'
              : hit.closest('#lineupBench') ? 'bench'
@@ -609,8 +625,8 @@ function onLineupUp(ev) {
     const rect = document.getElementById('lineupCourt').getBoundingClientRect();
     L.placed.push({
       name: d.name,
-      x: lnClampPct((ev.clientX - rect.left) / rect.width * 100),
-      y: lnClampPct((ev.clientY - rect.top) / rect.height * 100)
+      x: lnClampPct((px - rect.left) / rect.width * 100),
+      y: lnClampPct((py - rect.top) / rect.height * 100)
     });
   } else if (zone === 'bench') {
     L.bench.push(d.name);

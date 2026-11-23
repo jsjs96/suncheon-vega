@@ -925,3 +925,30 @@ html body .v2-group > .v2-glabel { margin: 4px 4px 8px !important; }
 .v2-xlbar p { flex-basis: 100%; }
 .v2-xllist { margin: 0; padding: 8px 12px 8px 28px; border-radius: 10px; background: var(--vg-surface-2); font-size: 13px; line-height: 1.7; max-height: 180px; overflow-y: auto; }
 .v2-xllist.is-err { color: var(--vg-red-text); }
+/* [수정] 엔트리: 끄는 이름표가 코트 이름표와 똑같이 보이고, 손가락 아래 그 자리에 놓임 */
+html body .v2-ghost { min-height: 38px; padding: 0 12px; border-radius: 9px; background: #fff; color: #0A0A0A; font-size: 14px; font-weight: 900; white-space: nowrap; display: flex; align-items: center; box-shadow: 0 8px 22px rgba(0, 0, 0, .45); outline: 2px solid #FFB61E; }
+html body .v2-ghost .no { font-family: var(--vg-display); font-weight: 400; font-size: 13px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 5px; background: #0A0A0A; color: #FFB61E; display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; }
+html body .v2-ghost.is-out { background: #D91920; color: #fff; outline-color: #fff; }
+html body .lineup-chip.is-dragging { opacity: .25; }
+/* [수정] 엔트리 명단 · 순서 목록을 작게 (한 화면에 더 많이) */
+html body .v2-lchip { min-height: 34px; padding: 0 10px; border-radius: 8px; font-size: 13px; gap: 4px; }
+.v2-lchip .no { min-width: 18px; height: 18px; font-size: 12px; }
+html body .v2-lx { min-height: 34px; min-width: 24px; }
+html body .v2-lsearch input { min-height: 42px; font-size: 14px; }
+.v2-lsearch svg { top: 12px; }
+html body .v2-hits button { min-height: 40px; font-size: 14px; }
+.v2-serve li { min-height: 38px; }
+.v2-serve .k { font-size: 16px; }
+.v2-serve .nm { font-size: 14px; }
+html body .v2-serve li button { width: 34px; height: 34px; }
+.v2-lmain { gap: 14px; }
+.v2-lstack { gap: 14px; }
+.v2-lbench { padding: 10px; }
+/* [수정] 코트 위 선수 이름표가 코트 크기에 비례 (휴대폰은 작게, PC는 크게) — 코트 폭 기준 단위(cqw) */
+.v2-court { container-type: inline-size; }
+html body .v2-court .v2-courtchip { font-size: clamp(11px, 3.6cqw, 16px); min-height: clamp(28px, 9cqw, 44px); padding: 0 clamp(7px, 2.6cqw, 14px); border-radius: clamp(6px, 2cqw, 10px); }
+html body .v2-court .v2-courtchip .no { font-size: 0.9em; min-width: 1.45em; height: 1.45em; padding: 0 0.3em; margin-right: 0.4em; border-radius: 0.35em; }
+html body .v2-court .v2-courtchip .sv { width: clamp(16px, 5cqw, 22px); height: clamp(16px, 5cqw, 22px); font-size: clamp(10px, 3cqw, 13px); top: clamp(-10px, -2.6cqw, -7px); right: clamp(-10px, -2.6cqw, -7px); }
+html body .v2-court .netlab { font-size: clamp(9px, 2.6cqw, 12px); }
+html body .v2-court .empty { font-size: clamp(12px, 3.6cqw, 15px); }
+html body .v2-ghost .no { font-size: 0.9em; min-width: 1.45em; height: 1.45em; padding: 0 0.3em; margin-right: 0.4em; }
